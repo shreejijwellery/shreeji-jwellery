@@ -65,7 +65,7 @@ const CalendarPage = () => {
     try {
       const response = await axios.get('/api/getOrderFiles', {
         params: {
-          date: moment(date).startOf('day').toISOString()
+          date: moment(date).tz("IST").toISOString()
         }
       });
       if (response.status === 200) {
