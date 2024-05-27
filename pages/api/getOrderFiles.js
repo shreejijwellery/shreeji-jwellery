@@ -12,12 +12,13 @@ export default async function handler(req, res) {
     if(date){
       dateToFilter = new Date(date);
     }
+
     const query = [
     {$match: {
       reason: 'PENDING',
       createdAt: {
-        $gte: moment(dateToFilter).tz('IST').startOf('day').toISOString(),
-        $lte: moment(dateToFilter).tz('IST').endOf('day').toISOString()
+        $gte: new Date(moment(dateToFilter).tz('IST' ).startOf('day')) ,
+        $lte: new Date(moment(dateToFilter).tz('IST' ).endOf('day'))
       }
     }},
     {$group : {
