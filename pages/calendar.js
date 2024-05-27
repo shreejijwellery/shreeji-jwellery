@@ -45,7 +45,7 @@ const CalendarPage = () => {
         onChange={setDate}
         tileContent={({ date, view }) => {
           console.log(date);
-          console.log(skuData);
+          // console.log(skuData);
         //   const data = skuData?.find((item) => item.date === date.toISOString().split('T')[0]);  
         //   console.log(data);
           if(view === 'month') 
