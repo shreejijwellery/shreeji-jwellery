@@ -16,8 +16,8 @@ export default async function handler(req, res) {
     {$match: {
       reason: 'PENDING',
       createdAt: {
-        $gte: moment(dateToFilter).tz('IST').startOf('day').toDate(),
-        $lte: moment(dateToFilter).tz('IST').endOf('day').toDate()
+        $gte: moment(dateToFilter).tz('IST').startOf('day').toISOString(),
+        $lte: moment(dateToFilter).tz('IST').endOf('day').toISOString()
       }
     }},
     {$group : {
