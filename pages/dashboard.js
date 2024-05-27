@@ -4,14 +4,19 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import FileDropzone from '../components/FileDropzone';
 import * as xlsx from 'xlsx';
+
+import ConfirmationModal from '../components/ConfirmationModal';
+import { MdDeleteForever } from "react-icons/md";
 import 'tailwindcss/tailwind.css';
+import OrderData from '../components/OrderData';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [fileType, setFileType] = useState(null);
   const [tableData, setTableData] = useState([]);
   const [orderData, setOrderData] = useState([]);
-  const [addNewPrice, setAddNewPrice] = useState({});
+  const [isModalOpen, setIsModalOpen] = useState({ isModalOpen: false });
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -23,7 +28,7 @@ const Dashboard = () => {
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
         .then((response) => {
           setUser(response.data.user);
-          fetchGetOrderFiles()
+          fetchGetOrderFiles();
         })
         .catch(() => {
           router.push('/login');
@@ -67,70 +72,89 @@ const Dashboard = () => {
         toast.success('Data uploaded successfully!');
         setFileType(null);
         setTableData([]);
+        fetchGetOrderFiles();
       }
     } catch (error) {
       console.error('Error uploading data:', error);
       toast.error('Error uploading data. Please try again.');
     }
   };
- 
+
   const fetchGetOrderFiles = async () => {
     try {
-      const response = await axios.get('/api/getOrderFiles', {
-        params: {
-          // user: {
-          //   userId: user._id,
-          //   name: user.name,
-          // },
-        },
-      });
-
+      const response = await axios.get('/api/getOrderFiles');
       if (response.status === 200) {
-        const result = response?.data?.data?.map(item => {
-          return {
-            'SKU': item.sku,
-            'Quantity': item.quantity,
-            'Price': item.price || 0,
-            'Final Price': (item.quantity || 0) + (item.price || 0),
-            'Remarks' : !item.price ? 'Price not found' : ''
-          }
-        });
+        const result = response?.data?.data?.map(item => ({
+          sku: item.sku,
+          quantity: item.quantity,
+          price: item.price || 'Price not found',
+          finalPrice: (item.quantity || 0) + (item.price || 0),
+          uploadedBy: item?.uploadedBy?.name,
+          uploadId: item.uploadId
+        }));
         setOrderData(result);
-        toast.success('Order files fetched successfully!');
+        if (result.length === 0) {
+          toast.warn('No order files are uploaded today!');
+        }
+        if (result.length > 0)
+          toast.success('Order files are already uploaded today!');
       }
     } catch (error) {
       console.error('Error fetching order files:', error);
       toast.error('Error fetching order files. Please try again.');
     }
-  }
+  };
+
   const handleCancel = () => {
     setTableData([]);
     setFileType(null);
   };
 
-  const handlePrice = (row) => {
-    console.log(row);
-    setAddNewPrice(row);
-  }
-  const addPrice = async ( price) => {
-    console.log("Add price", price);
-    // try {
-    //   const response = await axios.post('/api/addPrice', {
-    //     sku,
-    //   });
 
-    //   if (response.status === 200) {
-    //     toast.success('Price added successfully!');
-    //     fetchGetOrderFiles()
-    //   }
-    // } catch (error) {
-    //   console.error('Error adding price:', error);
-    //   toast.error('Error adding price. Please try again.');
-    // }
-  }
+  const handleConfimationModal = (data) => {
+    setIsModalOpen({
+      isModalOpen: true,
+      title: 'Alert!',
+      message: 'Are you sure you want to delete all data?',
+      onProceed: () => deleteAllUploadedData(data),
+      onCancel: () => setIsModalOpen({ isModalOpen: false })
+    });
+
+  };
+
+  const deleteAllUploadedData = async (data) => {
+    const body = {
+      user: {
+        userId: user._id,
+        name: user.name,
+      },
+      uploadId: data[0].uploadId
+    };
+    try {
+      const response = await axios.post('/api/deleteUploadedData', body);
+      if (response.status === 200) {
+        toast.success('Data deleted successfully!');
+        fetchGetOrderFiles();
+        setIsModalOpen({ isModalOpen: false });
+      }
+    } catch (error) {
+      console.error('Error deleting data:', error);
+      toast.error('Error deleting data. Please try again.');
+      setIsModalOpen({ isModalOpen: false });
+    }
+  };
+
+
+
+  const clearTableData = () => {
+    setTableData([]);
+  };
+
   if (!user) {
     return <p>Loading...</p>;
   }
+
+
 
   return (
     <div className="p-8 min-h-screen bg-gray-100">
@@ -139,18 +163,28 @@ const Dashboard = () => {
       <div className="flex space-x-4 mb-4">
         {!fileType && (
           <>
-            <button
-              onClick={() => setFileType('order')}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            >
-              Upload Order File
-            </button>
+            {!orderData?.length && (
+              <button
+                onClick={() => setFileType('order')}
+                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+              >
+                Upload Order File
+              </button>
+            )}
             {user.role === 'admin' && (
               <button
                 onClick={() => setFileType('master')}
                 className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
               >
                 Upload Master File
+              </button>
+            )}
+            {orderData.length > 0 && (
+              <button
+                onClick={() => handleConfimationModal(orderData)}
+                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
+              >
+                Delete Today Data
               </button>
             )}
           </>
@@ -175,62 +209,8 @@ const Dashboard = () => {
       {fileType && tableData.length === 0 && (
         <FileDropzone onDrop={handleFileUpload} accept=".xlsx, .xls, .csv" />
       )}
-     {addNewPrice?.SKU && (
-  <div className="mt-4">
-    <label htmlFor="price" className="block mb-2">
-      Add Price for {addNewPrice.SKU}
-    </label>
-    <div className="flex items-center space-x-4">
-      <input
-        id="price"
-        type="number"
-        value={addNewPrice.Price}
-        onChange={(e) => setAddNewPrice({ ...addNewPrice, Price: e.target.value })}
-        className="w-1/3 p-2 border border-gray-300 rounded"
-      />
-      <button
-        onClick={() => addPrice(addNewPrice)}
-        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-      >
-        Add Price
-      </button>
-      <button
-        onClick={() => setAddNewPrice(null)}
-        className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-      >
-        Cancel
-      </button>
-    </div>
-  </div>
-)}
-
-      {orderData.length > 0 && (  
-        <div className="mt-4 overflow-auto">
-          <table className="min-w-full bg-white border border-gray-300">
-            <thead>
-              <tr>
-                {Object.keys(orderData[0]).map((key) => (
-                  <th key={key} className="px-4 py-2 border-b bg-gray-200">
-                    {key}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {orderData.map((row, index) => (
-                <tr key={index}>
-                  {Object.values(row).map((value, i) => (
-                    <td key={i} className="px-4 py-2 border-b">
-                      {value} {value === 'Price not found' && <button onClick={() =>(handlePrice(row))} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Add Price</button>}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )  
-      }
+      
+      <OrderData orderData={orderData} user={user} fetchGetOrderFiles={fetchGetOrderFiles}/>
       {tableData.length > 0 && (
         <div className="mt-4 overflow-auto">
           <table className="min-w-full bg-white border border-gray-300">
@@ -241,24 +221,35 @@ const Dashboard = () => {
                     {key}
                   </th>
                 ))}
+                <th className="px-4 py-2 border-b bg-gray-200">Actions</th>
               </tr>
             </thead>
             <tbody>
               {tableData.map((row, index) => (
                 <tr key={index}>
-                  {Object.values(row).map((value, i) => (
+                  {Object.keys(tableData[0]).map((key, i) => (
                     <td key={i} className="px-4 py-2 border-b">
-                      {value}
+                      {row[key]}
                     </td>
                   ))}
+                  <td className="px-4 py-2 border-b">
+                    <div onClick={() => deleteRow(row)} className="cursor-pointer text-red-600 hover:text-red-800">
+                      <MdDeleteForever size={24} />
+                    </div>
+                  </td>
                 </tr>
-                
               ))}
             </tbody>
           </table>
         </div>
       )}
-      
+      <ConfirmationModal
+        isOpen={isModalOpen?.isModalOpen}
+        title={isModalOpen?.title}
+        message={isModalOpen?.message}
+        onProceed={isModalOpen?.onProceed}
+        onCancel={isModalOpen?.onCancel}
+      />
     </div>
   );
 };
