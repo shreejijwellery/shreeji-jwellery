@@ -9,17 +9,20 @@ const Layout = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
+    console.log("token", token);
     if (token) {
       axios
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
         .then((response) => {
           setUser(response.data.user);
+          localStorage.setItem('user', JSON.stringify(response.data.user)); // Store user data after fetching
         })
-        .catch(() => {
-          localStorage.removeItem('token');
+        .catch((error) => {
+          console.error("Token validation failed:", error); // Log error for debugging
+          localStorage.removeItem('token'); // Remove token on error
         });
     }
-  }, [router]);
+  }, [router]); // Only depend on router
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -29,7 +32,7 @@ const Layout = ({ children }) => {
 
   return (
     <div>
-      <nav className="bg-gray-800  p-4 flex justify-between items-center ">
+      <nav className="bg-gray-800 p-4 flex justify-between items-center">
         <ul className="flex space-x-4 text-white">
           {router.pathname !== '/' && (
             <li>
@@ -52,6 +55,14 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
+          {user && router.pathname !== '/settings' && (
+            <li>
+              <Link href="/settings">
+                <div className="hover:underline">Settings</div>
+              </Link>
+            </li>
+          )}
+          {/* Uncomment if needed
           {user && router.pathname !== '/dashboard' && (
             <li>
               <Link href="/dashboard">
@@ -65,7 +76,7 @@ const Layout = ({ children }) => {
                 <div className="hover:underline">Calendar</div>
               </Link>
             </li>
-          )}
+          )} */}
         </ul>
         {user && (
           <div className="flex items-center space-x-4">
