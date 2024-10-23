@@ -3,6 +3,7 @@ import OrderFile from '../../models/OrderFile';
 import moment from 'moment-timezone';
 import Section from '../../models/section';
 import mongoose from 'mongoose';
+import items from '../../models/items';
 export default async function handler(req, res) {
   const { method } = req;
 
@@ -33,6 +34,7 @@ export default async function handler(req, res) {
     const {id} = body;
     try {
         const result = await Section.updateOne({_id: id }, {$set : {isDeleted: true}});
+        await items.updateMany({section: id}, {$set : {isDeleted: true}});
         res.status(200).json({ result, message: 'Section deleted successfully!'});
     }
     catch (error) {
