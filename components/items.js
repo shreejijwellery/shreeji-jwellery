@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import { FaTrash, FaEdit, FaPlus } from 'react-icons/fa'; 
+import Loader from './loader';
 
 const ItemsManager = (props) => {
     const { user } = props;
@@ -113,9 +114,7 @@ const ItemsManager = (props) => {
         <div className="relative p-8 bg-gray-50 rounded-lg shadow-lg max-w-4xl mx-auto">
              <ToastContainer /> 
             {loading && (
-                <div className="loader">
-                    <div></div> {/* Loader element */}
-                </div>
+               <Loader />
             )}
             <h1 className="text-3xl font-bold text-gray-800 mb-6">Items Manager</h1>
 

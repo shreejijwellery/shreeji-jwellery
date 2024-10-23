@@ -3,6 +3,7 @@ import axios from 'axios';
 import { FaTrash, FaEdit } from 'react-icons/fa';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import Loader from './loader';
 
 const SectionManager = (props) => {
   const { user } = props;
@@ -67,9 +68,7 @@ const SectionManager = (props) => {
     <div className="p-8 max-w-4xl mx-auto bg-white rounded-lg shadow-lg">
       <ToastContainer />
       {loading && (
-        <div className="fixed inset-0 bg-black bg-opacity-25 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-blue-500"></div>
-        </div>
+        <Loader />
       )}
       <h1 className="text-3xl font-bold text-gray-800 mb-6 text-center">
         Section Manager
