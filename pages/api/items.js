@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     if(section){
         criteria.section = new mongoose.Types.ObjectId(section) ;
     }
-    const items = await Item.find(criteria).populate({path : 'section', select : {name : 1}});
+    const items = await Item.find(criteria).populate({path : 'section', model : 'Section', select : {name : 1}});
     res.status(200).json({ items, message: 'Items fetched successfully!' });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching sections from the database', error: error.message });
