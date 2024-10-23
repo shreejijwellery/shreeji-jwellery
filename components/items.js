@@ -30,9 +30,7 @@ const ItemsManager = (props) => {
             toast.success('Sections fetched successfully', { autoClose: 2000 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to fetch sections');
-        } finally {
-            setLoading(false); // End loading
-        }
+        } 
     };
 
     const fetchItems = async () => {
