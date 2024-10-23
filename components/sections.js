@@ -1,4 +1,4 @@
-// components/SectionManager.js
+
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { FaTrash, FaEdit } from 'react-icons/fa'; // Import the trash and edit icons
