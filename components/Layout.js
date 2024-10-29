@@ -25,7 +25,7 @@ const Layout = ({ children }) => {
   }, [router]); // Only depend on router
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.clear();
     setUser(null);
     router.push('/login');
   };
