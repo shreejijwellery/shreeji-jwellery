@@ -50,3 +50,9 @@ export const fetchAllWorker = async (isCallApi) => {
         return [];
     }
 }
+
+export const callAPisOnLogin = async () => {
+    await fetchAllSections(true);
+    await fetchAllItems(true);
+    await fetchAllWorker(true);
+}

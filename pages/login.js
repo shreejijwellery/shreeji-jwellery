@@ -2,6 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
+import { callAPisOnLogin } from '../actions/actions_creators';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -21,6 +22,7 @@ const Login = () => {
       const response = await axios.post('/api/login', formData);
       if (response.status === 200) {
         localStorage.setItem('token', response.data.token);
+        callAPisOnLogin()
         router.push('/');
       }
     } catch (error) {
