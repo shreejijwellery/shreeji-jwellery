@@ -28,7 +28,6 @@ const ItemsManager = (props) => {
         try {
             const response = await fetchAllSections()
             setSections(response);
-            toast.success('Sections fetched successfully', { autoClose: 2000 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to fetch sections');
         } 
@@ -45,7 +44,6 @@ const ItemsManager = (props) => {
                 const filteredItems = response.filter((item) => item.section === selectedSection);
                 setItems(filteredItems);
             }
-            toast.success('Items fetched successfully', { autoClose: 2000 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to fetch items');
         } finally {
@@ -73,7 +71,7 @@ const ItemsManager = (props) => {
             fetchItems(true);
             setItems([response.data.item, ...items]);
             setNewItem({ name: '', value: '', rate: '' });
-            toast.success(response.data.message, { autoClose: 2000 }); // Set autoClose to 1 second
+            toast.success(response.data.message, { autoClose: 500 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to add item');
         } finally {
@@ -88,7 +86,7 @@ const ItemsManager = (props) => {
             const response = await axios.put(`/api/items`, item);
             setItems(items.map((i) => (i._id === item._id ? response.data.item : i)));
             fetchItems(true);
-            toast.success('Item updated successfully', { autoClose: 2000 }); // Set autoClose to 1 second
+            toast.success('Item updated successfully', { autoClose: 500 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to update item');
         } finally {
@@ -103,7 +101,7 @@ const ItemsManager = (props) => {
             await axios.delete(`/api/items`, { data: { id: itemId } });
             setItems(items.filter((item) => item._id !== itemId));
             fetchItems(true);
-            toast.success('Item deleted successfully', { autoClose: 2000 }); // Set autoClose to 1 second
+            toast.success('Item deleted successfully', { autoClose: 500 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to delete item');
         } finally {

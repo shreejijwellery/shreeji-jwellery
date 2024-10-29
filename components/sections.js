@@ -31,7 +31,7 @@ const SectionManager = (props) => {
       await axios.post('/api/sections', newSection);
       fetchSections(true);
       setNewSection({ name: '', value: '', user });
-      toast.success('Section added successfully!', { autoClose: 2000 });
+      toast.success('Section added successfully!', { autoClose: 500 });
     } catch (error) {
       toast.error('Failed to add section.');
     } finally {
@@ -45,7 +45,7 @@ const SectionManager = (props) => {
       await axios.put(`/api/sections`, updatedSection);
       fetchSections(true);
       setEditableSectionId(null);
-      toast.success('Section updated successfully!', { autoClose: 2000 });
+      toast.success('Section updated successfully!', { autoClose: 500 });
     } catch (error) {
       toast.error('Failed to update section.');
     } finally {
@@ -59,7 +59,7 @@ const SectionManager = (props) => {
       await axios.delete('/api/sections', { data: { id } });
       fetchSections(true);
       fetchAllItems(true)
-      toast.success('Section deleted successfully!', { autoClose: 2000 });
+      toast.success('Section deleted successfully!', { autoClose: 500 });
     } catch (error) {
       toast.error('Failed to delete section.');
     } finally {

@@ -34,7 +34,7 @@ const WorkerDetails = (props) => {
         setLoading(true);
         try {
             await axios.post('/api/workers', { ...newWorker, created_by: user._id });
-            toast.success("Worker added successfully!");
+            toast.success("Worker added successfully!", { autoClose: 500 });
             fetchWorkers(true);
             setNewWorker({ name: '', lastname: '', mobile_no: '', address: '' });
         } catch (error) {
@@ -48,7 +48,7 @@ const WorkerDetails = (props) => {
         setLoading(true);
         try {
             await axios.delete(`/api/workers/${id}`);
-            toast.success("Worker deleted successfully!");
+            toast.success("Worker deleted successfully!", { autoClose: 500 });
             fetchWorkers(true);
         } catch (error) {
             toast.error("Failed to delete worker.");
@@ -61,7 +61,7 @@ const WorkerDetails = (props) => {
         setLoading(true);
         try {
             await axios.put(`/api/workers`, editingWorker);
-            toast.success("Worker updated successfully!");
+            toast.success("Worker updated successfully!", { autoClose: 500 });
             fetchWorkers(true);
             setEditingWorker(null);
         } catch (error) {
