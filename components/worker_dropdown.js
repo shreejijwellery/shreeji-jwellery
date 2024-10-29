@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
+import { fetchAllWorker } from '../actions/actions_creators';
 
 
 const WorkerDropdown = () => {
@@ -8,9 +9,8 @@ const WorkerDropdown = () => {
     useEffect(() => {
         const fetchWorkers = async () => {
             try {
-                const response = await fetch('/api/workers'); // Adjust the API endpoint as needed
-                const data = await response.json();
-                setWorkers(data);
+                const response = await fetchAllWorker(); 
+                setWorkers(response);
             } catch (error) {
                 console.error('Error fetching workers:', error);
             }
