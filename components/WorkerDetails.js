@@ -5,6 +5,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 import { FaTrash, FaPlus, FaEdit, FaSave } from 'react-icons/fa';
 import Loader from './loader'; // Assume a custom loader component
+import { fetchAllWorker } from '../actions/actions_creators';
 
 const WorkerDetails = (props) => {
     const { user } = props;
@@ -17,11 +18,11 @@ const WorkerDetails = (props) => {
         fetchWorkers();
     }, []);
 
-    const fetchWorkers = async () => {
+    const fetchWorkers = async (isCallApi) => {
         setLoading(true);
         try {
-            const response = await axios.get('/api/workers');
-            setWorkers(response.data);
+            const response = await fetchAllWorker(isCallApi);
+            setWorkers(response);
         } catch (error) {
             toast.error("Failed to fetch workers.");
         } finally {
@@ -34,7 +35,7 @@ const WorkerDetails = (props) => {
         try {
             await axios.post('/api/workers', { ...newWorker, created_by: user._id });
             toast.success("Worker added successfully!");
-            fetchWorkers();
+            fetchWorkers(true);
             setNewWorker({ name: '', lastname: '', mobile_no: '', address: '' });
         } catch (error) {
             toast.error("Failed to add worker.");
@@ -48,7 +49,7 @@ const WorkerDetails = (props) => {
         try {
             await axios.delete(`/api/workers/${id}`);
             toast.success("Worker deleted successfully!");
-            fetchWorkers();
+            fetchWorkers(true);
         } catch (error) {
             toast.error("Failed to delete worker.");
         } finally {
@@ -61,7 +62,7 @@ const WorkerDetails = (props) => {
         try {
             await axios.put(`/api/workers`, editingWorker);
             toast.success("Worker updated successfully!");
-            fetchWorkers();
+            fetchWorkers(true);
             setEditingWorker(null);
         } catch (error) {
             toast.error("Failed to update worker.");

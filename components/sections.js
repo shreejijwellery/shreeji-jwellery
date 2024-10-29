@@ -4,6 +4,7 @@ import { FaTrash, FaEdit } from 'react-icons/fa';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Loader from './loader';
+import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
 
 const SectionManager = (props) => {
   const { user } = props;
@@ -16,10 +17,11 @@ const SectionManager = (props) => {
     fetchSections();
   }, []);
 
-  const fetchSections = async () => {
+  const fetchSections = async (isCallApi) => {
     setLoading(true);
-    const response = await axios.get('/api/sections');
-    setSections(response.data.sections);
+    const response = await fetchAllSections(isCallApi);
+    console.log(response);
+    setSections(response);
     setLoading(false);
   };
 
@@ -27,7 +29,7 @@ const SectionManager = (props) => {
     try {
       setLoading(true);
       await axios.post('/api/sections', newSection);
-      fetchSections();
+      fetchSections(true);
       setNewSection({ name: '', value: '', user });
       toast.success('Section added successfully!', { autoClose: 2000 });
     } catch (error) {
@@ -41,7 +43,7 @@ const SectionManager = (props) => {
     try {
       setLoading(true);
       await axios.put(`/api/sections`, updatedSection);
-      fetchSections();
+      fetchSections(true);
       setEditableSectionId(null);
       toast.success('Section updated successfully!', { autoClose: 2000 });
     } catch (error) {
@@ -55,7 +57,8 @@ const SectionManager = (props) => {
     try {
       setLoading(true);
       await axios.delete('/api/sections', { data: { id } });
-      fetchSections();
+      fetchSections(true);
+      fetchAllItems(true)
       toast.success('Section deleted successfully!', { autoClose: 2000 });
     } catch (error) {
       toast.error('Failed to delete section.');

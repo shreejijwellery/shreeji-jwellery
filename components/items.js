@@ -3,6 +3,7 @@ import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import { FaTrash, FaEdit, FaPlus } from 'react-icons/fa'; 
 import Loader from './loader';
+import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
 
 const ItemsManager = (props) => {
     const { user } = props;
@@ -25,19 +26,25 @@ const ItemsManager = (props) => {
     const fetchSections = async () => {
         setLoading(true); // Start loading
         try {
-            const response = await axios.get('/api/sections');
-            setSections(response.data.sections);
+            const response = await fetchAllSections()
+            setSections(response);
             toast.success('Sections fetched successfully', { autoClose: 2000 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to fetch sections');
         } 
     };
 
-    const fetchItems = async () => {
+    const fetchItems = async (isCallApi) => {
         setLoading(true); // Start loading
         try {
-            const response = await axios.get(`/api/items`, { params: { section: selectedSection } });
-            setItems(response.data.items);
+            const response = await fetchAllItems(isCallApi);
+            if (!selectedSection) {
+                setItems(response);
+                return;
+            }else{
+                const filteredItems = response.filter((item) => item.section === selectedSection);
+                setItems(filteredItems);
+            }
             toast.success('Items fetched successfully', { autoClose: 2000 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to fetch items');
@@ -63,6 +70,7 @@ const ItemsManager = (props) => {
         setLoading(true); // Start loading
         try {
             const response = await axios.post('/api/items', payload);
+            fetchItems(true);
             setItems([response.data.item, ...items]);
             setNewItem({ name: '', value: '', rate: '' });
             toast.success(response.data.message, { autoClose: 2000 }); // Set autoClose to 1 second
@@ -79,6 +87,7 @@ const ItemsManager = (props) => {
         try {
             const response = await axios.put(`/api/items`, item);
             setItems(items.map((i) => (i._id === item._id ? response.data.item : i)));
+            fetchItems(true);
             toast.success('Item updated successfully', { autoClose: 2000 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to update item');
@@ -93,6 +102,7 @@ const ItemsManager = (props) => {
         try {
             await axios.delete(`/api/items`, { data: { id: itemId } });
             setItems(items.filter((item) => item._id !== itemId));
+            fetchItems(true);
             toast.success('Item deleted successfully', { autoClose: 2000 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to delete item');
