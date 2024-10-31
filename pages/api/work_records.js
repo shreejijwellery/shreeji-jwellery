@@ -31,7 +31,10 @@ export const createWorkRecord = async (req, res) => {
 export const getWorkRecords = async (req, res) => {
     await connectToDatabase();
     try {
-        const records = await WorkRecord.find({ isDeleted: false });
+        const { worker } = req.query;
+        let query = { isDeleted: false };
+        if (worker) query = { ...query, worker };
+        const records = await WorkRecord.find(query);
         res.status(200).json(records);
     } catch (error) {
         res.status(400).json({ error: error.message });
