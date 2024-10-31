@@ -266,7 +266,7 @@ export default function WorkerBills(props) {
     });
   
     // Save the PDF
-    doc.save(`work_details_${selectedWorker.name}_${new Date().toLocaleDateString()}.pdf`);
+    doc.save(`${selectedWorker.name + " " + (selectedWorker.lastname?? "")}_payable_${new Date().toLocaleDateString()}.pdf`);
   };
   
 
@@ -349,7 +349,7 @@ export default function WorkerBills(props) {
           )}
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4 mx-5">
         <input
           type="date"
           value={startDate}
