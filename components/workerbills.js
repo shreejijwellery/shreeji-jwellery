@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
-import { FaEdit, FaSave, FaTimes, FaTrash } from 'react-icons/fa';
-
+import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import moment from 'moment';
 
 export default function WorkerBills(props) {
   const { selectedWorker } = props;
@@ -182,6 +184,92 @@ export default function WorkerBills(props) {
     return (!startDate || createdAt >= start) && (!endDate || createdAt <= end);
   });
 
+  const handleDownload = () => {
+    const doc = new jsPDF();
+    
+    // Document Styles
+    const mainTitleFontSize = 18;
+    const sectionFontSize = 14;
+    const normalFontSize = 12;
+    const titleColor = [52, 73, 94]; // Darker color for the title
+    const headerColor = [71, 85, 105]; // Custom blue for the header
+  
+    // Add Title, Mobile Number, and Address
+    doc.setFontSize(mainTitleFontSize);
+    doc.setTextColor(...titleColor);
+    doc.text(`${selectedWorker?.name} ${selectedWorker?.lastname ?? ""}`, 14, 15);
+    
+    doc.setFontSize(normalFontSize);
+    doc.setTextColor(0, 0, 0); // Black text for body
+    doc.text(`Mobile Number: ${selectedWorker.mobile_no}`, 14, 25);
+    doc.text(`Address: ${selectedWorker.address}`, 14, 32);
+    
+    // Add Date Range (if filters are applied)
+    if (startDate || endDate) {
+      doc.setFontSize(sectionFontSize);
+      doc.setTextColor(100, 100, 100); // Gray color for date range text
+      const dateText = `Period: ${startDate ? new Date(startDate).toLocaleDateString() : 'Start'} to ${endDate ? new Date(endDate).toLocaleDateString() : 'End'}`;
+      doc.text(dateText, 14, 40);
+    }
+  
+    // Prepare Table Data
+    const tableData = filteredWorkDetails.map(detail => [
+      detail.section_name,
+      detail.item_name,
+      detail.piece.toString(),
+      `Rs. ${detail.item_rate.toFixed(2)}`,
+      `Rs. ${(detail.amount ? detail.amount : detail.piece * detail.item_rate).toFixed(2)}`,
+      detail.createdAt ? moment(detail.createdAt).format('LLL') : ''
+    ]);
+  
+    // Calculate Total Amount
+    const totalAmount = filteredWorkDetails.reduce((sum, detail) => 
+      sum + (detail.amount || (detail.piece * detail.item_rate)), 0
+    );
+  
+    // Add Total Row
+    tableData.push(['Total', '', '', '', `Rs. ${totalAmount.toFixed(2)}`, '']);
+  
+    // Generate Table with Improved Design
+    doc.autoTable({
+      startY: startDate || endDate ? 50 : 40,
+      head: [['Section', 'Item', 'Piece', 'Rate', 'Amount', 'Submitted On']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: headerColor,
+        fontSize: normalFontSize,
+        fontStyle: 'bold',
+        textColor: [255, 255, 255],
+      },
+      bodyStyles: {
+        fontSize: normalFontSize - 1,
+        cellPadding: 4,
+      },
+      footStyles: {
+        fillColor: [245, 245, 245],
+        textColor: [0, 0, 0],
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [249, 250, 251],
+      },
+      margin: { top: 20 },
+      didDrawPage: (data) => {
+        // Footer for each page with timestamp
+        const pageCount = doc.internal.getNumberOfPages();
+        doc.setFontSize(10);
+        doc.setTextColor(150);
+        doc.text(`Page ${pageCount}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10);
+        doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, doc.internal.pageSize.height - 10);
+      },
+    });
+  
+    // Save the PDF
+    doc.save(`work_details_${selectedWorker.name}_${new Date().toLocaleDateString()}.pdf`);
+  };
+  
+
   return (
     <div className="container mx-auto p-4">
       {/* Date Filter Inputs */}
@@ -249,7 +337,17 @@ export default function WorkerBills(props) {
 
       {/* Work Details Table */}
       <div className="mt-12 bg-white shadow-lg rounded-lg mx-auto max-w-4xl">
-        <h2 className="text-2xl font-semibold mb-6 text-gray-800 text-center">Work Details</h2>
+        <div className="flex justify-between items-center mb-6 px-4">
+          <h2 className="text-2xl font-semibold text-gray-800">Work Details</h2>
+          {filteredWorkDetails.length > 0 && (
+            <button
+              onClick={handleDownload}
+              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+            >
+              <FaDownload /> Download PDF
+            </button>
+          )}
+        </div>
 
         <div className="mb-4">
         <input
@@ -272,126 +370,143 @@ export default function WorkerBills(props) {
             <div>Piece</div>
             <div>Rate</div>
             <div>Amount</div>
-            <div>Time</div>
+            <div>Submitted On</div>
             <div colSpan="2">Actions</div>
           </div>
 
           {filteredWorkDetails.length > 0 ? (
-            filteredWorkDetails.map((detail) => (
-              <div
-                key={detail._id}
-                className="min-w-full grid grid-cols-7 gap-4 p-4 border-b last:border-none text-gray-700"
-              >
-                {editingRow === detail._id ? (
-                  <>
-                    {/* Editable Dropdown for Section */}
-                    <select
-                      name="section"
-                      value={editData.section}
-                      onChange={(e) => {
-                        const sectionId = e.target.value;
-                        const selectedSection = sections.find((section) => section._id === sectionId);
-                        setEditData((prevData) => ({
-                          ...prevData,
-                          section: sectionId,
-                          section_name: selectedSection ? selectedSection.name : '',
-                          item: '',
-                          item_name: '',
-                        }));
-                        setFilteredItems(items.filter((item) => item.section === sectionId));
-                      }}
-                      className="border border-gray-300 rounded-lg p-2"
-                    >
-                      <option value="">Select Section</option>
-                      {sections.map((section) => (
-                        <option key={section._id} value={section._id}>
-                          {section.name}
-                        </option>
-                      ))}
-                    </select>
+            <>
+              {filteredWorkDetails.map((detail) => (
+                <div
+                  key={detail._id}
+                  className="min-w-full grid grid-cols-7 gap-4 p-4 border-b last:border-none text-gray-700"
+                >
+                  {editingRow === detail._id ? (
+                    <>
+                      {/* Editable Dropdown for Section */}
+                      <select
+                        name="section"
+                        value={editData.section}
+                        onChange={(e) => {
+                          const sectionId = e.target.value;
+                          const selectedSection = sections.find((section) => section._id === sectionId);
+                          setEditData((prevData) => ({
+                            ...prevData,
+                            section: sectionId,
+                            section_name: selectedSection ? selectedSection.name : '',
+                            item: '',
+                            item_name: '',
+                          }));
+                          setFilteredItems(items.filter((item) => item.section === sectionId));
+                        }}
+                        className="border border-gray-300 rounded-lg p-2"
+                      >
+                        <option value="">Select Section</option>
+                        {sections.map((section) => (
+                          <option key={section._id} value={section._id}>
+                            {section.name}
+                          </option>
+                        ))}
+                      </select>
 
-                    {/* Editable Dropdown for Item */}
-                    <select
-                      name="item"
-                      value={editData.item}
-                      onChange={(e) => {
-                        const itemId = e.target.value;
-                        const selectedItem = items.find((item) => item._id === itemId);
-                        setEditData((prevData) => ({
-                          ...prevData,
-                          item: itemId,
-                          item_name: selectedItem ? selectedItem.name : '',
-                          item_rate: selectedItem ? selectedItem.rate : 0,
-                          amount: selectedItem ? selectedItem.rate * editData.piece : 0,
-                        }));
-                      }}
-                      className="border border-gray-300 rounded-lg p-2"
-                    >
-                      <option value="">Select Item</option>
-                      {filteredItems.map((item) => (
-                        <option key={item._id} value={item._id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
+                      {/* Editable Dropdown for Item */}
+                      <select
+                        name="item"
+                        value={editData.item}
+                        onChange={(e) => {
+                          const itemId = e.target.value;
+                          const selectedItem = items.find((item) => item._id === itemId);
+                          setEditData((prevData) => ({
+                            ...prevData,
+                            item: itemId,
+                            item_name: selectedItem ? selectedItem.name : '',
+                            item_rate: selectedItem ? selectedItem.rate : 0,
+                            amount: selectedItem ? selectedItem.rate * editData.piece : 0,
+                          }));
+                        }}
+                        className="border border-gray-300 rounded-lg p-2"
+                      >
+                        <option value="">Select Item</option>
+                        {filteredItems.map((item) => (
+                          <option key={item._id} value={item._id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
 
-                    <input
-                      type="number"
-                      name="piece"
-                      value={editData.piece}
-                      onChange={handleEditChange}
-                      className="border border-gray-300 rounded-lg p-2"
-                    />
-                    <input
-                      type="number"
-                      name="item_rate"
-                      value={editData.item_rate}
-                      onChange={handleEditChange}
-                      className="border border-gray-300 rounded-lg p-2"
-                    />
-                    <div>{(editData.piece * editData.item_rate).toFixed(2)}</div>
+                      <input
+                        type="number"
+                        name="piece"
+                        value={editData.piece}
+                        onChange={handleEditChange}
+                        className="border border-gray-300 rounded-lg p-2"
+                      />
+                      <input
+                        type="number"
+                        name="item_rate"
+                        value={editData.item_rate}
+                        onChange={handleEditChange}
+                        className="border border-gray-300 rounded-lg p-2"
+                      />
+                      <div>₹{(editData.piece * editData.item_rate).toFixed(2)}</div>
 
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={handleSaveClick}
-                        className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
-                      >
-                        <FaSave className="w-5 h-5 text-green-500 hover:text-green-600" />
-                      </button>
-                      <button
-                        onClick={handleCancelClick}
-                        className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
-                      >
-                        <FaTimes className="w-5 h-5 text-red-500 hover:text-red-600" />
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div>{detail.section_name}</div>
-                    <div>{detail.item_name}</div>
-                    <div>{detail.piece}</div>
-                    <div>{detail.item_rate}</div>
-                    <div>{detail.amount ? detail.amount.toFixed(2) : (detail.piece * detail.item_rate).toFixed(2)}</div>
-                    <div>{detail.createdAt ? new Date(detail.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : ''}</div>
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleEditClick(detail)}
-                        className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
-                      >
-                        <FaEdit className="w-5 h-5 text-blue-500 hover:text-blue-600" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(detail._id)}
-                        className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
-                      >
-                        <FaTrash className="w-5 h-5 text-red-500 hover:text-red-600" />
-                      </button>
-                    </div>
-                  </>
-                )}
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={handleSaveClick}
+                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
+                        >
+                          <FaSave className="w-5 h-5 text-green-500 hover:text-green-600" />
+                        </button>
+                        <button
+                          onClick={handleCancelClick}
+                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
+                        >
+                          <FaTimes className="w-5 h-5 text-red-500 hover:text-red-600" />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>{detail.section_name}</div>
+                      <div>{detail.item_name}</div>
+                      <div>{detail.piece}</div>
+                      <div>₹{detail.item_rate}</div>
+                      <div>₹{detail.amount ? detail.amount.toFixed(2) : (detail.piece * detail.item_rate).toFixed(2)}</div>
+                      <div>{detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}</div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEditClick(detail)}
+                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
+                        >
+                          <FaEdit className="w-5 h-5 text-blue-500 hover:text-blue-600" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(detail._id)}
+                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer"
+                        >
+                          <FaTrash className="w-5 h-5 text-red-500 hover:text-red-600" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              
+              {/* Add Total Row */}
+              <div className="min-w-full grid grid-cols-7 gap-4 p-4 border-t bg-gray-50 font-semibold">
+                <div>Total</div>
+                <div></div>
+                <div></div>
+                <div></div>
+                <div>
+                ₹{filteredWorkDetails
+                    .reduce((sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate), 0)
+                    .toFixed(2)}
+                </div>
+                <div></div>
+                <div></div>
               </div>
-            ))
+            </>
           ) : (
             <div className="p-4 text-gray-500 text-center">No work details found</div>
           )}
