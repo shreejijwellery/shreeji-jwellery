@@ -70,7 +70,7 @@ const ItemsManager = (props) => {
             const response = await axios.post('/api/items', payload);
             fetchItems(true);
             setItems([response.data.item, ...items]);
-            setNewItem({ name: '', value: '', rate: '' });
+            setNewItem({ name: '', rate: '' });
             toast.success(response.data.message, { autoClose: 500 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to add item');
@@ -155,7 +155,6 @@ const ItemsManager = (props) => {
                     <thead>
                         <tr className="bg-gray-100 sticky">
                             <th className="py-3 px-4 text-left">Name</th>
-                            <th className="py-3 px-4 text-left">Value</th>
                             <th className="py-3 px-4 text-left">Rate</th>
                             <th className="py-3 px-4 text-left">Actions</th>
                         </tr>
@@ -169,16 +168,6 @@ const ItemsManager = (props) => {
                                     value={newItem.name}
                                     onChange={handleInputChange}
                                     placeholder="Item Name"
-                                    className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
-                                />
-                            </td>
-                            <td className="py-2 px-4">
-                                <input
-                                    type="text"
-                                    name="value"
-                                    value={newItem.value}
-                                    onChange={handleInputChange}
-                                    placeholder="Item Value"
                                     className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-400"
                                 />
                             </td>
@@ -211,7 +200,6 @@ const ItemsManager = (props) => {
             <tr className="sticky top-0 bg-gray-100 z-10"> {/* Make header sticky */}
                 <th className="py-3 px-4 text-left">Section</th>
                 <th className="py-3 px-4 text-left">Name</th>
-                <th className="py-3 px-4 text-left">Value</th>
                 <th className="py-3 px-4 text-left">Rate</th>
                 <th className="py-3 px-4 text-left">Actions</th>
             </tr>
@@ -235,21 +223,6 @@ const ItemsManager = (props) => {
                             />
                         ) : (
                             item.name
-                        )}
-                    </td>
-                    <td className="py-2 px-4">
-                        {editableItemId === item._id ? (
-                            <input
-                                type="text"
-                                defaultValue={item.value}
-                                onBlur={(e) => {
-                                    handleEditItem({ ...item, value: e.target.value });
-                                    setEditableItemId(null);
-                                }}
-                                className="w-full border p-2 rounded-lg"
-                            />
-                        ) : (
-                            item.value
                         )}
                     </td>
                     <td className="py-2 px-4">

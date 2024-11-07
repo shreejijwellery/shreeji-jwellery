@@ -25,9 +25,9 @@ export default async function handler(req, res) {
 
   }if(method === 'POST'){
     const body = req.body;
-    const {name, value, user, rate, section} = body;
+    const {name, user, rate, section} = body;
 
-    const item = new Item({name, value,user: {userId : user._id,name: user.name }, rate, section});
+    const item = new Item({name, user: {userId : user._id,name: user.name }, rate, section});
     try {
       const result = await item.save();
       res.status(200).json({message: 'Item created successfully!', item : result});
@@ -47,11 +47,11 @@ export default async function handler(req, res) {
   } else if (method === 'PUT') {
     const { id } = req.query; // Extract id from query parameters
     const body = req.body;
-    const {_id, name, value, user, rate, section } = body; // Destructure the body to get item details
+    const {_id, name,  user, rate, section } = body; // Destructure the body to get item details
     try {
         const updatedItem = await Item.findByIdAndUpdate(
             _id, 
-            { name, value, user: { userId: user._id, name: user.name }, rate, section },
+            { name,  user: { userId: user._id, name: user.name }, rate, section },
             { new: true } // Return the updated document
         );
         res.status(200).json({ item: updatedItem, message: 'Item updated successfully!' });
