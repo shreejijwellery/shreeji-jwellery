@@ -34,7 +34,7 @@ export const getWorkRecords = async (req, res) => {
         const { worker } = req.query;
         let query = { isDeleted: false };
         if (worker) query = { ...query, worker };
-        const records = await WorkRecord.find(query);
+        const records = await WorkRecord.find(query).sort({ createdAt: -1 });
         res.status(200).json(records);
     } catch (error) {
         res.status(400).json({ error: error.message });
