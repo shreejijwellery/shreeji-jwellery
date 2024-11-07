@@ -9,7 +9,7 @@ import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
 const SectionManager = (props) => {
   const { user } = props;
   const [sections, setSections] = useState([]);
-  const [newSection, setNewSection] = useState({ name: '', value: '', user });
+  const [newSection, setNewSection] = useState({ name: '', user });
   const [editableSectionId, setEditableSectionId] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +30,7 @@ const SectionManager = (props) => {
       setLoading(true);
       await axios.post('/api/sections', newSection);
       fetchSections(true);
-      setNewSection({ name: '', value: '', user });
+      setNewSection({ name: '',  user });
       toast.success('Section added successfully!', { autoClose: 500 });
     } catch (error) {
       toast.error('Failed to add section.');
@@ -88,15 +88,7 @@ const SectionManager = (props) => {
           }
           className="w-full p-3 border border-gray-300 rounded-md focus:ring focus:ring-blue-300"
         />
-        <input
-          type="text"
-          placeholder="Section Value"
-          value={newSection.value}
-          onChange={(e) =>
-            setNewSection({ ...newSection, value: e.target.value })
-          }
-          className="w-full p-3 border border-gray-300 rounded-md focus:ring focus:ring-blue-300"
-        />
+        
         <button
           onClick={addSection}
           className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-md transition"
@@ -113,9 +105,7 @@ const SectionManager = (props) => {
               <th className="py-4 px-6 text-left font-semibold text-gray-700">
                 Name
               </th>
-              <th className="py-4 px-6 text-left font-semibold text-gray-700">
-                Value
-              </th>
+             
               <th className="py-4 px-6 text-left font-semibold text-gray-700">
                 Actions
               </th>
@@ -133,21 +123,6 @@ const SectionManager = (props) => {
                     defaultValue={section.name}
                     onBlur={(e) =>
                       updateSection({ ...section, name: e.target.value })
-                    }
-                    className={`w-full rounded-md p-2 ${
-                      editableSectionId === section._id
-                        ? 'border border-gray-300 focus:ring focus:ring-blue-300'
-                        : 'border-0 bg-transparent'
-                    }`}
-                    disabled={editableSectionId !== section._id}
-                  />
-                </td>
-                <td className="py-3 px-6">
-                  <input
-                    type="text"
-                    defaultValue={section.value}
-                    onBlur={(e) =>
-                      updateSection({ ...section, value: e.target.value })
                     }
                     className={`w-full rounded-md p-2 ${
                       editableSectionId === section._id

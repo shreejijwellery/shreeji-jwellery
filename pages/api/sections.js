@@ -20,8 +20,8 @@ export default async function handler(req, res) {
 
   }if(method === 'POST'){
     const body = req.body;
-    const {name, value, user} = body;
-    const section = new Section({name, value, user : {userId : user._id, name: user.name}});
+    const {name, user} = body;
+    const section = new Section({name, user : {userId : user._id, name: user.name}});
     try {
       await section.save();
       res.status(200).json({message: 'Section created successfully!'});
@@ -43,10 +43,9 @@ export default async function handler(req, res) {
   } else if (method === 'PUT') {
     const body = req.body;
     
-    const { _id, name, value, user } = body;
+    const { _id, name, user } = body;
     const updateFields = {};
     if (name) updateFields.name = name;
-    if (value) updateFields.value = value;
     if (user) updateFields.user = {userId : user._id, name: user.name};
     try {
       const result = await Section.updateOne({ _id: new mongoose.Types.ObjectId(_id)  }, { $set: updateFields });
