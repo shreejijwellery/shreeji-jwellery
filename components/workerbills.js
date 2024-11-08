@@ -505,7 +505,7 @@ export default function WorkerBills(props) {
                 prev !== PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.PENDING : null
               )
             }
-            ß
+            
             className={`bg-red-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-red-600 transition ${selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'}`}>
             Unpaid
           </button>
