@@ -20,8 +20,8 @@ export default function WorkerBills(props) {
     piece: '',
     item_rate: '',
   });
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [startDate, setStartDate] = useState(moment().startOf('month').format('YYYY-MM-DD'));
+  const [endDate, setEndDate] = useState(moment().endOf('month').format('YYYY-MM-DD'));
   const [selectedRecords, setSelectedRecords] = useState([]);
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
   useEffect(() => {
@@ -49,7 +49,11 @@ export default function WorkerBills(props) {
 
   const fetchWorkDetails = async () => {
     try {
-      const response = await fetch(`/api/work_records?worker=${selectedWorker._id}`);
+      const payment_status = selectedPaymentStatus ? `&payment_status=${selectedPaymentStatus}` : '';
+      const fromDate = startDate ? `&fromDate=${startDate}` : '';
+      const toDate = endDate ? `&toDate=${endDate}` : '';
+      const worker = selectedWorker && selectedWorker._id !== 'all' ? selectedWorker._id : ''
+      const response = await fetch(`/api/work_records?worker=${worker}${payment_status}${fromDate}${toDate}`);
       const data = await response.json();
       setWorkDetails(data);
     } catch (error) {
@@ -60,7 +64,7 @@ export default function WorkerBills(props) {
   useEffect(() => {
     if (selectedWorker) fetchWorkDetails();
     else setWorkDetails([]);
-  }, [selectedWorker]);
+  }, [selectedWorker, selectedPaymentStatus, startDate, endDate]);
 
   const handleAddWorkDetail = async () => {
     const { section, item, piece, item_rate } = newWorkDetail;
@@ -86,7 +90,7 @@ export default function WorkerBills(props) {
       });
 
       const newDetail = await response.json();
-      setWorkDetails([...workDetails, newDetail]);
+      setWorkDetails([newDetail,...workDetails ]);
       setNewWorkDetail({ section: '', item: '', piece: '', item_rate: '' });
     } catch (error) {
       console.error('Error adding work detail:', error);
@@ -321,6 +325,7 @@ export default function WorkerBills(props) {
 
         const result = await response.json();
         console.log('Records marked as paid:', result);
+        fetchWorkDetails();
         // Optionally, update the UI to reflect the change
       } catch (error) {
         console.error('Error marking records as paid:', error);
@@ -468,12 +473,15 @@ export default function WorkerBills(props) {
           )}
         </div>
 
+
+
         <div className="mb-4 mx-5">
           <input
             type="date"
             value={startDate}
             onChange={e => setStartDate(e.target.value)}
             className="border border-gray-300 rounded-lg p-2 mr-2"
+            
           />
           <input
             type="date"
@@ -488,7 +496,7 @@ export default function WorkerBills(props) {
                 prev !== PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : null
               )
             }
-            className="bg-green-500 text-white font-semibold px-4 py-2 rounded-lg ml-2 hover:bg-green-600 transition">
+            className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg ml-2 hover:bg-green-600 transition ${selectedPaymentStatus === PAYMENT_STATUS.PAID && "bg-blue-800 underline"}`}>
             Paid
           </button>
           <button
@@ -498,7 +506,7 @@ export default function WorkerBills(props) {
               )
             }
             ß
-            className="bg-red-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-red-600 transition">
+            className={`bg-red-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-red-600 transition ${selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'}`}>
             Unpaid
           </button>
         </div>
@@ -624,7 +632,7 @@ export default function WorkerBills(props) {
                           : (detail.piece * detail.item_rate).toFixed(2)}
                       </div>
                       <div>{detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}</div>
-                      <div>{detail.payment_status}</div>
+                      <div>{detail.payment_status === PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.PENDING  }</div>
                       <div>
                         {detail.payment_date ? moment(detail.payment_date).format('LLL') : ''}
                       </div>
