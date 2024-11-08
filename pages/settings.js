@@ -4,35 +4,66 @@ import ItemsManager from '../components/items';
 import WorkerDetails from '../components/WorkerDetails';
 
 const SettingsTabs = () => {
-    const [selectedTab, setSelectedTab] = useState('sections');
-    const [user, setUser] = useState(null);
-    useEffect(() => {
+  const [selectedTab, setSelectedTab] = useState('workers');
+  const [user, setUser] = useState(null);
+  useEffect(() => {
     const userData = localStorage.getItem('user');
-    console.log("userData", userData);
+    console.log('userData', userData);
     if (userData) {
       setUser(JSON.parse(userData));
     }
-    }, []);
-    return (
+  }, []);
+  return (
+    <>
+      {user ? (
         <div className="p-4">
-            <div className="flex space-x-4">
-                <button onClick={() => setSelectedTab('sections')} className={`px-4 py-2 rounded ${selectedTab === 'sections' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
-                    Sections
+          <div className="flex space-x-4">
+          <button
+              onClick={() => setSelectedTab('workers')}
+              className={`px-4 py-2 rounded ${
+                selectedTab === 'workers' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+              }`}>
+              Workers
+            </button>
+            {user?.role === 'admin' && (
+              <>
+                <button
+                  onClick={() => setSelectedTab('sections')}
+                  className={`px-4 py-2 rounded ${
+                    selectedTab === 'sections' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+                  }`}>
+                  Sections
                 </button>
-                <button onClick={() => setSelectedTab('items')} className={`px-4 py-2 rounded ${selectedTab === 'items' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
-                    Items
+                <button
+                  onClick={() => setSelectedTab('items')}
+                  className={`px-4 py-2 rounded ${
+                    selectedTab === 'items' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+                  }`}>
+                  Items
                 </button>
-                <button onClick={() => setSelectedTab('workers')} className={`px-4 py-2 rounded ${selectedTab === 'workers' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'}`}>
-                    Workers
-                </button>
-            </div>
-            <div className="mt-4">
-                {selectedTab === 'sections' && <SectionManager user={user} />}
-                {selectedTab === 'items' && <div><ItemsManager user={user} /></div>}
-                {selectedTab === 'workers' && <div><WorkerDetails user={user}/></div>}
-            </div>
+              </>
+            )}
+            
+          </div>
+          <div className="mt-4">
+            {selectedTab === 'sections' && <SectionManager user={user} />}
+            {selectedTab === 'items' && (
+              <div>
+                <ItemsManager user={user} />
+              </div>
+            )}
+            {selectedTab === 'workers' && (
+              <div>
+                <WorkerDetails user={user} />
+              </div>
+            )}
+          </div>
         </div>
-    );
+      ) : (
+        <div className="p-4">Please login to view this page</div>
+      )}
+    </>
+  );
 };
 
 export default SettingsTabs;
