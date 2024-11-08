@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import pdfParse from 'pdf-parse';
 import csv from 'csv-parser';
 import { IncomingForm } from 'formidable';
@@ -72,12 +72,14 @@ const processPDF = async (pdfPath, csvData) => {
     
     const sku = extractSKU(cleanedText);
     const qty = extractQuantity(cleanedText);
-    const originName = csvData.find(row => {
-      if(Object.keys(row).filter(key => key.trim() == 'SKU')?.length){
-        return row[Object.keys(row).filter(key => key.trim() == 'SKU')] === sku;
+    const origin = csvData.find(row => {
+      if(Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')?.length){
+        return row[Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')] === sku;
       }
      
-    })?.Origin || 'Unknown Origin';
+    })
+    
+    const originName = origin?.Origin || origin?.origin || 'Unknown Origin';
     pageData.push({ 
       pageText: cleanedText, 
       sku, 
@@ -88,10 +90,10 @@ const processPDF = async (pdfPath, csvData) => {
   }
 
   pageData.sort((a, b) => {
-    if (a.originName.localeCompare(b.originName) === 0) {
-      return a.qty - b.qty;
+    if (a.qty !== b.qty) {
+      return a.qty - b.qty; // Sort by quantity first
     }
-    return a.originName.localeCompare(b.originName);
+    return a.originName.localeCompare(b.originName); // Then sort by origin name
   });
 
   const pdfDoc = await PDFDocument.create();
@@ -101,10 +103,12 @@ const processPDF = async (pdfPath, csvData) => {
     const [pageCopy] = await pdfDoc.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
     const { height } = pageCopy.getSize();
     
+    const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     pageCopy.drawText(`Origin : ${page.originName}`, { 
       x: 50, 
       y: 25, 
-      size: 10 
+      size: 14,
+      font: helveticaBoldFont
     });
     
     pdfDoc.addPage(pageCopy);
