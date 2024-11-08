@@ -60,6 +60,23 @@ const WorkerDropdown = props => {
             </label>
           </div>
         )}
+        {/* <div className="flex items-center gap-2 p-2 rounded-md hover:bg-blue-50 cursor-pointer transition">
+          <input
+            type="radio"
+            id="select-all"
+            name="worker"
+            value="all"
+            checked={selectedWorkerId === "all"}
+            onChange={() => {
+              setSelectedWorkerId("all");
+              setSelectedWorker({_id : "all"});
+            }}
+            className="focus:ring-blue-500 text-blue-600"
+          />
+          <label htmlFor="select-all" className="text-gray-700">
+            Select All
+          </label>
+        </div> */}
         {filteredWorkers.length > 0 ? (
           filteredWorkers.map(worker => (
             <div
