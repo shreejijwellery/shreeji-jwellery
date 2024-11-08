@@ -1,9 +1,29 @@
 import { useState } from 'react';
+import { PDFDocument } from 'pdf-lib';
+import pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
+import Papa from 'papaparse'; // Use a browser-compatible CSV parser
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker; // Set the worker source
 
 export default function ExtractSKU() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+
+  const extractSKU = (lines) => {
+    const SKUIndex = lines.findIndex(line => line.includes('SKU'));
+    if (SKUIndex === -1) return null;
+    const name = lines[SKUIndex + 1]?.trim()?.split('  ')?.[0]?.trim();
+    return name;
+  };
+
+  const extractQuantity = (lines) => {
+    const QtyIndex = lines.findIndex(line => line.includes('Qty'));
+    if (QtyIndex === -1) return null;
+    const qty = lines[QtyIndex + 1]?.trim()?.split('  ')?.[2]?.trim();
+    return Number(qty);
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -11,20 +31,70 @@ export default function ExtractSKU() {
     setError(null);
     setSuccess(false);
 
-    const formData = new FormData();
-    formData.append('pdf', event.target.pdf.files[0]);
-    formData.append('csv', event.target.csv.files[0]);
+    const pdfFile = event.target.pdf.files[0];
+    const csvFile = event.target.csv.files[0];
+
+    if (!pdfFile || !csvFile) {
+      setError('Missing required files');
+      setLoading(false);
+      return;
+    }
 
     try {
-      const response = await fetch('/api/processFiles', {
-        method: 'POST',
-        body: formData,
+      const pdfData = await pdfFile.arrayBuffer();
+      const csvText = await csvFile.text();
+
+      const csvData = Papa.parse(csvText, { header: true }).data;
+
+      // Create a new Uint8Array for each operation
+      const uint8Array = new Uint8Array(pdfData);
+      const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+      const pdfDocument = await loadingTask.promise;
+
+      const pageData = [];
+      for (let i = 1; i <= pdfDocument.numPages; i++) {
+        const page = await pdfDocument.getPage(i);
+        const textContent = await page.getTextContent();
+
+        let lastY = null;
+        const pageText = textContent.items
+          .map(item => {
+            const text = item.str;
+            const currentY = item.transform[5];
+            const needsNewline = lastY !== null && Math.abs(currentY - lastY) > 5;
+            lastY = currentY;
+            return (needsNewline ? '\n' : ' ') + text;
+          })
+          .join('')
+          .trim();
+
+        const lines = pageText.split('\n');
+        const sku = extractSKU(lines);
+        const qty = extractQuantity(lines);
+        const originName = csvData.find(row => row.SKU === sku)?.Origin || 'Unknown Origin';
+
+        pageData.push({ pageText: lines, sku, originName, pageNumber: i, qty });
+      }
+
+      pageData.sort((a, b) => {
+        if (a.originName.localeCompare(b.originName) === 0) {
+          return a.qty - b.qty;
+        }
+        return a.originName.localeCompare(b.originName);
       });
 
-      if (!response.ok) throw new Error('File processing failed');
+      const pdfDoc = await PDFDocument.create();
+      const sourcePdfDoc = await PDFDocument.load(pdfData);
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(new Blob([blob]));
+      for (const page of pageData) {
+        const [pageCopy] = await pdfDoc.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
+        pageCopy.drawText(`Origin : ${page.originName}`, { x: 50, y: 25, size: 10 });
+        pdfDoc.addPage(pageCopy);
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', 'sorted_output.pdf');
