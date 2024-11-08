@@ -399,6 +399,17 @@ export default function WorkerBills(props) {
     .filter(detail => selectedRecords.includes(detail._id))
     .reduce((sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate), 0);
 
+  const handleSelectAllChange = (e) => {
+    if (e.target.checked) {
+      // Select all filtered work details
+      const allIds = filteredWorkDetails.filter(d => d.payment_status !== PAYMENT_STATUS.PAID) .map(detail => detail._id);
+      setSelectedRecords(allIds);
+    } else {
+      // Deselect all
+      setSelectedRecords([]);
+    }
+  };
+
   return (
     <div className="container mx-auto p-4">
       {/* Date Filter Inputs */}
@@ -691,6 +702,15 @@ export default function WorkerBills(props) {
               Total Amount: ₹{totalSelectedAmount.toFixed(2)}
             </div>
             <div className="flex space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={selectedRecords.length === filteredWorkDetails.filter(d => d.payment_status !== PAYMENT_STATUS.PAID).length}
+                  onChange={handleSelectAllChange}
+                  className="mr-2"
+                />
+                Select All Unpaid
+              </label>
               <button
                 onClick={handleMarkAsPaid}
                 className="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
