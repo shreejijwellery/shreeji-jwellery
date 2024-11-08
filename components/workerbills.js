@@ -310,7 +310,7 @@ export default function WorkerBills(props) {
   };
 
   const handleMarkAsPaid = () => {
-    console.log('Selected record IDs:', selectedRecords);
+    
     const markAsPaid = async () => {
       try {
         const response = await fetch('/api/apply_payments', {
@@ -324,7 +324,7 @@ export default function WorkerBills(props) {
         }
 
         const result = await response.json();
-        console.log('Records marked as paid:', result);
+        setSelectedRecords([]);
         fetchWorkDetails();
         // Optionally, update the UI to reflect the change
       } catch (error) {
@@ -510,18 +510,19 @@ export default function WorkerBills(props) {
             Unpaid
           </button>
         </div>
-        <div className="overflow-x-auto">
-          <div className="min-w-full bg-gray-100 p-4 font-medium text-gray-700 grid grid-cols-10 gap-4">
-            <div>Select</div>
-            <div>Section</div>
-            <div>Item</div>
-            <div>Piece</div>
-            <div>Rate</div>
-            <div>Amount</div>
-            <div>Submitted On</div>
-            <div>Payment Status</div>
-            <div>Payment Date</div>
-            <div colSpan="2">Actions</div>
+        <div className="overflow-x-scroll text-wrap">
+          <div className="w-max bg-gray-100 p-4 font-medium text-gray-700 flex gap-4">
+            <div className="w-10">Select</div>
+            <div className="w-32">Actions</div>
+            <div className="w-32">Section</div>
+            <div className="w-32">Item</div>
+            <div className="w-10">Piece</div>
+            <div className="w-10">Rate</div>
+            <div className="w-16">Amount</div>
+            <div className="w-32">Submitted On</div>
+            <div className="w-20">Payment Status</div>
+            <div className="w-32">Payment Date</div>
+            
           </div>
 
           {filteredWorkDetails.length > 0 ? (
@@ -529,10 +530,23 @@ export default function WorkerBills(props) {
               {filteredWorkDetails.map(detail => (
                 <div
                   key={detail._id}
-                  className="min-w-full grid grid-cols-10 gap-4 p-4 border-b last:border-none text-gray-700">
+                  className="w-max flex gap-4 p-4 border-b last:border-none text-gray-700">
                   {editingRow === detail._id && detail.payment_status !== PAYMENT_STATUS.PAID ? (
                     <>
                       {/* Editable Dropdown for Section */}
+                      <div className='w-10'></div>
+                      <div className="flex space-x-2 w-32">
+                        <button
+                          onClick={handleSaveClick}
+                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer">
+                          <FaSave className="w-5 h-5 text-green-500 hover:text-green-600" />
+                        </button>
+                        <button
+                          onClick={handleCancelClick}
+                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer">
+                          <FaTimes className="w-5 h-5 text-red-500 hover:text-red-600" />
+                        </button>
+                      </div>
                       <select
                         name="section"
                         value={editData.section}
@@ -550,7 +564,7 @@ export default function WorkerBills(props) {
                           }));
                           setFilteredItems(items.filter(item => item.section === sectionId));
                         }}
-                        className="border border-gray-300 rounded-lg p-2">
+                        className="border border-gray-300 rounded-lg p-2 w-32">
                         <option value="">Select Section</option>
                         {sections.map(section => (
                           <option key={section._id} value={section._id}>
@@ -574,7 +588,7 @@ export default function WorkerBills(props) {
                             amount: selectedItem ? selectedItem.rate * editData.piece : 0,
                           }));
                         }}
-                        className="border border-gray-300 rounded-lg p-2">
+                        className="border border-gray-300 rounded-lg p-2 w-32">
                         <option value="">Select Item</option>
                         {filteredItems.map(item => (
                           <option key={item._id} value={item._id}>
@@ -588,29 +602,20 @@ export default function WorkerBills(props) {
                         name="piece"
                         value={editData.piece}
                         onChange={handleEditChange}
-                        className="border border-gray-300 rounded-lg p-2"
+                        className="border border-gray-300 rounded-lg p-2 w-20"
                       />
                       <input
                         type="number"
                         name="item_rate"
                         value={editData.item_rate}
                         onChange={handleEditChange}
-                        className="border border-gray-300 rounded-lg p-2"
+                        className="border border-gray-300 rounded-lg p-2 w-16"
                       />
-                      <div>₹{(editData.piece * editData.item_rate).toFixed(2)}</div>
-
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={handleSaveClick}
-                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer">
-                          <FaSave className="w-5 h-5 text-green-500 hover:text-green-600" />
-                        </button>
-                        <button
-                          onClick={handleCancelClick}
-                          className="p-2 hover:bg-gray-100 rounded-full cursor-pointer">
-                          <FaTimes className="w-5 h-5 text-red-500 hover:text-red-600" />
-                        </button>
-                      </div>
+                      <div className="w-16">₹{(editData.piece * editData.item_rate).toFixed(2)}</div>
+                      <div className='w-32'></div>
+                      <div className='w-20'></div>
+                      <div className='w-32'></div>
+                      
                     </>
                   ) : (
                     <>
@@ -618,25 +623,10 @@ export default function WorkerBills(props) {
                         type="checkbox"
                         checked={selectedRecords.includes(detail._id)}
                         onChange={() => handleCheckboxChange(detail._id)}
-                        className="self-center"
+                        className="self-center w-10"
                         disabled={detail.payment_status === PAYMENT_STATUS.PAID}
                       />
-                      <div>{detail.section_name}</div>
-                      <div>{detail.item_name}</div>
-                      <div>{detail.piece}</div>
-                      <div>₹{detail.item_rate}</div>
-                      <div>
-                        ₹
-                        {detail.amount
-                          ? detail.amount.toFixed(2)
-                          : (detail.piece * detail.item_rate).toFixed(2)}
-                      </div>
-                      <div>{detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}</div>
-                      <div>{detail.payment_status === PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.PENDING  }</div>
-                      <div>
-                        {detail.payment_date ? moment(detail.payment_date).format('LLL') : ''}
-                      </div>
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-2 w-32">
                         <button
                           onClick={() => handleEditClick(detail)}
                           disabled={detail.payment_status === PAYMENT_STATUS.PAID}
@@ -649,6 +639,22 @@ export default function WorkerBills(props) {
                           <FaTrash className="w-5 h-5 text-red-500 hover:text-red-600" />
                         </button>
                       </div>
+                      <div className="w-32">{detail.section_name}</div>
+                      <div className="w-32">{detail.item_name}</div>
+                      <div className="w-10">{detail.piece}</div>
+                      <div className="w-10">₹{detail.item_rate}</div>
+                      <div className="w-16">
+                        ₹
+                        {detail.amount
+                          ? detail.amount.toFixed(2)
+                          : (detail.piece * detail.item_rate).toFixed(2)}
+                      </div>
+                      <div className="w-32">{detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}</div>
+                      <div className="w-20">{detail.payment_status === PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.PENDING  }</div>
+                      <div className="w-32">
+                        {detail.payment_date ? moment(detail.payment_date).format('LLL') : ''}
+                      </div>
+                      
                     </>
                   )}
                 </div>
@@ -656,11 +662,11 @@ export default function WorkerBills(props) {
 
               {/* Add Total Row */}
               <div className="min-w-full grid grid-cols-8 gap-4 p-4 border-t bg-gray-50 font-semibold">
-                <div>Total</div>
-                <div></div>
-                <div></div>
-                <div></div>
-                <div>
+                <div className="w-20">Total</div>
+                <div className="w-32"></div>
+                <div className="w-32"></div>
+                <div className="w-20"></div>
+                <div className="w-32">
                   ₹
                   {filteredWorkDetails
                     .reduce(
@@ -669,8 +675,8 @@ export default function WorkerBills(props) {
                     )
                     .toFixed(2)}
                 </div>
-                <div></div>
-                <div></div>
+                <div className="w-40"></div>
+                <div className="w-32"></div>
               </div>
             </>
           ) : (
@@ -694,6 +700,11 @@ export default function WorkerBills(props) {
                 onClick={handleDownloadSelected}
                 className="bg-green-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition">
                 Download Selected
+              </button>
+              <button
+                onClick={() => setSelectedRecords([])}
+                className="bg-red-600 text-white font-semibold px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                <i className="fas fa-times"></i> Cancel
               </button>
             </div>
           </div>
