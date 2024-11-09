@@ -71,13 +71,13 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
-          {user && router.pathname !== '/extract-sku' && (
+          {/* {user && router.pathname !== '/extract-sku' && (
             <li>
               <Link href="/extract-sku">
                 <div className="hover:underline">Extract SKU</div>
               </Link>
             </li>
-          )}
+          )} */}
           {/* Uncomment if needed
           {user && router.pathname !== '/dashboard' && (
             <li>
