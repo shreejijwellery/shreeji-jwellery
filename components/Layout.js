@@ -34,28 +34,28 @@ const Layout = ({ children }) => {
     <div>
       <nav className="bg-gray-800 p-4 flex justify-between items-center">
         <ul className="flex space-x-4 text-white">
-          {router.pathname !== '/' && (
+          {/* {router.pathname !== '/' && (
             <li>
               <Link href="/">
                 <div className="hover:underline">Home</div>
               </Link>
             </li>
-          )}
-          {!user && router.pathname !== '/signup' && (
+          )} */}
+          {/* {!user && router.pathname !== '/signup' && (
             <li>
               <Link href="/signup">
                 <div className="hover:underline">Signup</div>
               </Link>
             </li>
-          )}
-          {!user && router.pathname !== '/login' && (
+          )} */}
+          {/* {!user && router.pathname !== '/login' && (
             <li>
               <Link href="/login">
                 <div className="hover:underline">Login</div>
               </Link>
             </li>
-          )}
-          {
+          )} */}
+          {/* {
             user && router.pathname !== '/billing' && (
               <li>
               <Link href="/billing">
@@ -63,21 +63,21 @@ const Layout = ({ children }) => {
               </Link>
             </li>
             )
-          }
-          {user && router.pathname !== '/settings' && (
+          } */}
+          {/* {user && router.pathname !== '/settings' && (
             <li>
               <Link href="/settings">
                 <div className="hover:underline">Settings</div>
               </Link>
             </li>
-          )}
-          {/* {user && router.pathname !== '/extract-sku' && (
+          )} */}
+          {user && router.pathname !== '/' && (
             <li>
               <Link href="/extract-sku">
                 <div className="hover:underline">Extract SKU</div>
               </Link>
             </li>
-          )} */}
+          )}
           {/* Uncomment if needed
           {user && router.pathname !== '/dashboard' && (
             <li>
