@@ -71,7 +71,7 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )} */}
-          {user && router.pathname !== '/' && (
+          { router.pathname == '/' && (
             <li>
               <Link href="/extract-sku">
                 <div className="hover:underline">Extract SKU</div>
