@@ -27,7 +27,7 @@ const Layout = ({ children }) => {
   const handleLogout = () => {
     localStorage.clear();
     setUser(null);
-    router.push('/login');
+    // router.push('/login');
   };
 
   return (
