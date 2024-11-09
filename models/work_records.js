@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { PAYMENT_STATUS } from '../lib/constants';
 
 const WorkRecordSchema = new mongoose.Schema({
     section: { type: mongoose.Schema.Types.ObjectId, ref: 'Section', required: true },
@@ -11,6 +12,8 @@ const WorkRecordSchema = new mongoose.Schema({
     worker_name: { type: String, required: true }, 
     section_name: { type: String, required: true }, 
     item_name: { type: String, required: true }, 
+    payment_date: { type: Date },
+    payment_status: { type: String, enum: [PAYMENT_STATUS.PENDING, PAYMENT_STATUS.PAID] },
 }, { timestamps: true });
 
 export const WorkRecord = mongoose.models.WorkRecord || mongoose.model('WorkRecord', WorkRecordSchema);
