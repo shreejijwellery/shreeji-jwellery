@@ -46,7 +46,7 @@ export default function PayableDashboard(props) {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
       const fromDate = startDate ? `&fromDate=${startDate}` : '';
       const toDate = endDate ? `&toDate=${endDate}` : '';
-      const limit = 5;
+      const limit = 50;
       const skip = reset ? 0 : offset;
       const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}&limit=${limit}&skip=${skip}`);
       const data = await response.json();
