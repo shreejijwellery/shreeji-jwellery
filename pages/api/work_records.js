@@ -34,7 +34,7 @@ export const createWorkRecord = async (req, res) => {
 export const getWorkRecords = async (req, res) => {
   await connectToDatabase();
   try {
-    const { worker, payment_status, fromDate, toDate } = req.query;
+    const { worker, payment_status, fromDate, toDate, limit, skip } = req.query;
     let query = { isDeleted: false };
     if (worker) query = { ...query, worker };
     if (payment_status === PAYMENT_STATUS.PAID) query = { ...query, payment_status };
@@ -50,7 +50,11 @@ export const getWorkRecords = async (req, res) => {
     } else if (toDate) {
       query.createdAt = { $lte: moment(toDate).tz('IST').endOf('day').toISOString() };
     }
-    const records = await WorkRecord.find(query).sort({ createdAt: -1 });
+    let records = [];
+    if (limit && skip) {
+      records = await WorkRecord.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
+    }else {
+        records = await WorkRecord.find(query).sort({ createdAt: -1 });}
     res.status(200).json(records);
   } catch (error) {
     res.status(400).json({ error: error.message });
