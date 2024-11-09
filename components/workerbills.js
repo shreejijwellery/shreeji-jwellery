@@ -672,11 +672,13 @@ export default function WorkerBills(props) {
               ))}
 
               {/* Add Total Row */}
-              <div className="min-w-full grid grid-cols-8 gap-4 p-4 border-t bg-gray-50 font-semibold">
-                <div className="w-20">Total</div>
+              <div className="min-w-full flex p-4 border-t bg-gray-50 font-semibold">
+                <div className="w-40">Total</div>
                 <div className="w-32"></div>
                 <div className="w-32"></div>
-                <div className="w-20"></div>
+                <div className="w-40"></div>
+                <div className="w-52"></div>
+                <div className="w-40"></div>
                 <div className="w-32">
                   ₹
                   {filteredWorkDetails
