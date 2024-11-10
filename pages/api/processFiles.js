@@ -10,6 +10,9 @@ import { join } from 'path';
 const pdfjsLib = require('pdfjs-dist');
 const pdfjsWorker = require('pdfjs-dist/build/pdf.worker.entry');
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+const companies = [
+  'Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express'
+].sort();
 export const config = {
   api: {
     bodyParser: false,
@@ -37,6 +40,12 @@ const extractQuantity = (lines) => {
   return qty;
 };
 
+const extractCompany = (lines) => {
+  const company = companies.find(company => {
+    return lines.map(line => line.trim()?.split('  ')?.[0]?.trim()?.toUpperCase()).includes(company.toUpperCase() )
+  });
+  return company;
+};
 
 const getCSVData = async (filePath) => {
   return new Promise((resolve, reject) => {
@@ -50,6 +59,7 @@ const getCSVData = async (filePath) => {
 };
 
 const processPDF = async (pdfPath, csvData) => {
+  try{
   const dataBuffer = fs.readFileSync(pdfPath);
   
   const uint8Array = new Uint8Array(dataBuffer);
@@ -79,6 +89,8 @@ const processPDF = async (pdfPath, csvData) => {
     
     const sku = extractSKU(cleanedText);
     const qty = extractQuantity(cleanedText);
+
+    const company =   extractCompany(cleanedText);
     const origin = csvData.find(row => {
       if(Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')?.length){
         return row[Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')] === sku;
@@ -92,7 +104,8 @@ const processPDF = async (pdfPath, csvData) => {
       sku, 
       originName, 
       pageNumber: i ,
-      qty
+      qty,
+      company
     });
   }
 
@@ -100,7 +113,10 @@ const processPDF = async (pdfPath, csvData) => {
     if (a.qty !== b.qty) {
       return a.qty - b.qty; // Sort by quantity first
     }
-    return a.originName.localeCompare(b.originName); // Then sort by origin name
+    if (a.originName !== b.originName) {
+      return a.originName.localeCompare(b.originName); // Then sort by origin name
+    }
+    return a.company.localeCompare(b.company); // Finally sort by company for same origins
   });
 
   const pdfDoc = await PDFDocument.create();
@@ -122,6 +138,9 @@ const processPDF = async (pdfPath, csvData) => {
   }
 
   return await pdfDoc.save();
+}catch(err){
+  console.log(err);
+}
 };
 
 async function ensureUploadsDirectory() {
