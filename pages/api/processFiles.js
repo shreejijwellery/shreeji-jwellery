@@ -26,8 +26,15 @@ const extractSKU = (lines) => {
 const extractQuantity = (lines) => {
   const QtyIndex = lines.findIndex(line => line.includes('Qty'));
   if (QtyIndex === -1) return null;
-  const qty =  lines[QtyIndex + 1]?.trim()?.split('  ')?.[2]?.trim();
-  return Number(qty)
+  let qty =  lines[QtyIndex + 1]?.trim()?.split('  ')?.[2]?.trim();
+  let qty2 = lines[QtyIndex + 2]?.trim()?.split('  ')?.[2]?.trim();
+  if(qty2){
+    qty = Number(qty) + Number(qty2);
+  }else{
+    qty = Number(qty);
+  }
+
+  return qty;
 };
 
 
