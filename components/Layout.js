@@ -64,6 +64,15 @@ const Layout = ({ children }) => {
             </li>
             )
           }
+          {
+            user && router.pathname !== '/party-billing' && (
+              <li>
+              <Link href="/party_dashboard">
+                <div className="hover:underline">Vendor Payables</div>
+              </Link>
+            </li>
+            )
+          }
           {user && router.pathname !== '/settings' && (
             <li>
               <Link href="/settings">

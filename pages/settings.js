@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import SectionManager from '../components/sections';
 import ItemsManager from '../components/items';
 import WorkerDetails from '../components/WorkerDetails';
+import PartyDashboard from './party_dashboard';
+import PartyDetails from '../components/partyDetails';
 
 const SettingsTabs = () => {
   const [selectedTab, setSelectedTab] = useState('workers');
@@ -18,6 +20,13 @@ const SettingsTabs = () => {
       {user ? (
         <div className="p-4">
           <div className="flex space-x-4">
+          <button
+              onClick={() => setSelectedTab('party')}
+              className={`px-4 py-2 rounded ${
+                selectedTab === 'party' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+              }`}>
+              Party
+            </button>
           <button
               onClick={() => setSelectedTab('workers')}
               className={`px-4 py-2 rounded ${
@@ -57,6 +66,12 @@ const SettingsTabs = () => {
                 <WorkerDetails user={user} />
               </div>
             )}
+            {selectedTab === 'party' && (
+              <div>
+                <PartyDetails user={user} />
+              </div>
+            )}
+
           </div>
         </div>
       ) : (
