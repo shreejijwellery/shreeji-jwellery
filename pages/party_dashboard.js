@@ -1,11 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import WorkerBills from '../components/workerbills';
 import PartyDropDown from '../components/party_dropdown';
 import PartyBills from '../components/partyBills';
 
 export default function MainPage() {
   const [selectedWorker, setSelectedWorker] = useState(null); // Shared state for selected worker
-
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    console.log('userData', userData);
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, []);
   return (
     <div className="container mx-auto p-4">
       {/* Main Page Layout */}
@@ -17,7 +24,7 @@ export default function MainPage() {
 
         {/* Right Content for WorkerBills */}
         <div className="w-full md:w-3/4">
-          <PartyBills selectedParty={selectedWorker} />
+          <PartyBills selectedParty={selectedWorker}  user={user}/>
         </div>
       </div>
     </div>

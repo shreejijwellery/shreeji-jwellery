@@ -57,12 +57,15 @@ async function getVendorBills(req, res) {
 }
 
 async function updateVendorBill(req, res) {
-  const { id } = req.query; // Assuming ID is passed in the query
+  const id  = req.body._id; // Assuming ID is passed in the query
   try {
     const updatedData = req.body;
-
+    delete updatedData._id;
     if (updatedData.billDate) {
         updatedData.billDate = new Date(updatedData.billDate).toISOString();
+    }
+    if(updatedData.amount){
+        updatedData.remainAmount = updatedData.amount - (updatedData.paidAmount || 0);
     }
 
 
