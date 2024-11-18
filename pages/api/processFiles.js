@@ -105,7 +105,7 @@ const processPDF = async (pdfPath, csvData) => {
       originName, 
       pageNumber: i ,
       qty,
-      company
+      company : company || 'Zzzzz'
     });
   }
 
@@ -119,6 +119,20 @@ const processPDF = async (pdfPath, csvData) => {
     return a.company.localeCompare(b.company); // Finally sort by company for same origins
   });
 
+  // // Create CSV from pageData
+  // const csvContent = [
+  //   ['SKU', 'Origin', 'Quantity', 'Company'].join(','), // Header row
+  //   ...pageData.map(page => [
+  //     page.sku || '',
+  //     page.originName || '',
+  //     page.qty || '',
+  //     page.company || ''
+  //   ].join(','))
+  // ].join('\n');
+
+  // // Write CSV file
+  // const csvOutputPath = path.join(process.cwd(), 'uploads', `${uuidv4()}-summary.csv`);
+  // fs.writeFileSync(csvOutputPath, csvContent);
   const pdfDoc = await PDFDocument.create();
   const sourcePdfDoc = await PDFDocument.load(dataBuffer);
   
