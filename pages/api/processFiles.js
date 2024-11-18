@@ -110,29 +110,24 @@ const processPDF = async (pdfPath, csvData) => {
   }
 
   pageData.sort((a, b) => {
-    if (a.qty !== b.qty) {
-      return a.qty - b.qty; // Sort by quantity first
+    const qtyA = a.qty || 0;
+    const qtyB = b.qty || 0;
+    
+    if (qtyA !== qtyB) {
+      return qtyA - qtyB;
     }
-    if (a.originName !== b.originName) {
-      return a.originName.localeCompare(b.originName); // Then sort by origin name
+    
+    const originA = a.originName || '';
+    const originB = b.originName || '';
+    if (originA !== originB) {
+      return originA.localeCompare(originB);
     }
-    return a.company.localeCompare(b.company); // Finally sort by company for same origins
+    
+    const companyA = a.company || '';
+    const companyB = b.company || '';
+    return companyA.localeCompare(companyB);
   });
 
-  // // Create CSV from pageData
-  // const csvContent = [
-  //   ['SKU', 'Origin', 'Quantity', 'Company'].join(','), // Header row
-  //   ...pageData.map(page => [
-  //     page.sku || '',
-  //     page.originName || '',
-  //     page.qty || '',
-  //     page.company || ''
-  //   ].join(','))
-  // ].join('\n');
-
-  // // Write CSV file
-  // const csvOutputPath = path.join(process.cwd(), 'uploads', `${uuidv4()}-summary.csv`);
-  // fs.writeFileSync(csvOutputPath, csvContent);
   const pdfDoc = await PDFDocument.create();
   const sourcePdfDoc = await PDFDocument.load(dataBuffer);
   
