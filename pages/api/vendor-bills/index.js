@@ -75,7 +75,7 @@ async function updateVendorBill(req, res) {
         updatedData.remainAmount = updatedData.amount - (updatedData.paidAmount || 0);
     }
 
-    if(updatedData.remainAmount === 0){
+    if(updatedData.remainAmount <= 0){
         updatedData.status = VENDOR_BILL_STATUS.PAID;
     }else if(updatedData.remainAmount > 0) {
         updatedData.status = VENDOR_BILL_STATUS.PARTIAL;

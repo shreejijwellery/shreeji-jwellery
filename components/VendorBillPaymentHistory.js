@@ -6,7 +6,6 @@ import React, { useEffect, useState } from 'react';
 
 export default function VendorBillPaymentHistory(props) {
   const { open, setOpen, billForPaymentHistory } = props;
-  console.log(billForPaymentHistory);
   const [paymentHistory, setPaymentHistory] = useState(null);
 
   const getPaymentHistory = async (billId) => {
@@ -15,12 +14,11 @@ export default function VendorBillPaymentHistory(props) {
   }
   useEffect(() => {
     if(billForPaymentHistory && open){
-      getPaymentHistory(billForPaymentHistory);
+      getPaymentHistory(billForPaymentHistory._id);
     }else{
       setPaymentHistory([]);
     }   
   }, [billForPaymentHistory, open]);
-  console.log("paymentHistory", paymentHistory);
   return (
     <Dialog open={open} onClose={() => setOpen(false)} className="relative z-50">
       {/* Overlay */}
@@ -35,7 +33,7 @@ export default function VendorBillPaymentHistory(props) {
           {/* Header */}
           <div className="flex items-center bg-blue-600 px-4 py-3 text-white">
             <DialogTitle as="h3" className="text-lg font-semibold">
-              Applied Payment to {billForPaymentHistory?.invoiceNo ?? ''}
+              Applied Payment History : {billForPaymentHistory?.invoiceNo ?? ''}
             </DialogTitle>
           </div>
           <div className="px-6 py-4">

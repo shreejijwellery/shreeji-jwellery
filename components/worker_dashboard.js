@@ -71,9 +71,7 @@ export default function PayableDashboard(props) {
 
   const handleScroll = (e) => {
     const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
-    console.log('Scrolling...', bottom, hasMore);
     if (bottom && hasMore) {
-      console.log('Fetching more data...');
       fetchWorkDetails();
     }
   };

@@ -12,7 +12,7 @@ export default function ApplyVendorPaymentModel(props) {
   const [paymentMode, setPaymentMode] = useState(VENDOR_PAYMENT_MODES.CASH);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
-  const [isLoading, setIsLoading] = useState(false);    
+  const [isLoading, setIsLoading] = useState(false);
   const [billPayments, setBillPayments] = useState(
     selectedBills.map(bill => ({
       _id: bill._id,
@@ -20,18 +20,18 @@ export default function ApplyVendorPaymentModel(props) {
     }))
   );
 
-
   useEffect(() => {
     const totalRemainAmount = selectedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
     setTotalAmount(totalRemainAmount);
-    setBillPayments(selectedBills.map(bill => ({
-      _id: bill._id,
-      paymentAmount: bill.remainAmount, // Default to remain amount
-    })));
+    setBillPayments(
+      selectedBills.map(bill => ({
+        _id: bill._id,
+        paymentAmount: bill.remainAmount, // Default to remain amount
+      }))
+    );
   }, [selectedBills]);
 
-  const handleTotalAmountChange = (value) => {
-
+  const handleTotalAmountChange = value => {
     const enteredAmount = parseFloat(value);
     const totalRemainAmount = selectedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
     if (enteredAmount > totalRemainAmount) {
@@ -62,7 +62,9 @@ export default function ApplyVendorPaymentModel(props) {
   const handlePaymentChange = (id, value) => {
     const enteredValue = parseFloat(value);
     setBillPayments(prev => {
-      const updatedBills = prev.map(bill => (bill._id === id ? { ...bill, paymentAmount: enteredValue } : bill));
+      const updatedBills = prev.map(bill =>
+        bill._id === id ? { ...bill, paymentAmount: enteredValue } : bill
+      );
       const newTotalAmount = updatedBills.reduce((sum, bill) => sum + bill.paymentAmount, 0);
       setTotalAmount(newTotalAmount);
       return updatedBills;
@@ -80,12 +82,12 @@ export default function ApplyVendorPaymentModel(props) {
       notes,
       totalAmount: totalAmount, // Total amount to be paid
     };
-    if(filteredBillPayments.length > 1 ){
+    if (filteredBillPayments.length > 1) {
       paymentData.batchPaymentId = uuidv4();
-    } 
-   
+    }
+
     // Call API to create payment
-   const response = await fetch('/api/vendor-bills/payment', {
+    const response = await fetch('/api/vendor-bills/payment', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -93,13 +95,12 @@ export default function ApplyVendorPaymentModel(props) {
       body: JSON.stringify(paymentData),
     });
 
-    if(response){    
+    if (response) {
       setOpen(false); // Close modal after submission
       setIsBillModified([...filteredBillPayments.map(bill => bill._id)]);
-    }else{
+    } else {
       toast.error('Failed to apply payment');
     }
-
   };
 
   return (
@@ -151,7 +152,6 @@ export default function ApplyVendorPaymentModel(props) {
                 className="border rounded p-2"
                 placeholder="Notes"
               />
-              
             </div>
             {/* Submit Button */}
             <div className="mt-6 flex items-center justify-end space-x-3">
@@ -194,15 +194,22 @@ export default function ApplyVendorPaymentModel(props) {
                       <td className="py-3 px-6 text-left">{bill.amount}</td>
                       <td className="py-3 px-6 text-left">{bill.paidAmount}</td>
                       <td className="py-3 px-6 text-left">{bill.remainAmount}</td>
-                      <input
-                        type="number"
-                        value={billPayments.find(b => b._id === bill._id)?.paymentAmount || 0}
-                        onChange={e => e.target.value > bill.remainAmount || e.target.value < 0  ? null :  handlePaymentChange(bill._id, e.target.value)}
-                        className="border rounded p-2"
-                        placeholder="Amount"
-                        max={bill.remainAmount}
-                        // min={0}
-                      />
+                      <td>
+                        <input
+                          type="number"
+                          value={billPayments.find(b => b._id === bill._id)?.paymentAmount || 0}
+                          onChange={e =>
+                            e.target.value > bill.remainAmount || e.target.value < 0
+                              ? null
+                              : handlePaymentChange(bill._id, e.target.value)
+                          }
+                          className="border rounded p-2"
+                          placeholder="Amount"
+                          max={bill.remainAmount}
+                          // min={0}
+                          
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -216,7 +223,6 @@ export default function ApplyVendorPaymentModel(props) {
                 className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-200">
                 Cancel
               </button>
-
             </div>
           </div>
         </DialogPanel>

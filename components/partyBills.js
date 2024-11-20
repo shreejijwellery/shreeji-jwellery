@@ -205,7 +205,6 @@ export default function PartyBills({ selectedParty, user }) {
     doc.save('selected_vendor_bills_report.pdf');
   };
 
-  console.log(isBillModified);
   const fetchModifiedBills = async () => {
     const response = await axios.get(`/api/vendor-bills`, {
       params: {
@@ -250,12 +249,12 @@ export default function PartyBills({ selectedParty, user }) {
       <ApplyVendorPaymentModel
         open={openApplyPayment && !!selectedParty && selectedBills.length > 0}
         setOpen={setOpenApplyPayment}
-        selectedBills={bills.filter(bill => selectedBills.includes(bill._id))}
+        selectedBills={bills.filter(bill => selectedBills.includes(bill._id) && bill.status !== VENDOR_BILL_STATUS.PAID)}
         selectedParty={selectedParty}
         isBillModified={isBillModified}
         setIsBillModified={setIsBillModified}
       />
-      <VendorBillPaymentHistory open={openPaymentHistory} setOpen={setOpenPaymentHistory} billForPaymentHistory={billForPaymentHistory}  />
+      <VendorBillPaymentHistory open={openPaymentHistory} setOpen={setOpenPaymentHistory} billForPaymentHistory={billForPaymentHistory}   />
       <h4 className="text-xl font-semibold mb-6 text-center text-gray-700">Vendor Bills</h4>
 
       {/* Date Filters */}
@@ -403,7 +402,7 @@ export default function PartyBills({ selectedParty, user }) {
                         data-tooltip-id={`bill-status-${bill._id}`}
                         className="inline-block ml-2 text-blue-500 hover:text-blue-700 cursor-pointer"
                         onClick={() => {
-                          setBillForPaymentHistory(bill._id);
+                          setBillForPaymentHistory(bill);
                           setOpenPaymentHistory(true);
                         }}
                       />
