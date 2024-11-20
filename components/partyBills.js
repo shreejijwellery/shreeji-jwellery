@@ -157,7 +157,7 @@ export default function PartyBills({ selectedParty, user }) {
   const downloadCSV = () => {
     const selectedData = bills.filter(bill => selectedBills.includes(bill._id));
     const csvContent = [
-      ['Party Name', 'Invoice No', 'Bill Date', 'Status', 'Amount', 'Paid Amount', 'Remain Amount'],
+      ['Vendor Name', 'Invoice No', 'Bill Date', 'Status', 'Amount', 'Paid Amount', 'Remain Amount'],
       ...selectedData.map(bill => [
         bill.partyName,
         bill.invoiceNo,
@@ -185,7 +185,7 @@ export default function PartyBills({ selectedParty, user }) {
     doc.autoTable({
       head: [
         [
-          'Party Name',
+          'Vendor Name',
           'Invoice No',
           'Bill Date',
           'Status',
@@ -380,11 +380,11 @@ export default function PartyBills({ selectedParty, user }) {
               <th className="py-3 px-6 text-left">
                 <input
                   type="checkbox"
-                  checked={selectedBills.length === bills.length}
+                  checked={selectedBills.length && selectedBills.length === bills.length}
                   onChange={e => (e.target.checked ? selectAll() : deselectAll())}
                 />
               </th>
-              <th className="py-3 px-6 text-left">Party Name</th>
+              <th className="py-3 px-6 text-left">Vendor Name</th>
               <th className="py-3 px-6 text-left">Invoice No</th>
               <th className="py-3 px-6 text-left">Bill Date</th>
               <th className="py-3 px-6 text-left">Status </th>

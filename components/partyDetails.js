@@ -34,7 +34,7 @@ const PartyDetails = props => {
     setLoading(true);
     try {
       await axios.post('/api/party', { ...newWorker, created_by: user._id });
-      toast.success('Party added successfully!', { autoClose: 500 });
+      toast.success('Vendor added successfully!', { autoClose: 500 });
       fetchWorkers(true);
       setNewWorker({ name: '', lastname: '', mobile_no: '', address: '' });
     } catch (error) {
@@ -48,7 +48,7 @@ const PartyDetails = props => {
     setLoading(true);
     try {
       await axios.delete(`/api/party/${id}`);
-      toast.success('Party deleted successfully!', { autoClose: 500 });
+      toast.success('Vendor deleted successfully!', { autoClose: 500 });
       fetchWorkers(true);
     } catch (error) {
       toast.error('Failed to delete worker.');
@@ -61,7 +61,7 @@ const PartyDetails = props => {
     setLoading(true);
     try {
       await axios.put(`/api/party`, editingWorker);
-      toast.success('Party updated successfully!', { autoClose: 500 });
+      toast.success('Vendor updated successfully!', { autoClose: 500 });
       fetchWorkers(true);
       setEditingWorker(null);
     } catch (error) {
@@ -78,9 +78,9 @@ const PartyDetails = props => {
   return (
     <div className="p-8 max-w-4xl mx-auto bg-gradient-to-r from-blue-50 to-white rounded-xl shadow-lg">
       <ToastContainer />
-      <h1 className="text-4xl font-bold text-center text-gray-800 mb-8">Party Details</h1>
+      <h1 className="text-4xl font-bold text-center text-gray-800 mb-8">Vendor Details</h1>
       {loading && <Loader />} {/* Loader Component */}
-      <h2 className="text-2xl font-semibold mb-6 text-gray-700">Add New Party</h2>
+      <h2 className="text-2xl font-semibold mb-6 text-gray-700">Add New Vendor</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <input
           type="text"
@@ -92,7 +92,7 @@ const PartyDetails = props => {
         <button
           onClick={handleCreateWorker}
           className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-md transition">
-          <FaPlus className="mr-2" /> Add Party
+          <FaPlus className="mr-2" /> Add Vendor
         </button>
       </div>
       <div className="overflow-auto max-h-96">

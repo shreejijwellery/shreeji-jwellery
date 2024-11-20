@@ -6,4 +6,4 @@ const WorkerSchema = new mongoose.Schema({
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
-export default mongoose.models.Party || mongoose.model('Party', WorkerSchema);
+export default mongoose.models.Vendor || mongoose.model('Vendor', WorkerSchema);

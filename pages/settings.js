@@ -34,7 +34,7 @@ const SettingsTabs = () => {
                 className={`px-4 py-2 rounded ${
                   selectedTab === 'party' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
                 }`}>
-                Party
+                Vendor
               </button>
             )}
             {user?.role === 'admin' && (

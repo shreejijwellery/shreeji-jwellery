@@ -30,16 +30,16 @@ export default function AddBillModal(props) {
           <div className="px-6 py-4">
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
-                    {/* Party Name */}
+                    {/* Vendor Name */}
                     <div>
                   <label className="block text-sm font-medium text-gray-700" htmlFor="partyName">
-                    Party Name
+                    Vendor Name
                   </label>
                   <input
                     id="partyName"
                     name="partyName"
                     type="text"
-                    placeholder="Enter Party Name"
+                    placeholder="Enter Vendor Name"
                     value={form.partyName}
                     onChange={handleInputChange}
                     className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
