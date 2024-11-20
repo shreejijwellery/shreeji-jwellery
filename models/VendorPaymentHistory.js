@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import VENDOR_PAYMENT_MODES from '../lib/constants';
+import {VENDOR_PAYMENT_MODES } from '../lib/constants';
 
 const paymentHistorySchema = new mongoose.Schema({
     vendorId: {
@@ -12,10 +12,17 @@ const paymentHistorySchema = new mongoose.Schema({
         required: true,
         ref: 'VendorBill' // Assuming you have a VendorBill model
     },
+    batchPaymentId : {
+        type: String
+    },  
     amount: {
         type: Number,
         required: true
     },
+    totalAmount: {
+        type: Number,
+        required: true
+    },  
     paymentDate: {
         type: Date,
         default: Date.now

@@ -14,7 +14,7 @@ export default function MainPage() {
     }
   }, []);
   return (
-    <div className="container mx-auto p-4">
+    <div className=" mx-auto p-4">
       {/* Main Page Layout */}
       <div className="flex flex-col md:flex-row gap-8">
         {/* Left Sidebar for PartyDropDown */}

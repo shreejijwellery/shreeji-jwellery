@@ -2,25 +2,55 @@ import mongoose from 'mongoose';
 
 import connectToDatabase from '../../../lib/mongodb';
 import VendorPaymentHistory from '../../../models/VendorPaymentHistory';
+import VendorBill from '../../../models/VendorBills';
+import { VENDOR_BILL_STATUS } from '../../../lib/constants';
 //Validations needed for vendorID, invoiceID, paymentDate
 
-
+export async function appliedPayment(billId) {
+  const appliedPayment = await VendorPaymentHistory.find({invoiceId: billId}).lean();
+  let totalAppliedPayment = 0;
+  appliedPayment.forEach(payment => {
+    totalAppliedPayment += payment.amount;
+  });
+  const bill = await VendorBill.findById(billId).lean();
+  if (!bill) {
+    throw new Error('Bill not found');
+  }
+  const updatedBill = {   
+    paidAmount: totalAppliedPayment,
+    remainAmount: bill.amount - totalAppliedPayment
+  }
+  if((bill.amount - totalAppliedPayment) === 0 ){
+    updatedBill.status = VENDOR_BILL_STATUS.PAID;
+  }else if((bill.amount - totalAppliedPayment) > 0){
+    updatedBill.status = VENDOR_BILL_STATUS.PARTIAL;
+  }
+  await VendorBill.findByIdAndUpdate(billId, updatedBill); 
+  return updatedBill;
+} 
 
 const createPayment = async (req, res) => {
   try {
-    const { vendorId, invoiceId, amount, paymentMode, notes, paymentDate } = req.body;
-    const data = {
-            vendorId: new mongoose.Types.ObjectId(vendorId),
-            invoiceId: new mongoose.Types.ObjectId(invoiceId),
-            amount,
-            paymentMode,
-            notes,
-            paymentDate: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
-          }
-    
-    const payment = new VendorPaymentHistory(data);
-    await payment.save();
-    res.status(201).json(payment);
+    const { vendorId, paymentMode,totalAmount, notes, paymentDate, batchPaymentId, selectedBills } = req.body;
+    const selectedBillsData = await Promise.all(selectedBills.map(async bill => {
+      const data = {
+        vendorId: new mongoose.Types.ObjectId(vendorId),
+        invoiceId: new mongoose.Types.ObjectId(bill._id),
+        amount: bill.paymentAmount,
+        paymentMode,  
+        notes,  
+        paymentDate: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
+        batchPaymentId,
+        totalAmount
+      }
+
+      const payment = new VendorPaymentHistory(data);
+      await payment.save();
+      await appliedPayment(bill._id); 
+      return payment;
+    })) ;
+
+    res.status(201).json(selectedBillsData);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

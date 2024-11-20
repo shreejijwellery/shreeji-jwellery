@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import VendorBill from '../../../models/VendorBills';
 import connectToDatabase from '../../../lib/mongodb';
-
+import moment from 'moment-timezone';
+import { VENDOR_BILL_STATUS } from '../../../lib/constants';
 async function createVendorBill(req, res) {
   try {
     const { amount, partyName, vendorId, invoiceNo, billDate, addedBy }    = req.body;
@@ -24,32 +25,38 @@ async function createVendorBill(req, res) {
 
 async function getVendorBills(req, res) {
   try {
-    const {vendorId, fromDate, toDate, status} = req.query;
+    const {vendorId, startDate, endDate, status, page, limit} = req.query;
     let criteria = {
         isDeleted: false
     };
     if (vendorId && mongoose.isValidObjectId(vendorId)) {
         criteria.vendorId = new mongoose.Types.ObjectId(vendorId);
     }
-    if (fromDate && toDate) {
+    if (startDate && endDate) {
         criteria.billDate = {
-            $gte: new Date(fromDate).toISOString(),
-            $lte: new Date(toDate).toISOString()
+            $gte: moment(startDate).tz('IST').startOf('day').toISOString(),
+            $lte: moment(endDate).tz('IST').endOf('day').toISOString(),
         };
-    }else if (fromDate) {
+    }else if (startDate) {
         criteria.billDate = {
-            $gte: new Date(fromDate).toISOString()
+            $gte:  moment(startDate).tz('IST').startOf('day').toISOString()
         };
-    }else if (toDate) {
+    }else if (endDate) {
         criteria.billDate = {
-            $lte: new Date(toDate).toISOString()
+            $lte: moment(endDate).tz('IST').endOf('day').toISOString()
         };
     }
     if (status) {
         criteria.status = status;
     }
+    const options = {};
+    if (page) {
+        options.skip = (page - 1) * (limit || 20);
+        options.limit = limit || 20;
 
-    const vendorBills = await VendorBill.find(criteria);
+    }
+
+    const vendorBills = await VendorBill.find(criteria).sort({ billDate: -1 }).limit(options.limit).skip(options.skip);
     res.status(200).json(vendorBills);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -68,6 +75,11 @@ async function updateVendorBill(req, res) {
         updatedData.remainAmount = updatedData.amount - (updatedData.paidAmount || 0);
     }
 
+    if(updatedData.remainAmount === 0){
+        updatedData.status = VENDOR_BILL_STATUS.PAID;
+    }else if(updatedData.remainAmount > 0) {
+        updatedData.status = VENDOR_BILL_STATUS.PARTIAL;
+    }
 
     const vendorBill = await VendorBill.findByIdAndUpdate(id, updatedData, { new: true });
     if (!vendorBill) {
@@ -80,9 +92,9 @@ async function updateVendorBill(req, res) {
 }
 
 async function deleteVendorBill(req, res) {
-  const { id } = req.query; // Assuming ID is passed in the query
+  const { _id } = req.query; // Assuming ID is passed in the query
   try {
-    const vendorBill = await VendorBill.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+    const vendorBill = await VendorBill.findByIdAndUpdate(_id, { isDeleted: true }, { new: true });
 
     if (!vendorBill) {
       return res.status(404).json({ error: 'Vendor bill not found' });
