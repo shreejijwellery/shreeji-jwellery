@@ -3,10 +3,10 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import { IoIosAddCircleOutline } from 'react-icons/io';
 import { FaEdit, FaSave } from 'react-icons/fa';
+import { VENDOR_BILL_STATUS } from '../lib/constants';
 
 export default function AddBillModal(props) {
   const { isEditing, form, handleInputChange, handleSubmit, open, setOpen } = props;
-
   return (
     <Dialog open={open} onClose={() => setOpen(false)} className="relative z-50">
       {/* Overlay */}
@@ -30,25 +30,8 @@ export default function AddBillModal(props) {
           <div className="px-6 py-4">
             <form onSubmit={handleSubmit}>
               <div className="space-y-4">
-                {/* Amount */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700" htmlFor="amount">
-                    Amount
-                  </label>
-                  <input
-                    id="amount"
-                    name="amount"
-                    type="number"
-                    placeholder="Enter Amount"
-                    value={form.amount}
-                    onChange={handleInputChange}
-                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                {/* Party Name */}
-                <div>
+                    {/* Party Name */}
+                    <div>
                   <label className="block text-sm font-medium text-gray-700" htmlFor="partyName">
                     Party Name
                   </label>
@@ -63,6 +46,25 @@ export default function AddBillModal(props) {
                     required
                   />
                 </div>
+                {/* Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700" htmlFor="amount">
+                    Amount {[VENDOR_BILL_STATUS.PAID, VENDOR_BILL_STATUS.PARTIAL].includes(form.status) ? '(Cannot be Edited as it is Paid)' : ''}
+                  </label>
+                  <input
+                    id="amount"
+                    name="amount"
+                    type="number"
+                    placeholder="Enter Amount"
+                    value={form.amount}
+                    onChange={handleInputChange}
+                    disabled={[VENDOR_BILL_STATUS.PAID, VENDOR_BILL_STATUS.PARTIAL].includes(form.status)}
+                    className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    required
+                  />
+                </div>
+
+            
 
                 {/* Invoice Number */}
                 <div>

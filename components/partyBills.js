@@ -35,7 +35,7 @@ export default function PartyBills({ selectedParty, user }) {
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
   const [openApplyPayment, setOpenApplyPayment] = useState(false);
   const [isBillModified, setIsBillModified] = useState([]);
-  const [openPaymentHistory, setOpenPaymentHistory] = useState(false); 
+  const [openPaymentHistory, setOpenPaymentHistory] = useState(false);
   const [billForPaymentHistory, setBillForPaymentHistory] = useState(null);
   const observerRef = useRef();
 
@@ -43,6 +43,8 @@ export default function PartyBills({ selectedParty, user }) {
     setPage(1); // Reset page when filters or selectedParty changes
     fetchVendorBills(true); // Reset the data
     resetForm();
+    setIsBillModified([]);
+    setSelectedBills([]);
   }, [selectedParty, startDate, endDate, selectedPaymentStatus]);
 
   useEffect(() => {
@@ -236,25 +238,39 @@ export default function PartyBills({ selectedParty, user }) {
 
   return (
     <div className="container mx-auto">
-      <AddBillModal
-        handleSubmit={handleSubmit}
-        form={form}
-        handleInputChange={handleInputChange}
-        isEditing={isEditing}
-        open={open}
-        setOpen={setOpen}
-        isBillModified={isBillModified}
-        setIsBillModified={setIsBillModified}
-      />
-      <ApplyVendorPaymentModel
-        open={openApplyPayment && !!selectedParty && selectedBills.length > 0}
-        setOpen={setOpenApplyPayment}
-        selectedBills={bills.filter(bill => selectedBills.includes(bill._id) && bill.status !== VENDOR_BILL_STATUS.PAID)}
-        selectedParty={selectedParty}
-        isBillModified={isBillModified}
-        setIsBillModified={setIsBillModified}
-      />
-      <VendorBillPaymentHistory open={openPaymentHistory} setOpen={setOpenPaymentHistory} billForPaymentHistory={billForPaymentHistory}   />
+      {open && (
+        <AddBillModal
+          handleSubmit={handleSubmit}
+          form={form}
+          handleInputChange={handleInputChange}
+          isEditing={isEditing}
+          open={open}
+          setOpen={setOpen}
+          isBillModified={isBillModified}
+          setIsBillModified={setIsBillModified}
+        />
+      )}
+      {openApplyPayment && (
+        <ApplyVendorPaymentModel
+          open={openApplyPayment && !!selectedParty && selectedBills.length > 0}
+          setOpen={setOpenApplyPayment}
+          selectedBills={bills.filter(
+            bill => selectedBills.includes(bill._id) && bill.status !== VENDOR_BILL_STATUS.PAID
+          )}
+          selectedParty={selectedParty}
+          isBillModified={isBillModified}
+          setIsBillModified={setIsBillModified}
+        />
+      )}
+      {openPaymentHistory && (
+        <VendorBillPaymentHistory
+          open={openPaymentHistory}
+          setOpen={setOpenPaymentHistory}
+          billForPaymentHistory={billForPaymentHistory}
+          isBillModified={isBillModified}
+          setIsBillModified={setIsBillModified}
+        />
+      )}
       <h4 className="text-xl font-semibold mb-6 text-center text-gray-700">Vendor Bills</h4>
 
       {/* Date Filters */}

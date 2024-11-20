@@ -7,7 +7,7 @@ import { VENDOR_BILL_STATUS } from '../../../lib/constants';
 //Validations needed for vendorID, invoiceID, paymentDate
 
 export async function appliedPayment(billId) {
-  const appliedPayment = await VendorPaymentHistory.find({invoiceId: billId}).lean();
+  const appliedPayment = await VendorPaymentHistory.find({invoiceId: billId, isDeleted: false }).lean();
   let totalAppliedPayment = 0;
   appliedPayment.forEach(payment => {
     totalAppliedPayment += payment.amount;
@@ -95,6 +95,7 @@ const deletePayment = async (req, res) => {
         if (!payment) {
             return res.status(404).json({ error: 'Payment not found' });
         }
+        await appliedPayment(payment.invoiceId);  
         res.status(200).json(payment);
     } catch (error) {
         res.status(500).json({ error: error.message });

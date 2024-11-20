@@ -3,15 +3,22 @@ import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/re
 import axios from 'axios';
 import moment from 'moment-timezone';
 import React, { useEffect, useState } from 'react';
-
+import { FaTrash} from 'react-icons/fa';
 export default function VendorBillPaymentHistory(props) {
-  const { open, setOpen, billForPaymentHistory } = props;
+  const { open, setOpen, billForPaymentHistory, isBillModified, setIsBillModified } = props;
   const [paymentHistory, setPaymentHistory] = useState(null);
 
   const getPaymentHistory = async (billId) => {
     const response = await axios.get(`/api/vendor-bills/payment?invoiceId=${billId}`);
     setPaymentHistory(response.data);
   }
+
+  const deletePayment = async (paymentId) => {
+    await axios.delete(`/api/vendor-bills/payment?id=${paymentId}`);
+    setPaymentHistory(prevHistory => prevHistory.filter(bill => bill._id !== paymentId));
+    setIsBillModified(prev => [...prev, billForPaymentHistory.invoiceId]);
+  }
+
   useEffect(() => {
     if(billForPaymentHistory && open){
       getPaymentHistory(billForPaymentHistory._id);
@@ -46,6 +53,7 @@ export default function VendorBillPaymentHistory(props) {
                     <th className="py-3 px-6 text-left">Amount</th>
                     <th className="py-3 px-6 text-left">Payment Mode</th>
                     <th className="py-3 px-6 text-left">Notes</th>
+                    <th className="py-3 px-6 text-left">Action</th>
                   </tr>
                 </thead>
                 <tbody className="text-gray-600 text-sm font-light">
@@ -57,6 +65,9 @@ export default function VendorBillPaymentHistory(props) {
                       <td className="py-3 px-6 text-left">{bill.amount}</td>
                       <td className="py-3 px-6 text-left">{bill.paymentMode}</td>
                       <td className="py-3 px-6 text-left">{bill.notes}</td> 
+                      <td className="py-3 px-6 text-left">
+                        <button className="text-red-500" onClick={() => deletePayment(bill._id)}><FaTrash /></button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
