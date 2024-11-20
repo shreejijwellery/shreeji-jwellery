@@ -84,10 +84,7 @@ const CalendarPage = () => {
       toast.error('Error fetching order files. Please try again.');
     }
   };
-  // useEffect(() => {
-  //   console.log('Date changed:', date)
-  //   fetchGetOrderFiles()
-  // }, [date])
+
   return (
     <div className="p-8 min-h-screen bg-gray-100">
       <h1 className="text-3xl font-bold mb-8 text-center">SKU Calendar</h1>

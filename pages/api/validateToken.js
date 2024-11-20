@@ -22,7 +22,7 @@ export default async function handler(req, res) {
         return res.status(404).json({ message: 'User not found' });
       }
 
-      res.status(200).json({ user: {_id : user._id, name: user.name, username: user.username, role: user.role } });
+      res.status(200).json({ user: {_id : user._id, name: user.name, username: user.username, role: user.role, permissions: user.permissions } });
     } catch (error) {
       res.status(401).json({ message: 'Invalid token' });
     }

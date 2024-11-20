@@ -12,7 +12,6 @@ export default function OrderData({ orderData, user, fetchGetOrderFiles}) {
     const [addNewPrice, setAddNewPrice] = useState({});
 
     const addPrice = async (price) => {
-        console.log("Add price", price);
         const updateObj = {
           "STYLE ID": price.sku,
           "PRICE": price.price,
