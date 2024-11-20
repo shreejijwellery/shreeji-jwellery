@@ -8,7 +8,6 @@ export default function MainPage() {
   const [user, setUser] = useState(null);
   useEffect(() => {
     const userData = localStorage.getItem('user');
-    console.log('userData', userData);
     if (userData) {
       setUser(JSON.parse(userData));
     }
