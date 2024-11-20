@@ -79,6 +79,8 @@ async function updateVendorBill(req, res) {
         updatedData.status = VENDOR_BILL_STATUS.PAID;
     }else if(updatedData.remainAmount > 0) {
         updatedData.status = VENDOR_BILL_STATUS.PARTIAL;
+    }else if(updatedData.paidAmount === 0){
+        updatedData.status = VENDOR_BILL_STATUS.PENDING;
     }
 
     const vendorBill = await VendorBill.findByIdAndUpdate(id, updatedData, { new: true });

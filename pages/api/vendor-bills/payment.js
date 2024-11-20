@@ -24,6 +24,8 @@ export async function appliedPayment(billId) {
     updatedBill.status = VENDOR_BILL_STATUS.PAID;
   }else if((bill.amount - totalAppliedPayment) > 0){
     updatedBill.status = VENDOR_BILL_STATUS.PARTIAL;
+  }else if(totalAppliedPayment === 0){
+    updatedBill.status = VENDOR_BILL_STATUS.PENDING;
   }
   await VendorBill.findByIdAndUpdate(billId, updatedBill); 
   return updatedBill;
