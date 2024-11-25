@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import moment from 'moment';
 import { PAYMENT_STATUS } from '../lib/constants';
+import Select from 'react-select';
 
 export default function PayableDashboard(props) {
   const [workDetails, setWorkDetails] = useState([]);
@@ -357,63 +358,78 @@ export default function PayableDashboard(props) {
     }
   };
 
+  const sectionOptions = uniqueSections.map(section => ({
+    value: section._id,
+    label: section.name,
+  }));
+
+  const itemOptions = uniqueItems.map(item => ({
+    value: item._id,
+    label: `${item.name} (${uniqueSections.find(sec => sec._id === item.section)?.name})`,
+  }));
+
   return (
-    <div className="flex justify-center" >
-      {/* Date Filter Inputs */}
-
-      {/* Filter Checkboxes */}
-      <div className="flex flex-col mr-4 p-4 bg-gray-50 rounded-lg shadow-md">
-  {/* Filter by Section */}
-  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Filter by Section</h3>
-  <div className="space-y-2">
-    {uniqueSections.map(section => (
-      <label
-        key={section._id}
-        className="flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"
-      >
+    <div className="flex flex-col items-center p-4 bg-gray-100 min-h-screen">
+      {/* Filters in One Line */}
+      <div className="flex flex-wrap items-center mb-4 space-x-2">
         <input
-          type="checkbox"
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          checked={selectedSections.includes(section._id)}
-          onChange={() => {
-            setSelectedSections(prev =>
-              prev.includes(section._id) ? prev.filter(s => s !== section._id) : [...prev, section._id]
-            );
-          }}
+          type="date"
+          value={startDate}
+          onChange={e => setStartDate(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <span>{section.name}</span>
-      </label>
-    ))}
-  </div>
-
-  {/* Filter by Item */}
-  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mt-6 mb-4">Filter by Item</h3>
-  <div className="space-y-2">
-    {uniqueItems.map(item => (
-      <label
-        key={item._id}
-        className="flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"
-      >
         <input
-          type="checkbox"
-          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          checked={selectedItems.includes(item._id)}
-          onChange={() => {
-            setSelectedItems(prev =>
-              prev.includes(item._id) ? prev.filter(i => i !== item._id) : [...prev, item._id]
-            );
-          }}
+          type="date"
+          value={endDate}
+          onChange={e => setEndDate(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <span>{item.name} ({ uniqueSections.find(sec => sec._id == item.section)?.name})</span>
-      </label>
-    ))}
-  </div>
-</div>
+        <button
+          onClick={() =>
+            setSelectedPaymentStatus(prev =>
+              prev !== PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : null
+            )
+          }
+          className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-600 transition ${
+            selectedPaymentStatus === PAYMENT_STATUS.PAID && 'bg-blue-800 underline'
+          }`}>
+          Paid
+        </button>
+        <button
+          onClick={() =>
+            setSelectedPaymentStatus(prev =>
+              prev !== PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.PENDING : null
+            )
+          }
+          className={`bg-red-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-red-600 transition ${
+            selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'
+          }`}>
+          Unpaid
+        </button>
+        <Select
+          isMulti
+          options={sectionOptions}
+          value={sectionOptions.filter(option => selectedSections.includes(option.value))}
+          onChange={selected => setSelectedSections(selected.map(option => option.value))}
+          className="basic-multi-select w-64"
+          classNamePrefix="select"
+          placeholder="Select Sections"
+        />
+        <Select
+            isMulti
+            options={itemOptions}
+            value={itemOptions.filter(option => selectedItems.includes(option.value))}
+          onChange={selected => setSelectedItems(selected.map(option => option.value))}
+          className="basic-multi-select w-64 "
+          classNamePrefix="select"
+          placeholder="Select Items"
+        />
+      </div>
 
 
       {/* Work Details Table */}
-      <div className="mt-12 bg-white shadow-lg rounded-lg  ">
-        <div className="flex justify-between items-center mb-6 px-4">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-4xl">
+        <div className="flex justify-between items-center mb-6 px-4 py-2 bg-gray-200">
           <h2 className="text-2xl font-semibold text-gray-800">All Payable Dashboard</h2>
           {filteredWorkDetails.length > 0 && (
             <div className="flex gap-2">
@@ -431,113 +447,77 @@ export default function PayableDashboard(props) {
           )}
         </div>
 
-        <div className="mb-4 mx-5">
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2 mr-2"
-          />
-          <input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2"
-          />
-
-          <button
-            onClick={() =>
-              setSelectedPaymentStatus(prev =>
-                prev !== PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : null
-              )
-            }
-            className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg ml-2 hover:bg-green-600 transition ${
-              selectedPaymentStatus === PAYMENT_STATUS.PAID && 'bg-blue-800 underline'
-            }`}>
-            Paid
-          </button>
-          <button
-            onClick={() =>
-              setSelectedPaymentStatus(prev =>
-                prev !== PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.PENDING : null
-              )
-            }
-            className={`bg-red-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-red-600 transition ${
-              selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'
-            }`}>
-            Unpaid
-          </button>
-        </div>
-        <div className="overflow-x-scroll text-wrap" style={{ maxHeight: '500px', overflowY: 'scroll' }} onScroll={handleScroll}>
-          <div className="w-max bg-gray-100 p-4 font-medium text-gray-700 flex gap-4 ">
-            <div className="w-20">Name</div>
-            <div className="w-32">Section</div>
-            <div className="w-32">Item</div>
-            <div className="w-10">Piece</div>
-            <div className="w-10">Rate</div>
-            <div className="w-16">Amount</div>
-            <div className="w-32">Submitted On</div>
-            <div className="w-20">Payment Status</div>
-            <div className="w-32">Payment Date</div>
-          </div>
-            <div>
-          {filteredWorkDetails.length > 0 ? (
-            <>
-              {filteredWorkDetails.map(detail => (
-                <div
-                  key={detail._id}
-                  className="w-max flex gap-4 p-4 border-b last:border-none text-gray-700">
-                  <>
-                    <div className="w-20">{detail.worker_name}</div>
-
-                    <div className="w-32">{detail.section_name}</div>
-                    <div className="w-32">{detail.item_name}</div>
-                    <div className="w-10">{detail.piece}</div>
-                    <div className="w-10">₹{detail.item_rate}</div>
-                    <div className="w-16">
+        <div className="overflow-x-auto" style={{ maxHeight: '500px', overflowY: 'scroll' }} onScroll={handleScroll}>
+          <table className="min-w-full bg-white">
+            <thead>
+              <tr className="bg-gray-100 p-4 font-medium text-gray-700">
+                <th className="px-4 py-2">Name</th>
+                <th className="px-4 py-2">Section</th>
+                <th className="px-4 py-2">Item</th>
+                <th className="px-4 py-2">Piece</th>
+                <th className="px-4 py-2">Rate</th>
+                <th className="px-4 py-2">Amount</th>
+                <th className="px-4 py-2">Submitted On</th>
+                <th className="px-4 py-2">Payment Status</th>
+                <th className="px-4 py-2">Payment Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredWorkDetails.length > 0 ? (
+                filteredWorkDetails.map(detail => (
+                  <tr key={detail._id} className="border-b last:border-none text-gray-700">
+                    <td className="px-4 py-2">{detail.worker_name}</td>
+                    <td className="px-4 py-2">{detail.section_name}</td>
+                    <td className="px-4 py-2">{detail.item_name}</td>
+                    <td className="px-4 py-2">{detail.piece}</td>
+                    <td className="px-4 py-2">₹{detail.item_rate}</td>
+                    <td className="px-4 py-2">
                       ₹
                       {detail.amount
                         ? detail.amount.toFixed(2)
                         : (detail.piece * detail.item_rate).toFixed(2)}
-                    </div>
-                    <div className="w-32">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}
-                    </div>
-                    <div className="w-20">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.payment_status === PAYMENT_STATUS.PAID
                         ? PAYMENT_STATUS.PAID
                         : PAYMENT_STATUS.PENDING}
-                    </div>
-                    <div className="w-32">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.payment_date ? moment(detail.payment_date).format('LLL') : ''}
-                    </div>
-                  </>
-                </div>
-              ))}
-
-              {/* Add Total Row */}
-              <div className="min-w-full flex p-4 border-t bg-gray-50 font-semibold">
-                <div className="w-20">Total</div>
-                <div className="w-32"></div>
-                <div className="w-32"></div>
-                <div className="w-40"></div>
-                <div className="w-32">
-                  ₹
-                  {filteredWorkDetails
-                    .reduce(
-                      (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
-                      0
-                    )
-                    .toFixed(2)}
-                </div>
-                <div className="w-40"></div>
-                <div className="w-32"></div>
-              </div>
-            </>
-          ) : (
-            <div className="p-4 text-gray-500 text-center">No work details found</div>
-          )}
-          </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="9" className="p-4 text-gray-500 text-center">No work details found</td>
+                </tr>
+              )}
+            </tbody>
+            {filteredWorkDetails.length > 0 && (
+              <tfoot>
+                <tr className="border-t bg-gray-50 font-semibold">
+                  <td className="px-4 py-2">Total</td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                    ₹
+                    {filteredWorkDetails
+                      .reduce(
+                        (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
+                        0
+                      )
+                      .toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
         </div>
 
         {/* Action Bar */}
