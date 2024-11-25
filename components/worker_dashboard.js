@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
 import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
@@ -17,7 +17,21 @@ export default function PayableDashboard(props) {
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-
+  const [selectedSections, setSelectedSections] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [uniqueSections, setUniqueSections] = useState([]);
+  const [uniqueItems, setUniqueItems] = useState([]);
+  // Fetch unique sections and items for filtering
+  useEffect(() => {
+    setUniqueSections([...new Set(sections)]);
+  }, [sections, items]);
+  useEffect(() => {
+    if (selectedSections.length > 0) {
+      setUniqueItems([...new Set(items.filter(item => selectedSections.includes(item.section)))]);
+    } else {
+      setUniqueItems([]);
+    }
+  }, [selectedSections, items]);
   useEffect(() => {
     const fetchSections = async () => {
       try {
@@ -41,6 +55,7 @@ export default function PayableDashboard(props) {
     fetchItems();
   }, []);
 
+
   const fetchWorkDetails = async (reset = false) => {
     try {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
@@ -48,13 +63,18 @@ export default function PayableDashboard(props) {
       const toDate = endDate ? `&toDate=${endDate}` : '';
       const limit = 50;
       const skip = reset ? 0 : offset;
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}&limit=${limit}&skip=${skip}`);
+
+      // Add filters for sections and items
+      const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
+      const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+
+      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
       const data = await response.json();
 
       if (reset) {
-        setWorkDetails(data);
+        setWorkDetails(data ?? []);
       } else {
-        setWorkDetails(prevDetails => [...prevDetails, ...data]);
+        setWorkDetails(prevDetails => [...prevDetails, ...(data ?? []) ]);
       }
 
       setHasMore(data.length === limit);
@@ -67,7 +87,7 @@ export default function PayableDashboard(props) {
   useEffect(() => {
     setOffset(0);
     fetchWorkDetails(true);
-  }, [selectedPaymentStatus, startDate, endDate]);
+  }, [selectedPaymentStatus, startDate, endDate, selectedSections, selectedItems]);
 
   const handleScroll = (e) => {
     const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
@@ -76,7 +96,7 @@ export default function PayableDashboard(props) {
     }
   };
 
-  const filteredWorkDetails = workDetails.filter(detail => {
+  const filteredWorkDetails = workDetails?.filter(detail => {
     const createdAt = new Date(detail.createdAt);
     const start = new Date(startDate);
 
@@ -228,7 +248,7 @@ export default function PayableDashboard(props) {
 
   const handleDownloadSelected = () => {
     const doc = new jsPDF();
-    const selectedDetails = workDetails.filter(detail => selectedRecords.includes(detail._id));
+    const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id));
 
     // Add Worker Details
 
@@ -340,6 +360,56 @@ export default function PayableDashboard(props) {
   return (
     <div className="flex justify-center" >
       {/* Date Filter Inputs */}
+
+      {/* Filter Checkboxes */}
+      <div className="flex flex-col mr-4 p-4 bg-gray-50 rounded-lg shadow-md">
+  {/* Filter by Section */}
+  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Filter by Section</h3>
+  <div className="space-y-2">
+    {uniqueSections.map(section => (
+      <label
+        key={section._id}
+        className="flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"
+      >
+        <input
+          type="checkbox"
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          checked={selectedSections.includes(section._id)}
+          onChange={() => {
+            setSelectedSections(prev =>
+              prev.includes(section._id) ? prev.filter(s => s !== section._id) : [...prev, section._id]
+            );
+          }}
+        />
+        <span>{section.name}</span>
+      </label>
+    ))}
+  </div>
+
+  {/* Filter by Item */}
+  <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mt-6 mb-4">Filter by Item</h3>
+  <div className="space-y-2">
+    {uniqueItems.map(item => (
+      <label
+        key={item._id}
+        className="flex items-center space-x-2 text-gray-700 cursor-pointer hover:text-blue-600 transition-colors"
+      >
+        <input
+          type="checkbox"
+          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          checked={selectedItems.includes(item._id)}
+          onChange={() => {
+            setSelectedItems(prev =>
+              prev.includes(item._id) ? prev.filter(i => i !== item._id) : [...prev, item._id]
+            );
+          }}
+        />
+        <span>{item.name} ({ uniqueSections.find(sec => sec._id == item.section)?.name})</span>
+      </label>
+    ))}
+  </div>
+</div>
+
 
       {/* Work Details Table */}
       <div className="mt-12 bg-white shadow-lg rounded-lg  ">
