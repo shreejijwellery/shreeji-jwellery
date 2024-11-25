@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
 import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import moment from 'moment';
 import { PAYMENT_STATUS } from '../lib/constants';
+import Select from 'react-select';
 
 export default function PayableDashboard(props) {
   const [workDetails, setWorkDetails] = useState([]);
@@ -17,7 +18,21 @@ export default function PayableDashboard(props) {
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-
+  const [selectedSections, setSelectedSections] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [uniqueSections, setUniqueSections] = useState([]);
+  const [uniqueItems, setUniqueItems] = useState([]);
+  // Fetch unique sections and items for filtering
+  useEffect(() => {
+    setUniqueSections([...new Set(sections)]);
+  }, [sections, items]);
+  useEffect(() => {
+    if (selectedSections.length > 0) {
+      setUniqueItems([...new Set(items.filter(item => selectedSections.includes(item.section)))]);
+    } else {
+      setUniqueItems([]);
+    }
+  }, [selectedSections, items]);
   useEffect(() => {
     const fetchSections = async () => {
       try {
@@ -41,6 +56,7 @@ export default function PayableDashboard(props) {
     fetchItems();
   }, []);
 
+
   const fetchWorkDetails = async (reset = false) => {
     try {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
@@ -48,13 +64,18 @@ export default function PayableDashboard(props) {
       const toDate = endDate ? `&toDate=${endDate}` : '';
       const limit = 50;
       const skip = reset ? 0 : offset;
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}&limit=${limit}&skip=${skip}`);
+
+      // Add filters for sections and items
+      const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
+      const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+
+      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
       const data = await response.json();
 
       if (reset) {
-        setWorkDetails(data);
+        setWorkDetails(data ?? []);
       } else {
-        setWorkDetails(prevDetails => [...prevDetails, ...data]);
+        setWorkDetails(prevDetails => [...prevDetails, ...(data ?? []) ]);
       }
 
       setHasMore(data.length === limit);
@@ -67,7 +88,7 @@ export default function PayableDashboard(props) {
   useEffect(() => {
     setOffset(0);
     fetchWorkDetails(true);
-  }, [selectedPaymentStatus, startDate, endDate]);
+  }, [selectedPaymentStatus, startDate, endDate, selectedSections, selectedItems]);
 
   const handleScroll = (e) => {
     const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
@@ -76,7 +97,7 @@ export default function PayableDashboard(props) {
     }
   };
 
-  const filteredWorkDetails = workDetails.filter(detail => {
+  const filteredWorkDetails = workDetails?.filter(detail => {
     const createdAt = new Date(detail.createdAt);
     const start = new Date(startDate);
 
@@ -228,7 +249,7 @@ export default function PayableDashboard(props) {
 
   const handleDownloadSelected = () => {
     const doc = new jsPDF();
-    const selectedDetails = workDetails.filter(detail => selectedRecords.includes(detail._id));
+    const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id));
 
     // Add Worker Details
 
@@ -337,13 +358,78 @@ export default function PayableDashboard(props) {
     }
   };
 
+  const sectionOptions = uniqueSections.map(section => ({
+    value: section._id,
+    label: section.name,
+  }));
+
+  const itemOptions = uniqueItems.map(item => ({
+    value: item._id,
+    label: `${item.name} (${uniqueSections.find(sec => sec._id === item.section)?.name})`,
+  }));
+
   return (
-    <div className="flex justify-center" >
-      {/* Date Filter Inputs */}
+    <div className="flex flex-col items-center p-4 bg-gray-100 min-h-screen">
+      {/* Filters in One Line */}
+      <div className="flex flex-wrap items-center mb-4 space-x-2">
+        <input
+          type="date"
+          value={startDate}
+          onChange={e => setStartDate(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="date"
+          value={endDate}
+          onChange={e => setEndDate(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          onClick={() =>
+            setSelectedPaymentStatus(prev =>
+              prev !== PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : null
+            )
+          }
+          className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-600 transition ${
+            selectedPaymentStatus === PAYMENT_STATUS.PAID && 'bg-blue-800 underline'
+          }`}>
+          Paid
+        </button>
+        <button
+          onClick={() =>
+            setSelectedPaymentStatus(prev =>
+              prev !== PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.PENDING : null
+            )
+          }
+          className={`bg-red-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-red-600 transition ${
+            selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'
+          }`}>
+          Unpaid
+        </button>
+        <Select
+          isMulti
+          options={sectionOptions}
+          value={sectionOptions.filter(option => selectedSections.includes(option.value))}
+          onChange={selected => setSelectedSections(selected.map(option => option.value))}
+          className="basic-multi-select w-64"
+          classNamePrefix="select"
+          placeholder="Select Sections"
+        />
+        <Select
+            isMulti
+            options={itemOptions}
+            value={itemOptions.filter(option => selectedItems.includes(option.value))}
+          onChange={selected => setSelectedItems(selected.map(option => option.value))}
+          className="basic-multi-select w-64 "
+          classNamePrefix="select"
+          placeholder="Select Items"
+        />
+      </div>
+
 
       {/* Work Details Table */}
-      <div className="mt-12 bg-white shadow-lg rounded-lg  ">
-        <div className="flex justify-between items-center mb-6 px-4">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-4xl">
+        <div className="flex justify-between items-center mb-6 px-4 py-2 bg-gray-200">
           <h2 className="text-2xl font-semibold text-gray-800">All Payable Dashboard</h2>
           {filteredWorkDetails.length > 0 && (
             <div className="flex gap-2">
@@ -361,113 +447,77 @@ export default function PayableDashboard(props) {
           )}
         </div>
 
-        <div className="mb-4 mx-5">
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2 mr-2"
-          />
-          <input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2"
-          />
-
-          <button
-            onClick={() =>
-              setSelectedPaymentStatus(prev =>
-                prev !== PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : null
-              )
-            }
-            className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg ml-2 hover:bg-green-600 transition ${
-              selectedPaymentStatus === PAYMENT_STATUS.PAID && 'bg-blue-800 underline'
-            }`}>
-            Paid
-          </button>
-          <button
-            onClick={() =>
-              setSelectedPaymentStatus(prev =>
-                prev !== PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.PENDING : null
-              )
-            }
-            className={`bg-red-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-red-600 transition ${
-              selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'
-            }`}>
-            Unpaid
-          </button>
-        </div>
-        <div className="overflow-x-scroll text-wrap" style={{ maxHeight: '500px', overflowY: 'scroll' }} onScroll={handleScroll}>
-          <div className="w-max bg-gray-100 p-4 font-medium text-gray-700 flex gap-4 ">
-            <div className="w-20">Name</div>
-            <div className="w-32">Section</div>
-            <div className="w-32">Item</div>
-            <div className="w-10">Piece</div>
-            <div className="w-10">Rate</div>
-            <div className="w-16">Amount</div>
-            <div className="w-32">Submitted On</div>
-            <div className="w-20">Payment Status</div>
-            <div className="w-32">Payment Date</div>
-          </div>
-            <div>
-          {filteredWorkDetails.length > 0 ? (
-            <>
-              {filteredWorkDetails.map(detail => (
-                <div
-                  key={detail._id}
-                  className="w-max flex gap-4 p-4 border-b last:border-none text-gray-700">
-                  <>
-                    <div className="w-20">{detail.worker_name}</div>
-
-                    <div className="w-32">{detail.section_name}</div>
-                    <div className="w-32">{detail.item_name}</div>
-                    <div className="w-10">{detail.piece}</div>
-                    <div className="w-10">₹{detail.item_rate}</div>
-                    <div className="w-16">
+        <div className="overflow-x-auto" style={{ maxHeight: '500px', overflowY: 'scroll' }} onScroll={handleScroll}>
+          <table className="min-w-full bg-white">
+            <thead>
+              <tr className="bg-gray-100 p-4 font-medium text-gray-700">
+                <th className="px-4 py-2">Name</th>
+                <th className="px-4 py-2">Section</th>
+                <th className="px-4 py-2">Item</th>
+                <th className="px-4 py-2">Piece</th>
+                <th className="px-4 py-2">Rate</th>
+                <th className="px-4 py-2">Amount</th>
+                <th className="px-4 py-2">Submitted On</th>
+                <th className="px-4 py-2">Payment Status</th>
+                <th className="px-4 py-2">Payment Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredWorkDetails.length > 0 ? (
+                filteredWorkDetails.map(detail => (
+                  <tr key={detail._id} className="border-b last:border-none text-gray-700">
+                    <td className="px-4 py-2">{detail.worker_name}</td>
+                    <td className="px-4 py-2">{detail.section_name}</td>
+                    <td className="px-4 py-2">{detail.item_name}</td>
+                    <td className="px-4 py-2">{detail.piece}</td>
+                    <td className="px-4 py-2">₹{detail.item_rate}</td>
+                    <td className="px-4 py-2">
                       ₹
                       {detail.amount
                         ? detail.amount.toFixed(2)
                         : (detail.piece * detail.item_rate).toFixed(2)}
-                    </div>
-                    <div className="w-32">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}
-                    </div>
-                    <div className="w-20">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.payment_status === PAYMENT_STATUS.PAID
                         ? PAYMENT_STATUS.PAID
                         : PAYMENT_STATUS.PENDING}
-                    </div>
-                    <div className="w-32">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.payment_date ? moment(detail.payment_date).format('LLL') : ''}
-                    </div>
-                  </>
-                </div>
-              ))}
-
-              {/* Add Total Row */}
-              <div className="min-w-full flex p-4 border-t bg-gray-50 font-semibold">
-                <div className="w-20">Total</div>
-                <div className="w-32"></div>
-                <div className="w-32"></div>
-                <div className="w-40"></div>
-                <div className="w-32">
-                  ₹
-                  {filteredWorkDetails
-                    .reduce(
-                      (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
-                      0
-                    )
-                    .toFixed(2)}
-                </div>
-                <div className="w-40"></div>
-                <div className="w-32"></div>
-              </div>
-            </>
-          ) : (
-            <div className="p-4 text-gray-500 text-center">No work details found</div>
-          )}
-          </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="9" className="p-4 text-gray-500 text-center">No work details found</td>
+                </tr>
+              )}
+            </tbody>
+            {filteredWorkDetails.length > 0 && (
+              <tfoot>
+                <tr className="border-t bg-gray-50 font-semibold">
+                  <td className="px-4 py-2">Total</td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                    ₹
+                    {filteredWorkDetails
+                      .reduce(
+                        (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
+                        0
+                      )
+                      .toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
         </div>
 
         {/* Action Bar */}

@@ -60,14 +60,14 @@ const Layout = ({ children }) => {
             router.pathname !== '/party-billing' && (
               <li>
                 <Link href="/party_dashboard">
-                  <div className="hover:underline">Vendor Payables</div>
+                  <div className="hover:underline">Vendor Pay</div>
                 </Link>
               </li>
             )}
           {user && router.pathname !== '/billing' && (
             <li>
               <Link href="/billing">
-                <div className="hover:underline">Payables</div>
+                <div className="hover:underline"> Worker Pay</div>
               </Link>
             </li>
           )}
