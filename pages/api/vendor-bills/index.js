@@ -46,8 +46,14 @@ async function getVendorBills(req, res) {
             $lte: moment(endDate).tz('IST').endOf('day').toISOString()
         };
     }
-    if (status) {
+    if (status === VENDOR_BILL_STATUS.PAID) {
         criteria.status = status;
+    }
+    if (status === VENDOR_BILL_STATUS.PARTIAL) {
+        criteria.status = {$ne: VENDOR_BILL_STATUS.PAID};
+    }
+    if (status === VENDOR_BILL_STATUS.PENDING) {
+        criteria.status = {$ne: VENDOR_BILL_STATUS.PAID};
     }
     const options = {};
     if (page) {
@@ -77,7 +83,7 @@ async function updateVendorBill(req, res) {
 
     if(updatedData.remainAmount <= 0){
         updatedData.status = VENDOR_BILL_STATUS.PAID;
-    }else if(updatedData.remainAmount > 0) {
+    }else if(updatedData.remainAmount < updatedData.amount) {
         updatedData.status = VENDOR_BILL_STATUS.PARTIAL;
     }else if(updatedData.paidAmount === 0){
         updatedData.status = VENDOR_BILL_STATUS.PENDING;

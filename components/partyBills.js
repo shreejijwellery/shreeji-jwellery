@@ -11,7 +11,7 @@ import ApplyVendorPaymentModel from './ApplyVendorPaymentModel';
 import { Tooltip as ReactTooltip } from 'react-tooltip'; // Use named import for Tooltip
 import VendorBillPaymentHistory from './VendorBillPaymentHistory';
 
-export default function PartyBills({ selectedParty, user }) {
+export default function PartyBills({ selectedParty, user, isBillModified, setIsBillModified }) {
   const [bills, setBills] = useState([]);
   const [selectedBills, setSelectedBills] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -34,9 +34,12 @@ export default function PartyBills({ selectedParty, user }) {
   const [endDate, setEndDate] = useState(moment().endOf('month').format('YYYY-MM-DD'));
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
   const [openApplyPayment, setOpenApplyPayment] = useState(false);
-  const [isBillModified, setIsBillModified] = useState([]);
+
   const [openPaymentHistory, setOpenPaymentHistory] = useState(false);
   const [billForPaymentHistory, setBillForPaymentHistory] = useState(null);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [totalPaidAmount, setTotalPaidAmount] = useState(0);
+  const [totalRemainAmount, setTotalRemainAmount] = useState(0);
   const observerRef = useRef();
 
   useEffect(() => {
@@ -55,7 +58,7 @@ export default function PartyBills({ selectedParty, user }) {
 
   const fetchVendorBills = async (reset = false) => {
     setLoading(true);
-
+    fetchTotalCounts();
     try {
       const response = await axios.get(`/api/vendor-bills`, {
         params: {
@@ -78,6 +81,37 @@ export default function PartyBills({ selectedParty, user }) {
     }
   };
 
+  const fetchTotalCounts = async () => {
+    const response = await axios.get(`/api/vendor-bills/counts`, {
+      params: {
+        vendorId: selectedParty?._id || null,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+      },
+    });
+    console.log(response.data.data);
+    let responseData = null;
+    if (selectedParty?._id) {
+      responseData = response.data.data?.find(item => item._id === selectedParty?._id);
+      setTotalAmount(responseData?.totalAmount || 0);
+      setTotalPaidAmount(responseData?.totalPaidAmount || 0);
+      setTotalRemainAmount(responseData?.totalRemainAmount || 0);
+    } else {
+      if (!selectedParty?._id) {
+        let totalAmount = 0;
+        let totalPaidAmount = 0;
+        let totalRemainAmount = 0;
+        response.data?.data?.forEach(item => {
+          totalAmount += item.totalAmount;
+          totalPaidAmount += item.totalPaidAmount;
+          totalRemainAmount += item.totalRemainAmount;
+        });
+        setTotalAmount(totalAmount);
+        setTotalPaidAmount(totalPaidAmount);
+        setTotalRemainAmount(totalRemainAmount);
+      }
+    }
+  };
   const handleInputChange = e => {
     const { name, value } = e.target;
     setForm(prevForm => ({ ...prevForm, [name]: value }));
@@ -94,6 +128,7 @@ export default function PartyBills({ selectedParty, user }) {
         await axios.post(`/api/vendor-bills`, form);
       }
       fetchVendorBills(true);
+      setIsBillModified(prev => !prev);
       resetForm();
     } catch (err) {
       toast.error('Failed to save the vendor bill');
@@ -127,6 +162,7 @@ export default function PartyBills({ selectedParty, user }) {
     try {
       await axios.delete(`/api/vendor-bills`, { params: { _id } });
       fetchVendorBills(true);
+      setIsBillModified(prev => !prev);
     } catch (err) {
       toast.error('Failed to delete the vendor bill');
     } finally {
@@ -157,7 +193,15 @@ export default function PartyBills({ selectedParty, user }) {
   const downloadCSV = () => {
     const selectedData = bills.filter(bill => selectedBills.includes(bill._id));
     const csvContent = [
-      ['Vendor Name', 'Invoice No', 'Bill Date', 'Status', 'Amount', 'Paid Amount', 'Remain Amount'],
+      [
+        'Vendor Name',
+        'Invoice No',
+        'Bill Date',
+        'Status',
+        'Amount',
+        'Paid Amount',
+        'Remain Amount',
+      ],
       ...selectedData.map(bill => [
         bill.partyName,
         bill.invoiceNo,
@@ -222,9 +266,10 @@ export default function PartyBills({ selectedParty, user }) {
     setIsBillModified([]);
   };
   useEffect(() => {
-    if (isBillModified.length > 0) {
+    if (isBillModified?.length > 0) {
       fetchModifiedBills();
     }
+    fetchTotalCounts();
   }, [isBillModified]);
 
   useEffect(() => {
@@ -252,7 +297,7 @@ export default function PartyBills({ selectedParty, user }) {
       )}
       {openApplyPayment && (
         <ApplyVendorPaymentModel
-          open={openApplyPayment && !!selectedParty && selectedBills.length > 0}
+          open={openApplyPayment}
           setOpen={setOpenApplyPayment}
           selectedBills={bills.filter(
             bill => selectedBills.includes(bill._id) && bill.status !== VENDOR_BILL_STATUS.PAID
@@ -302,7 +347,7 @@ export default function PartyBills({ selectedParty, user }) {
           className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg ml-2 hover:bg-green-600 transition ${
             selectedPaymentStatus === VENDOR_BILL_STATUS.PAID && 'bg-blue-800 underline'
           }`}>
-          Paid
+          Paid (Rs.{totalPaidAmount})
         </button>
         <button
           onClick={() =>
@@ -313,25 +358,24 @@ export default function PartyBills({ selectedParty, user }) {
           className={`bg-red-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-red-600 transition ${
             selectedPaymentStatus === VENDOR_BILL_STATUS.PENDING && 'bg-blue-800 underline'
           }`}>
-          Unpaid
-        </button>
-        <button
-          onClick={() =>
-            setSelectedPaymentStatus(prev =>
-              prev !== VENDOR_BILL_STATUS.PARTIAL ? VENDOR_BILL_STATUS.PARTIAL : null
-            )
-          }
-          className={`bg-orange-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-orange-600 transition ${
-            selectedPaymentStatus === VENDOR_BILL_STATUS.PARTIAL && 'bg-blue-800 underline'
-          }`}>
-          Partially Paid
+          Due (Rs.{totalRemainAmount})
         </button>
         {selectedParty && (
-          <button
-            onClick={() => setOpen(true)}
-            className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-            <FaEdit className="mr-2" /> Add New Bill
-          </button>
+          <>
+            <button
+              onClick={() => {
+                setSelectedBills([]);
+                setOpenApplyPayment(true);
+              }}
+              className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+              <FaEdit className="mr-2" /> Add Batch Payment
+            </button>
+            <button
+              onClick={() => setOpen(true)}
+              className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+              <FaEdit className="mr-2" /> Add New Bill
+            </button>
+          </>
         )}
       </div>
 

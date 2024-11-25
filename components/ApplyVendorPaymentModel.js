@@ -3,9 +3,10 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import moment from 'moment';
 import { useState, useEffect } from 'react';
-import { VENDOR_PAYMENT_MODES } from '../lib/constants';
+import { VENDOR_BILL_STATUS, VENDOR_PAYMENT_MODES } from '../lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
+import axios from 'axios';
 export default function ApplyVendorPaymentModel(props) {
   const { open, setOpen, selectedBills, selectedParty, isBillModified, setIsBillModified } = props;
   const [totalAmount, setTotalAmount] = useState(0);
@@ -13,6 +14,7 @@ export default function ApplyVendorPaymentModel(props) {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [payingBills, setPayingBills] = useState(selectedBills);
   const [billPayments, setBillPayments] = useState(
     selectedBills.map(bill => ({
       _id: bill._id,
@@ -20,20 +22,44 @@ export default function ApplyVendorPaymentModel(props) {
     }))
   );
 
-  useEffect(() => {
-    const totalRemainAmount = selectedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
+  const getBillsWithRemainAmount = async () => {
+    const response = await axios.get(`/api/vendor-bills`, {
+      params: {
+        vendorId: selectedParty?._id || null,
+        status: VENDOR_BILL_STATUS.PENDING,
+      },
+    });
+
+    const newBills = response.data;
+    const totalRemainAmount = newBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
     setTotalAmount(totalRemainAmount);
+    setPayingBills(newBills);
     setBillPayments(
-      selectedBills.map(bill => ({
+      newBills.map(bill => ({
         _id: bill._id,
         paymentAmount: bill.remainAmount, // Default to remain amount
       }))
     );
+  };
+  useEffect(() => {
+    if (selectedBills.length > 0) {
+      setPayingBills(selectedBills);
+      const totalRemainAmount = selectedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
+      setTotalAmount(totalRemainAmount);
+      setBillPayments(
+        selectedBills.map(bill => ({
+          _id: bill._id,
+          paymentAmount: bill.remainAmount, // Default to remain amount
+        }))
+      );
+    } else {
+      getBillsWithRemainAmount();
+    }
   }, [selectedBills]);
 
   const handleTotalAmountChange = value => {
     const enteredAmount = parseFloat(value);
-    const totalRemainAmount = selectedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
+    const totalRemainAmount = payingBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
     if (enteredAmount > totalRemainAmount) {
       return;
     }
@@ -43,18 +69,23 @@ export default function ApplyVendorPaymentModel(props) {
     setTotalAmount(enteredAmount);
 
     if (!isNaN(enteredAmount) && enteredAmount > 0) {
-      const distributedPayments = distributeAmount(enteredAmount, selectedBills);
+      const distributedPayments = distributeAmount(enteredAmount, payingBills);
       setBillPayments(distributedPayments);
     }
   };
 
   const distributeAmount = (amount, bills) => {
-    const totalRemainAmount = bills.reduce((sum, bill) => sum + bill.remainAmount, 0);
-    return bills.map(bill => {
-      const proportion = bill.remainAmount / totalRemainAmount;
+    // Sort bills by billDate (older bills first)
+    const sortedBills = [...bills].sort((a, b) => new Date(a.billDate) - new Date(b.billDate));
+    const totalRemainAmount = sortedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
+    
+    return sortedBills.map(bill => {
+      // Pay the full amount of the bill if possible
+      const paymentAmount = Math.min(bill.remainAmount, amount);
+      amount -= paymentAmount; // Decrease the remaining amount to distribute
       return {
         ...bill,
-        paymentAmount: Math.min(bill.remainAmount, Math.round(amount * proportion)),
+        paymentAmount: paymentAmount,
       };
     });
   };
@@ -185,7 +216,7 @@ export default function ApplyVendorPaymentModel(props) {
                   </tr>
                 </thead>
                 <tbody className="text-gray-600 text-sm font-light">
-                  {selectedBills.map(bill => (
+                  {payingBills.map(bill => (
                     <tr key={bill._id} className="border-b border-gray-200 hover:bg-gray-100">
                       <td className="py-3 px-6 text-left">{bill.invoiceNo}</td>
                       <td className="py-3 px-6 text-left">
