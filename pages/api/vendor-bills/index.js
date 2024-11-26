@@ -34,16 +34,16 @@ async function getVendorBills(req, res) {
     }
     if (startDate && endDate) {
         criteria.billDate = {
-            $gte: moment(startDate).tz('IST').startOf('day').toISOString(),
-            $lte: moment(endDate).tz('IST').endOf('day').toISOString(),
+            $gte: new Date(moment(startDate).tz('IST').startOf('day').toISOString()),
+            $lte: new Date(moment(endDate).tz('IST').endOf('day').toISOString()),
         };
     }else if (startDate) {
         criteria.billDate = {
-            $gte:  moment(startDate).tz('IST').startOf('day').toISOString()
+            $gte:  new Date(moment(startDate).tz('IST').startOf('day').toISOString()  )
         };
     }else if (endDate) {
         criteria.billDate = {
-            $lte: moment(endDate).tz('IST').endOf('day').toISOString()
+            $lte: new Date(moment(endDate).tz('IST').endOf('day').toISOString())
         };
     }
     if (status === VENDOR_BILL_STATUS.PAID) {
@@ -57,12 +57,34 @@ async function getVendorBills(req, res) {
     }
     const options = {};
     if (page) {
-        options.skip = (page - 1) * (limit || 20);
-        options.limit = limit || 20;
+        options.skip = (Number(page||1) - 1) * (Number(limit) || 20);
+        options.limit = Number(limit || 20);
 
     }
+    const pipeline = [
+        {
+            $match: criteria
+        },
+        {
+            $sort: { billDate: -1 }
+        },
+        {
+            $skip: options?.skip || 0
+        },
+        {
+            $limit: options?.limit || 20
+        },
+        {
+            $lookup: {
+                from: 'vendorpaymenthistories', // The name of the collection to join
+                localField: '_id',  // Field from the VendorBill collection
+                foreignField: 'invoiceId', // Field from the PaymentHistory collection
+                as: 'paymentHistory' // The name of the array field to add to the documents
+            }
+        }
+    ];
 
-    const vendorBills = await VendorBill.find(criteria).sort({ billDate: -1 }).limit(options.limit).skip(options.skip);
+    const vendorBills = await VendorBill.aggregate(pipeline);
     res.status(200).json(vendorBills);
   } catch (error) {
     res.status(500).json({ error: error.message });
