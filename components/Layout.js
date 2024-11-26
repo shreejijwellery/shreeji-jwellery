@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { checkPermission, PERMISSIONS } from '../lib/constants';
+import { CgProfile } from 'react-icons/cg';
 
 const Layout = ({ children }) => {
   const router = useRouter();
@@ -14,6 +15,7 @@ const Layout = ({ children }) => {
       axios
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
         .then(response => {
+          delete response.data?.user?.password;
           setUser(response.data.user);
           localStorage.setItem('user', JSON.stringify(response.data.user)); // Store user data after fetching
         })
@@ -105,6 +107,7 @@ const Layout = ({ children }) => {
         {user && (
           <div className="flex items-center space-x-4">
             <span className="text-white">{user.name}</span>
+            <span className="text-white cursor-pointer" onClick={() => router.push('/profile')}> <CgProfile /> </span>
             <button
               onClick={handleLogout}
               className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
