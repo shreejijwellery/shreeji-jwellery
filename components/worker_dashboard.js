@@ -502,7 +502,9 @@ export default function PayableDashboard(props) {
                   <td className="px-4 py-2">Total</td>
                   <td className="px-4 py-2"></td>
                   <td className="px-4 py-2"></td>
-                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                  {filteredWorkDetails.reduce((sum, detail) => sum + detail.piece, 0)}
+                  </td>
                   <td className="px-4 py-2">
                     ₹
                     {filteredWorkDetails
@@ -512,7 +514,11 @@ export default function PayableDashboard(props) {
                       )
                       .toFixed(2)}
                   </td>
-                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                  <td className="px-4 py-2">
+                   
+                  </td>
+                  </td>
                   <td className="px-4 py-2"></td>
                 </tr>
               </tfoot>

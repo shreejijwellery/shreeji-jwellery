@@ -10,6 +10,7 @@ import { VENDOR_BILL_STATUS } from '../lib/constants';
 import ApplyVendorPaymentModel from './ApplyVendorPaymentModel';
 import { Tooltip as ReactTooltip } from 'react-tooltip'; // Use named import for Tooltip
 import VendorBillPaymentHistory from './VendorBillPaymentHistory';
+import InlinePaymentHistory from './bill_payment';
 
 export default function PartyBills({ selectedParty, user, isBillModified, setIsBillModified }) {
   const [bills, setBills] = useState([]);
@@ -434,14 +435,16 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
               <th className="py-3 px-6 text-left">Status </th>
 
               <th className="py-3 px-6 text-left">Amount</th>
-              <th className="py-3 px-6 text-left">Paid Amount</th>
               <th className="py-3 px-6 text-left">Remain Amount</th>
+              <th className="py-3 px-6 text-left">Paid Amount</th>
+              
               <th className="py-3 px-6 text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="text-gray-600 text-sm font-light">
             {bills.map(bill => (
-              <tr key={bill._id} className="border-b border-gray-200 hover:bg-gray-100">
+              <>
+              <tr key={bill._id} className="border border-gray-200 hover:bg-gray-100">
                 <td className="py-3 px-6 text-left">
                   <input
                     type="checkbox"
@@ -473,9 +476,10 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
                     </>
                   )}
                 </td>
-                <td className="py-3 px-6 text-left">{bill.amount}</td>
-                <td className="py-3 px-6 text-left">{bill.paidAmount}</td>
-                <td className="py-3 px-6 text-left">{bill.remainAmount}</td>
+                <td className="py-3 px-6 text-left font-bold text-blue-600">Rs.{bill.amount}</td>
+               
+                <td className="py-3 px-6 text-left font-bold">Rs.{bill.remainAmount}</td>
+                <td className="py-3 px-6 text-left font-bold text-red-600">Rs.{bill.paidAmount}</td>
                 <td className="py-3 px-6 text-center">
                   <div className="flex items-center justify-center space-x-2">
                     <button
@@ -491,6 +495,24 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
                   </div>
                 </td>
               </tr>
+              {bill?.paymentHistory.length > 0 && (
+              <tr>
+                <td colSpan={6} className='text-center'>Payment History</td>
+                <td colSpan={9}>
+              
+                <InlinePaymentHistory
+                  open={openPaymentHistory}
+                  setOpen={setOpenPaymentHistory}
+                  billForPaymentHistory={bill}
+                  setIsBillModified={setIsBillModified}
+                  payments={bill?.paymentHistory || []}
+                />
+                
+                
+                </td>
+              </tr>
+              )}
+              </>
             ))}
             {loading && (
               <tr className="border-b border-gray-200">
