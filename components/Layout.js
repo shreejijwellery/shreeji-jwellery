@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { checkPermission, PERMISSIONS } from '../lib/constants';
 import { CgProfile } from 'react-icons/cg';
+import { toast } from 'react-toastify';
 
 const Layout = ({ children }) => {
   const router = useRouter();
@@ -23,6 +24,8 @@ const Layout = ({ children }) => {
           console.error('Token validation failed:', error); // Log error for debugging
           localStorage.removeItem('token'); // Remove token on error
         });
+    }else{
+      router.push('/login');
     }
   }, [router]); // Only depend on router
 
@@ -81,6 +84,15 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
+          {
+            user && router.pathname !== '/final-product' && (
+              <li>
+              <Link href="/final-product">
+                <div className="hover:underline">Final Product</div>
+              </Link>
+            </li>
+            )
+          }
           {/* {user && router.pathname !== '/extract-sku' && (
             <li>
               <Link href="/extract-sku">
