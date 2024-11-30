@@ -69,7 +69,7 @@ const Layout = ({ children }) => {
                 </Link>
               </li>
             )}
-          {user && router.pathname !== '/billing' && (
+          {user && router.pathname !== '/billing' && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
             <li>
               <Link href="/billing">
                 <div className="hover:underline"> Worker Pay</div>
@@ -85,7 +85,7 @@ const Layout = ({ children }) => {
             </li>
           )}
           {
-            user && router.pathname !== '/final-product' && (
+            user && router.pathname !== '/final-product' && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
               <li>
               <Link href="/final-product">
                 <div className="hover:underline">Final Product</div>

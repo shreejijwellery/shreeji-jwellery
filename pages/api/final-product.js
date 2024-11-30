@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { FinalProduct } from '../../models/FinalProduct'; // Adjust the import path as necessary
 import connectToDatabase from '../../lib/mongodb';
 import moment from 'moment-timezone';
+import { authMiddleware } from './common/common.services';
 // Connect to MongoDB
 
 // Create Work Record
@@ -11,7 +12,8 @@ export const createFinalProductRecord = async (req, res) => {
   await connectToDatabase();
   const { section, item, piece, section_name, item_name } =
     req.body;
-
+  const userData = req.userData;
+  const {_id} = userData;
   try {
     const newRecord = new FinalProduct({
       section,
@@ -19,6 +21,7 @@ export const createFinalProductRecord = async (req, res) => {
       piece,
       section_name,
       item_name,
+      submitted_by: _id
     });
     await newRecord.save();
     res.status(201).json(newRecord);
@@ -55,9 +58,13 @@ export const getFinalProductRecord = async (req, res) => {
     if (items) query.item = { $in: items?.split(',')?.map(id => new mongoose.Types.ObjectId(id)) };
     let records = [];
     if (limit && skip) {
-      records = await FinalProduct.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
+      records = await FinalProduct.find(query).populate(
+        {path:'submitted_by', select:'name'}
+      ).sort({ createdAt: -1 }).limit(limit).skip(skip);
     }else {
-      records = await FinalProduct.find(query).sort({ createdAt: -1 });}
+      records = await FinalProduct.find(query).populate(
+        {path:'submitted_by', select:'name'}
+      ).sort({ createdAt: -1 });}
     res.status(200).json({data:records, counts : itemWiseCounts});
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -97,7 +104,7 @@ export const softDeleteFinalProductRecord = async (req, res) => {
 };
 
 // Export the API functions
-export default async function handler(req, res) {
+async function handler(req, res) {
   switch (req.method) {
     case 'POST':
       return createFinalProductRecord(req, res);
@@ -114,4 +121,4 @@ export default async function handler(req, res) {
 }
 
 
-
+export default authMiddleware(handler);

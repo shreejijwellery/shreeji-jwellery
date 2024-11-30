@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
+import { fetchAllItems, fetchAllSections, HTTP } from '../actions/actions_creators';
 import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -57,15 +57,14 @@ export default function PayableDashboard(props) {
 
   const getProducts = async (reset, off_set) => {
     try {
-      const response = await fetch(
-        `/api/final-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(
-          ','
-        )}&limit=${limit}&skip=${reset ? 0 : off_set}`
+      const response = await HTTP('GET', `/final-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(    
+        ','
+      )}&limit=${limit}&skip=${reset ? 0 : off_set}`
       );
-      if (!response.ok) {
+      if (!response) {
         throw new Error('Failed to fetch products');
       }
-      const {data, counts} = await response.json();
+      const {data, counts} = response;
       if(counts){
         setProductsCounts(counts)
       }
@@ -120,42 +119,30 @@ export default function PayableDashboard(props) {
       doc.text(dateText, 14, 40);
     }
 
+    // Calculate Total Pieces
+    const totalPieces = products.reduce((sum, detail) => sum + detail.piece, 0);
+    doc.text(`Total Pieces: ${totalPieces}`, 14, 50);
+
     // Prepare Table Data
     const tableData = products.map(detail => [
-      detail.worker_name,
-      detail.section_name,
       detail.item_name,
       detail.piece.toString(),
-      `Rs. ${detail.item_rate.toFixed(2)}`,
-      `Rs. ${(detail.amount ? detail.amount : detail.piece * detail.item_rate).toFixed(2)}`,
       detail.createdAt ? moment(detail.createdAt).format('DD-MM-YYYY') : '',
-      detail.payment_status,
-      detail.payment_date ? moment(detail.payment_date).format('DD-MM-YYYY') : '',
+      detail.submitted_by?.name,
     ]);
 
-    // Calculate Total Amount
-    const totalAmount = products.reduce(
-      (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
-      0
-    );
-
-    // Add Total Row
-    tableData.push(['Total', '', '', '', `Rs. ${totalAmount.toFixed(2)}`, '', '', '']);
+    // Add Total Row for Pieces
+    tableData.push(['Total Pieces', totalPieces.toString(), '']);
 
     // Generate Table with Improved Design
     doc.autoTable({
-      startY: startDate || endDate ? 50 : 40,
+      startY: 60,
       head: [
         [
-          'Name',
-          'Section',
-          'Item',
-          'Piece',
-          'Rate',
-          'Amount',
+          'Item Name',
+          'Pieces',
           'Submitted On',
-          'Payment Status',
-          'Payment Date',
+          'Submitted By',
         ],
       ],
       body: tableData,
@@ -203,36 +190,29 @@ export default function PayableDashboard(props) {
 
   const handleDownloadCSV = async () => {
     try {
-      const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
-      const fromDate = startDate ? `&fromDate=${startDate}` : '';
-      const toDate = endDate ? `&toDate=${endDate}` : '';
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}`);
-      const data = await response.json();
+      // Fetch final product data using HTTP instead of fetch
+      const response = await HTTP('GET', `/final-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(',')}`);
+      const data = response.data; // Assuming the response structure has a data field
 
-      // Convert data to CSV format
+      // Calculate total pieces
+      const totalPieces = data.reduce((sum, detail) => sum + detail.piece, 0);
+
+      // Convert data to CSV format for final products
       const csvContent = [
         [
-          'Name',
-          'Section',
-          'Item',
-          'Piece',
-          'Rate',
-          'Amount',
+          'Item Name',
+          'Pieces',
           'Submitted On',
-          'Payment Status',
-          'Payment Date',
+          'Submitted By',
         ],
         ...data.map(detail => [
-          detail.worker_name,
-          detail.section_name,
           detail.item_name,
           detail.piece.toString(),
-          `Rs. ${detail.item_rate.toFixed(2)}`,
-          `Rs. ${(detail.amount ? detail.amount : detail.piece * detail.item_rate).toFixed(2)}`,
           detail.createdAt ? moment(detail.createdAt).format('DD-MM-YYYY') : '',
-          detail.payment_status,
-          detail.payment_date ? moment(detail.payment_date).format('DD-MM-YYYY') : '',
+          detail.submitted_by?.name,
         ]),
+        // Add total row
+        ['Total Pieces', totalPieces.toString(), '', ''],
       ]
         .map(e => e.join(','))
         .join('\n');
@@ -242,7 +222,7 @@ export default function PayableDashboard(props) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `work_details_${startDate}_${endDate}.csv`);
+      link.setAttribute('download', `final_product_details_${startDate}_${endDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -265,31 +245,25 @@ export default function PayableDashboard(props) {
     }
 
     try {
-      const response = await fetch('/api/final-product', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          item: newItem.value,
-          piece: parseInt(newPiece, 10),
-          item_name: newItem.label,
-          section: selectedSection?._id,
-          section_name: selectedSection?.name,
-        }),
+      const response = await HTTP('POST', '/final-product', {
+        item: newItem.value,
+        piece: parseInt(newPiece, 10),
+        item_name: newItem.label,
+        section: selectedSection?._id,
+        section_name: selectedSection?.name,
       });
 
-      if (response.ok) {
-        toast.success('Record created successfully!');
+      if (response) {
+        toast.success('Items submitted successfully!');
         setNewItem(null);
         setNewPiece('');
         getProducts(true);
       } else {
-        toast.error('Failed to create record.');
+        toast.error('Failed to submit items.');
       }
     } catch (error) {
-      console.error('Error creating record:', error);
-      toast.error('An error occurred while creating the record.');
+      console.error('Error submitting items:', error);
+      toast.error('An error occurred while submitting items.');
     }
   };
 
@@ -372,6 +346,7 @@ export default function PayableDashboard(props) {
                     <th className="px-4 py-2 text-left">Item</th>
                     <th className="px-4 py-2 text-left">Piece</th>
                     <th className="px-4 py-2 text-left">Submitted On</th>
+                    <th className="px-4 py-2 text-left">Submitted By</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -383,6 +358,7 @@ export default function PayableDashboard(props) {
                         <td className="px-4 py-2">
                           {detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}
                         </td>
+                        <td className="px-4 py-2">{detail.submitted_by?.name}</td>
                       </tr>
                     ))
                   ) : (

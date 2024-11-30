@@ -8,14 +8,15 @@ const Home = () => {
   const [user, setUser] = useState(null);
   const router = useRouter();
   useEffect(() => {
-    setUser(JSON.parse(localStorage.getItem('user')));
+    const user = JSON.parse(localStorage.getItem('user'));
+    setUser(user);
     if (!user) {
       router.push('/login');
     }
   }, []);
   return (
     <div className="flex justify-center">
-      {user && user.role === 'worker' && <PayableDashboard />}
+      {user && user.role === 'admin' && <PayableDashboard />}
     </div>
   );
 };
