@@ -9,6 +9,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { MdDeleteForever } from "react-icons/md";
 import 'tailwindcss/tailwind.css';
 import OrderData from '../components/OrderData';
+import { USER_ROLES } from '../lib/constants';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -171,7 +172,7 @@ const Dashboard = () => {
                 Upload Order File
               </button>
             )}
-            {user.role === 'admin' && (
+            {user.role === USER_ROLES.ADMIN && (
               <button
                 onClick={() => setFileType('master')}
                 className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"

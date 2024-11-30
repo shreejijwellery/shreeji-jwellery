@@ -8,6 +8,7 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { type: String, required: true, enum : Object.values(USER_ROLES) },
   permissions: { type: [String], required: false },
+  isDeleted: { type: Boolean, default: false },
 });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);

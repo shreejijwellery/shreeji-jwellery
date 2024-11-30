@@ -7,12 +7,18 @@ import PartyDetails from '../components/partyDetails';
 import { checkPermission, PERMISSIONS } from '../lib/constants';
 
 const SettingsTabs = () => {
-  const [selectedTab, setSelectedTab] = useState('workers');
+  const [selectedTab, setSelectedTab] = useState();
   const [user, setUser] = useState(null);
   useEffect(() => {
-    const userData = localStorage.getItem('user');
+    const userData = JSON.parse(localStorage.getItem('user'));
     if (userData) {
-      setUser(JSON.parse(userData));
+      setUser(userData);
+      switch (true) {
+        case checkPermission(userData, PERMISSIONS.WORKERS): setSelectedTab('workers'); break;
+        case checkPermission(userData, PERMISSIONS.PARTY_BILLS): setSelectedTab('party'); break;
+        case checkPermission(userData, PERMISSIONS.SECTIONS): setSelectedTab('sections'); break;
+        case checkPermission(userData, PERMISSIONS.ITEMS): setSelectedTab('items'); break;
+      }
     }
   }, []);
   return (

@@ -3,6 +3,7 @@ import PayableDashboard from '../components/worker_dashboard';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
+import { USER_ROLES } from '../lib/constants';
 
 const Home = () => {
   const [user, setUser] = useState(null);
@@ -16,7 +17,7 @@ const Home = () => {
   }, []);
   return (
     <div className="flex justify-center">
-      {user && user.role === 'admin' && <PayableDashboard />}
+      {user && user.role === USER_ROLES.ADMIN && <PayableDashboard />}
     </div>
   );
 };

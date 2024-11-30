@@ -44,7 +44,7 @@ function UpdateUser() {
         ...user,
         _id: user._id,
       };
-      const updatedUser = await axios.post('/api/update-user', updateData);
+      const updatedUser = await HTTP('PUT', `/user`, updateData);
       localStorage.setItem('user', JSON.stringify(updatedUser.data.data));
       toast.success('Profile updated successfully');
       setShowPassword(false);
