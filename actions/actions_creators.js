@@ -73,3 +73,25 @@ export const callAPisOnLogin = async () => {
     await fetchAllWorker(true);
     await fetchAllParties(true);
 }
+
+export const HTTP = async (method, url, data = null) => {
+    const token = localStorage.getItem('token');
+    const config = {
+        baseURL: '/api',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        method: method,
+        url: url,
+        ...(data && { data })
+    };
+
+    try {
+        const response = await axios(config);
+        return response?.data;
+    } catch (error) {
+        toast.error(error?.response?.data?.message || 'Something went wrong');
+        console.error('Error fetching data:', error);
+        throw error;
+    }
+}
