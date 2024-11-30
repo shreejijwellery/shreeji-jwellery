@@ -89,7 +89,6 @@ export const HTTP = async (method, url, data = null) => {
 
     try {
         const response = await axios(config);
-        console.log(response);
         if(!response?.data){
             throw response?.message || 'Something went wrong';
         }

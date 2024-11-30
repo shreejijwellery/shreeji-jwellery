@@ -40,7 +40,6 @@ function UpdateUser() {
     try {
       e.preventDefault();
       // Handle form submission logic here
-      console.log('User updated:', user);
       let updateData = {
         ...user,
         _id: user._id,

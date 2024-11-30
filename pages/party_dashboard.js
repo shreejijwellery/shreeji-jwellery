@@ -19,7 +19,6 @@ export default function MainPage() {
 
   const fetchTotalCounts = async () => {
     const response = await HTTP('GET',`/vendor-bills/counts`);
-    console.log("party dashboard:",response.data);
     setTotalCounts(response.data);
   };
   return (

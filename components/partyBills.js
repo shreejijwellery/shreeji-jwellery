@@ -91,7 +91,6 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
         endDate: endDate || undefined,
       },
     });
-    console.log(response.data);
     let responseData = null;
     if (selectedParty?._id) {
       responseData = response.data?.find(item => item._id === selectedParty?._id);

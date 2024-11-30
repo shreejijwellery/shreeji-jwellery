@@ -12,7 +12,6 @@ export default function InlinePaymentHistory(props) {
     setPaymentHistory(payments);
   }, [payments]);
 
-  console.log('payment hiostory', paymentHistory);
   return (
     <>
       {' '}

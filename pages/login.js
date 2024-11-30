@@ -23,7 +23,6 @@ const Login = () => {
       const response = await HTTP('POST','/login', formData);
       if (response?.token) {
         localStorage.setItem('token', response.token);
-        console.log("in login token", response.token);
         router.push('/');
         callAPisOnLogin()
       }
