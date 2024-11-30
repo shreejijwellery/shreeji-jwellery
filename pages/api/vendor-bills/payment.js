@@ -4,6 +4,7 @@ import connectToDatabase from '../../../lib/mongodb';
 import VendorPaymentHistory from '../../../models/VendorPaymentHistory';
 import VendorBill from '../../../models/VendorBills';
 import { VENDOR_BILL_STATUS } from '../../../lib/constants';
+import { authMiddleware } from '../common/common.services';
 //Validations needed for vendorID, invoiceID, paymentDate
 
 export async function appliedPayment(billId) {
@@ -104,7 +105,7 @@ const deletePayment = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-export default async function handler(req, res) {
+const handler = async (req, res) => {
     await connectToDatabase();
 
   switch (req.method) {
@@ -126,3 +127,5 @@ export default async function handler(req, res) {
       break;
   }
 }
+
+export default authMiddleware(handler);

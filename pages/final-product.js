@@ -128,7 +128,7 @@ export default function PayableDashboard(props) {
       detail.item_name,
       detail.piece.toString(),
       detail.createdAt ? moment(detail.createdAt).format('DD-MM-YYYY') : '',
-      detail.submitted_by?.name,
+      detail.addedBy?.name,
     ]);
 
     // Add Total Row for Pieces
@@ -209,7 +209,7 @@ export default function PayableDashboard(props) {
           detail.item_name,
           detail.piece.toString(),
           detail.createdAt ? moment(detail.createdAt).format('DD-MM-YYYY') : '',
-          detail.submitted_by?.name,
+          detail.addedBy?.name,
         ]),
         // Add total row
         ['Total Pieces', totalPieces.toString(), '', ''],
@@ -358,7 +358,7 @@ export default function PayableDashboard(props) {
                         <td className="px-4 py-2">
                           {detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}
                         </td>
-                        <td className="px-4 py-2">{detail.submitted_by?.name}</td>
+                        <td className="px-4 py-2">{detail.addedBy?.name}</td>
                       </tr>
                     ))
                   ) : (

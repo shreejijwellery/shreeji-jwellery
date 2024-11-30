@@ -7,9 +7,9 @@ export const fetchAllSections = async (isCallApi) => {
                 return sections;
             }
         }
-        const response = await axios.get('/api/sections');
-        localStorage.setItem('sections', JSON.stringify(response.data.sections));
-        return response.data.sections;
+        const response = await HTTP('GET', '/sections');
+        localStorage.setItem('sections', JSON.stringify(response.sections));
+        return response.sections;
         
     } catch (error) {
         console.error('Error fetching sections:', error);
@@ -25,9 +25,9 @@ export const fetchAllItems = async (isCallApi) => {
                 return items;
             }
         }
-        const response = await axios.get('/api/items');
-        localStorage.setItem('items', JSON.stringify(response.data.items));
-        return response.data.items;
+        const response = await HTTP('GET', '/items');
+        localStorage.setItem('items', JSON.stringify(response.items));
+        return response.items;
     } catch (error) {
         console.error('Error fetching items:', error);
         return [];
@@ -42,9 +42,9 @@ export const fetchAllWorker = async (isCallApi) => {
                 return workers;
             }
         }
-        const response = await axios.get('/api/workers');
-        localStorage.setItem('workers', JSON.stringify(response.data));
-        return response.data;
+        const response = await HTTP('GET', '/workers');
+        localStorage.setItem('workers', JSON.stringify(response));
+        return response;
     } catch (error) {
         console.error('Error fetching workers:', error);
         return [];
@@ -59,7 +59,7 @@ export const fetchAllParties = async (isCallApi) => {
                 return workers;
             }
         }
-        const response = await axios.get('/api/party');
+        const response = await HTTP('GET', '/party');
         localStorage.setItem('parties', JSON.stringify(response.data));
         return response.data;
     } catch (error) {

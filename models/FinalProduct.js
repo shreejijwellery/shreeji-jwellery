@@ -6,7 +6,8 @@ const FinalProductSchema = new mongoose.Schema({
     isDeleted: { type: Boolean, default: false },
     section_name: { type: String, required: true }, 
     item_name: { type: String, required: true }, 
-    submitted_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true }, 
     }, { timestamps: true });
 
 export const FinalProduct = mongoose.models.FinalProduct || mongoose.model('FinalProduct', FinalProductSchema);

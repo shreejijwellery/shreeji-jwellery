@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import VendorBill from '../../../models/VendorBills';
 import connectToDatabase from '../../../lib/mongodb';
 import moment from 'moment-timezone';
+import { authMiddleware } from '../common/common.services';
 const getCounts = async (req, res) => {
     try {
         const {vendorId, startDate, endDate, status, page, limit} = req.query;
@@ -65,7 +66,7 @@ const getCounts = async (req, res) => {
         res.status(500).json({ error: error.message });
       }
 };
-export default async function handler(req, res) {
+const handler = async (req, res) => {
     await connectToDatabase();
 
   switch (req.method) {
@@ -79,3 +80,5 @@ export default async function handler(req, res) {
       break;
   }
 }
+
+export default authMiddleware(handler);

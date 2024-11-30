@@ -3,6 +3,7 @@ import VendorBill from '../../../models/VendorBills';
 import connectToDatabase from '../../../lib/mongodb';
 import moment from 'moment-timezone';
 import { VENDOR_BILL_STATUS } from '../../../lib/constants';
+import { authMiddleware } from '../common/common.services';
 async function createVendorBill(req, res) {
   try {
     const { amount, partyName, vendorId, invoiceNo, billDate, addedBy }    = req.body;
@@ -136,7 +137,7 @@ async function deleteVendorBill(req, res) {
 }
 
 // Update the handler to call the new functions
-export default async function handler(req, res) {
+const handler = async (req, res) => {
     await connectToDatabase();
 
   switch (req.method) {
@@ -164,3 +165,5 @@ export default async function handler(req, res) {
 }
 
 // Handle individual vendor bill operations
+
+export default authMiddleware(handler);

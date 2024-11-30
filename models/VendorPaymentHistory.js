@@ -38,7 +38,9 @@ const paymentHistorySchema = new mongoose.Schema({
     isDeleted : {
         type: Boolean,
         default: false
-    }
+    },
+    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
 });
 
 // Create the model

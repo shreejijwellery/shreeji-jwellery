@@ -2,8 +2,9 @@ import { USER_ROLES } from '../../lib/constants';
 import connectToDatabase from '../../lib/mongodb';
 import User from '../../models/users';
 import bcrypt from 'bcryptjs';
+import { authMiddleware } from './common/common.services';
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   const { method } = req;
 
   await connectToDatabase();
@@ -103,3 +104,5 @@ export default async function handler(req, res) {
     res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+
+export default authMiddleware(handler);

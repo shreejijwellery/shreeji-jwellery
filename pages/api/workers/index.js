@@ -11,15 +11,15 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
-        const { name, lastname, mobile_no, address, created_by } = req.body;
-        const worker = new Worker({ name, lastname, mobile_no, address, created_by });
+        const { name, lastname, mobile_no, address, addedBy } = req.body;
+        const worker = new Worker({ name, lastname, mobile_no, address, addedBy });
         await worker.save();
         return res.status(201).json(worker);
     }
 
     if (req.method === 'PUT') {
-        const { _id, name, lastname, mobile_no, address, created_by } = req.body;
-        const updatedWorker = await Worker.findByIdAndUpdate(_id, { name, lastname, mobile_no, address, created_by }, { new: true });
+        const { _id, name, lastname, mobile_no, address, addedBy } = req.body;
+        const updatedWorker = await Worker.findByIdAndUpdate(_id, { name, lastname, mobile_no, address, addedBy }, { new: true });
         if (!updatedWorker) {
             return res.status(404).json({ message: 'Worker not found' });
         }

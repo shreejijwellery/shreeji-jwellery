@@ -3,7 +3,9 @@ import OrderFile from '../../models/OrderFile';
 import moment from 'moment-timezone';
 import Item from '../../models/items';
 import mongoose from 'mongoose';
-export default async function handler(req, res) {
+import { authMiddleware } from './common/common.services';
+
+const handler = async (req, res) => {
   const { method } = req;
 
   await connectToDatabase();
@@ -63,3 +65,5 @@ export default async function handler(req, res) {
     res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+
+export default authMiddleware(handler);

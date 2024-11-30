@@ -33,7 +33,7 @@ const PartyDetails = props => {
   const handleCreateWorker = async () => {
     setLoading(true);
     try {
-      await axios.post('/api/party', { ...newWorker, created_by: user._id });
+      await axios.post('/api/party', { ...newWorker, addedBy: user._id });
       toast.success('Vendor added successfully!', { autoClose: 500 });
       fetchWorkers(true);
       setNewWorker({ name: '', lastname: '', mobile_no: '', address: '' });

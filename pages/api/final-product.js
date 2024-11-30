@@ -21,7 +21,7 @@ export const createFinalProductRecord = async (req, res) => {
       piece,
       section_name,
       item_name,
-      submitted_by: _id
+      addedBy: _id
     });
     await newRecord.save();
     res.status(201).json(newRecord);
@@ -59,11 +59,11 @@ export const getFinalProductRecord = async (req, res) => {
     let records = [];
     if (limit && skip) {
       records = await FinalProduct.find(query).populate(
-        {path:'submitted_by', select:'name'}
+        {path:'addedBy', select:'name'}
       ).sort({ createdAt: -1 }).limit(limit).skip(skip);
     }else {
       records = await FinalProduct.find(query).populate(
-        {path:'submitted_by', select:'name'}
+        {path:'addedBy', select:'name'}
       ).sort({ createdAt: -1 });}
     res.status(200).json({data:records, counts : itemWiseCounts});
   } catch (error) {

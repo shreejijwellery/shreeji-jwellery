@@ -33,7 +33,7 @@ const WorkerDetails = (props) => {
     const handleCreateWorker = async () => {
         setLoading(true);
         try {
-            await axios.post('/api/workers', { ...newWorker, created_by: user._id });
+            await axios.post('/api/workers', { ...newWorker, addedBy: user._id });
             toast.success("Worker added successfully!", { autoClose: 500 });
             fetchWorkers(true);
             setNewWorker({ name: '', lastname: '', mobile_no: '', address: '' });

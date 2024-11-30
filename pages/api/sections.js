@@ -1,17 +1,16 @@
 import connectToDatabase from '../../lib/mongodb';
-import OrderFile from '../../models/OrderFile';
-import moment from 'moment-timezone';
 import Section from '../../models/section';
 import mongoose from 'mongoose';
 import items from '../../models/items';
-export default async function handler(req, res) {
-  const { method } = req;
+import { authMiddleware } from './common/common.services';
+const handler = async (req, res) => {
+  const { method, query, userData } = req;
 
   await connectToDatabase();
 
   if (method === 'GET') {
   try {
-    const sections = await Section.find({isDeleted: false});
+    const sections = await Section.find({isDeleted: false, company : userData?.company}).populate({path: 'addedBy', select: 'name'}).lean();
     res.status(200).json({ sections, message: 'Sections fetched successfully!' });
   } catch (error) {
     res.status(500).json({ error: error.message, message: 'Error fetching sections from the database' }); // Added separate message key
@@ -19,9 +18,11 @@ export default async function handler(req, res) {
 
 
   }if(method === 'POST'){
+    const {userData} = req;
+
     const body = req.body;
-    const {name, user} = body;
-    const section = new Section({name, user : {userId : user._id, name: user.name}});
+    const {name} = body;
+    const section = new Section({name, addedBy : userData?._id, company : userData?.company });
     try {
       await section.save();
       res.status(200).json({message: 'Section created successfully!'});
@@ -58,3 +59,5 @@ export default async function handler(req, res) {
     res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+
+export default authMiddleware(handler);
