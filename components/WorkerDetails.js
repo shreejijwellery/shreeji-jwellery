@@ -1,11 +1,10 @@
 // components/WorkerDetails.js
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 import { FaTrash, FaPlus, FaEdit, FaSave } from 'react-icons/fa';
 import Loader from './loader'; // Assume a custom loader component
-import { fetchAllWorker } from '../actions/actions_creators';
+import { fetchAllWorker, HTTP } from '../actions/actions_creators';
 
 const WorkerDetails = (props) => {
     const { user } = props;
@@ -33,7 +32,7 @@ const WorkerDetails = (props) => {
     const handleCreateWorker = async () => {
         setLoading(true);
         try {
-            await axios.post('/api/workers', { ...newWorker, addedBy: user._id });
+            const response = await HTTP('POST','/workers', { ...newWorker });
             toast.success("Worker added successfully!", { autoClose: 500 });
             fetchWorkers(true);
             setNewWorker({ name: '', lastname: '', mobile_no: '', address: '' });
@@ -47,7 +46,7 @@ const WorkerDetails = (props) => {
     const handleDeleteWorker = async (id) => {
         setLoading(true);
         try {
-            await axios.delete(`/api/workers/${id}`);
+            const response = await HTTP('DELETE',`/workers/${id}`);
             toast.success("Worker deleted successfully!", { autoClose: 500 });
             fetchWorkers(true);
         } catch (error) {
@@ -60,7 +59,7 @@ const WorkerDetails = (props) => {
     const handleEditWorker = async () => {
         setLoading(true);
         try {
-            await axios.put(`/api/workers`, editingWorker);
+            const response = await HTTP('PUT',`/workers`, editingWorker);
             toast.success("Worker updated successfully!", { autoClose: 500 });
             fetchWorkers(true);
             setEditingWorker(null);

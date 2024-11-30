@@ -13,7 +13,7 @@ export const createFinalProductRecord = async (req, res) => {
   const { section, item, piece, section_name, item_name } =
     req.body;
   const userData = req.userData;
-  const {_id} = userData;
+  const {_id, company} = userData;
   try {
     const newRecord = new FinalProduct({
       section,
@@ -21,7 +21,8 @@ export const createFinalProductRecord = async (req, res) => {
       piece,
       section_name,
       item_name,
-      addedBy: _id
+      lastModifiedBy: _id,
+      company
     });
     await newRecord.save();
     res.status(201).json(newRecord);
@@ -41,8 +42,9 @@ const getItemWiseCounts = async (query) => {
 export const getFinalProductRecord = async (req, res) => {
   await connectToDatabase();
   try {
+    const company = req.userData?.company;
     const {  fromDate, toDate, limit, skip, items, } = req.query;
-    let query = { isDeleted: false };
+    let query = { isDeleted: false, company };
     if (fromDate && toDate) {
       query.createdAt = {
         $gte: new Date(moment(fromDate).tz('IST').startOf('day').toISOString()),
@@ -59,11 +61,11 @@ export const getFinalProductRecord = async (req, res) => {
     let records = [];
     if (limit && skip) {
       records = await FinalProduct.find(query).populate(
-        {path:'addedBy', select:'name'}
+        {path:'lastModifiedBy', select:'name'}
       ).sort({ createdAt: -1 }).limit(limit).skip(skip);
     }else {
       records = await FinalProduct.find(query).populate(
-        {path:'addedBy', select:'name'}
+        {path:'lastModifiedBy', select:'name'}
       ).sort({ createdAt: -1 });}
     res.status(200).json({data:records, counts : itemWiseCounts});
   } catch (error) {
@@ -75,9 +77,10 @@ export const getFinalProductRecord = async (req, res) => {
 export const updateFinalProductRecord = async (req, res) => {
   await connectToDatabase();
   const { id } = req.query; // Assuming the ID is passed as a query parameter
-
+  const company = req.userData?.company;
+  const userId = req.userData?._id;
   try {
-    const updatedRecord = await FinalProduct.findByIdAndUpdate(id, req.body, { new: true });
+    const updatedRecord = await FinalProduct.findByIdAndUpdate(id, { ...req.body, company, lastModifiedBy: userId }, { new: true });
     if (!updatedRecord) return res.status(404).json({ error: 'Record not found' });
     res.status(200).json(updatedRecord);
   } catch (error) {
@@ -89,11 +92,11 @@ export const updateFinalProductRecord = async (req, res) => {
 export const softDeleteFinalProductRecord = async (req, res) => {
   await connectToDatabase();
   const { id } = req.query; // Assuming the ID is passed as a query parameter
-
+  const userId = req.userData?._id;
   try {
     const deletedRecord = await FinalProduct.findByIdAndUpdate(
       id,
-      { isDeleted: true },
+      { isDeleted: true, lastModifiedBy: userId },
       { new: true }
     );
     if (!deletedRecord) return res.status(404).json({ error: 'Record not found' });

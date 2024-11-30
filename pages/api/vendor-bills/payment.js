@@ -35,6 +35,8 @@ export async function appliedPayment(billId) {
 
 const createPayment = async (req, res) => {
   try {
+    const userId = req.userData?._id;
+    const company = req.userData?.company;
     const { vendorId, paymentMode,totalAmount, notes, paymentDate, batchPaymentId, selectedBills } = req.body;
     const selectedBillsData = await Promise.all(selectedBills.map(async bill => {
       const data = {
@@ -45,7 +47,9 @@ const createPayment = async (req, res) => {
         notes,  
         paymentDate: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
         batchPaymentId,
-        totalAmount
+        totalAmount,
+        lastModifiedBy: userId,
+        company
       }
 
       const payment = new VendorPaymentHistory(data);
@@ -62,7 +66,9 @@ const createPayment = async (req, res) => {
 
 const getPayments = async (req, res) => {
     try {
-        const criteria = {isDeleted : false}
+        const userId = req.userData?._id;
+        const company = req.userData?.company;
+        const criteria = {isDeleted : false, company}
         const {vendorId, invoiceId, paymentFromDate, paymentToDate} = req.query;
         if (vendorId && mongoose.isValidObjectId(vendorId)) {
             criteria.vendorId = new mongoose.Types.ObjectId(vendorId);
@@ -93,9 +99,10 @@ const getPayments = async (req, res) => {
 
 const deletePayment = async (req, res) => {
     const { id } = req.query;
+    const userId = req.userData?._id;
     try {
         
-        const payment = await VendorPaymentHistory.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+        const payment = await VendorPaymentHistory.findByIdAndUpdate(id, { isDeleted: true, lastModifiedBy: userId }, { new: true });
         if (!payment) {
             return res.status(404).json({ error: 'Payment not found' });
         }

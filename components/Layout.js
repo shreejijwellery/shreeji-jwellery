@@ -4,15 +4,14 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
 import { CgProfile  } from 'react-icons/cg';
-import { IoMdSettings } from "react-icons/io";
-import { toast } from 'react-toastify';
-
+import { FaUsersCog } from "react-icons/fa";
 const Layout = ({ children }) => {
   const router = useRouter();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+
+  const token = localStorage.getItem('token');
     if (token) {
       axios
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
@@ -20,13 +19,16 @@ const Layout = ({ children }) => {
           delete response.data?.user?.password;
           setUser(response.data.user);
           localStorage.setItem('user', JSON.stringify(response.data.user)); // Store user data after fetching
+          
         })
         .catch(error => {
           console.error('Token validation failed:', error); // Log error for debugging
           localStorage.removeItem('token'); // Remove token on error
         });
-    }else{
-      router.push('/login');
+    }else {
+      if (router.pathname !== '/login' && router.pathname !== '/signup') {
+        router.push('/login');
+      }
     }
   }, [router]); // Only depend on router
 
@@ -125,7 +127,7 @@ const Layout = ({ children }) => {
               <span
                 onClick={() => router.push('/user-permissions')}
                 className="text-white cursor-pointer">
-                  <IoMdSettings />
+                  <FaUsersCog />
               </span>
             )}
             <button

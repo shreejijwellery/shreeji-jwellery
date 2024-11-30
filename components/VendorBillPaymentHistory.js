@@ -4,17 +4,18 @@ import axios from 'axios';
 import moment from 'moment-timezone';
 import React, { useEffect, useState } from 'react';
 import { FaTrash} from 'react-icons/fa';
+import { HTTP } from '../actions/actions_creators';
 export default function VendorBillPaymentHistory(props) {
   const { open, setOpen, billForPaymentHistory, isBillModified, setIsBillModified } = props;
   const [paymentHistory, setPaymentHistory] = useState(null);
 
   const getPaymentHistory = async (billId) => {
-    const response = await axios.get(`/api/vendor-bills/payment?invoiceId=${billId}`);
-    setPaymentHistory(response.data);
+    const response = await HTTP('GET',`/vendor-bills/payment?invoiceId=${billId}`);
+    setPaymentHistory(response);
   }
 
   const deletePayment = async (paymentId) => {
-    await axios.delete(`/api/vendor-bills/payment?id=${paymentId}`);
+    const response = await HTTP('DELETE',`/vendor-bills/payment?id=${paymentId}`);
     setPaymentHistory(prevHistory => prevHistory.filter(bill => bill._id !== paymentId));
     setIsBillModified(prev => [...prev, billForPaymentHistory.invoiceId]);
   }

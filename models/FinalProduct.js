@@ -6,7 +6,7 @@ const FinalProductSchema = new mongoose.Schema({
     isDeleted: { type: Boolean, default: false },
     section_name: { type: String, required: true }, 
     item_name: { type: String, required: true }, 
-    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true }, 
     }, { timestamps: true });
 

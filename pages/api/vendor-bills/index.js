@@ -6,14 +6,17 @@ import { VENDOR_BILL_STATUS } from '../../../lib/constants';
 import { authMiddleware } from '../common/common.services';
 async function createVendorBill(req, res) {
   try {
-    const { amount, partyName, vendorId, invoiceNo, billDate, addedBy }    = req.body;
+    const userId = req.userData?._id;
+    const company = req.userData?.company;
+    const { amount, partyName, vendorId, invoiceNo, billDate }    = req.body;
     const billData = {
         amount,
         partyName,
         vendorId,
         invoiceNo,
         billDate : billDate ? new Date(billDate).toISOString() : new Date().toISOString(),
-        addedBy,
+        lastModifiedBy: userId,
+        company,
         remainAmount: amount,
     }
     const vendorBill = new VendorBill(billData);
@@ -26,9 +29,12 @@ async function createVendorBill(req, res) {
 
 async function getVendorBills(req, res) {
   try {
+    const userId = req.userData?._id;
+    const company = req.userData?.company;
     const {vendorId, startDate, endDate, status, page, limit} = req.query;
     let criteria = {
-        isDeleted: false
+        isDeleted: false,
+        company
     };
     if (vendorId && mongoose.isValidObjectId(vendorId)) {
         criteria.vendorId = new mongoose.Types.ObjectId(vendorId);
@@ -95,7 +101,10 @@ async function getVendorBills(req, res) {
 async function updateVendorBill(req, res) {
   const id  = req.body._id; // Assuming ID is passed in the query
   try {
+    const userId = req.userData?._id;
+    const company = req.userData?.company;
     const updatedData = req.body;
+    updatedData.lastModifiedBy = userId;
     delete updatedData._id;
     if (updatedData.billDate) {
         updatedData.billDate = new Date(updatedData.billDate).toISOString();
@@ -124,8 +133,9 @@ async function updateVendorBill(req, res) {
 
 async function deleteVendorBill(req, res) {
   const { _id } = req.query; // Assuming ID is passed in the query
+  const userId = req.userData?._id;
   try {
-    const vendorBill = await VendorBill.findByIdAndUpdate(_id, { isDeleted: true }, { new: true });
+    const vendorBill = await VendorBill.findByIdAndUpdate(_id, { isDeleted: true, lastModifiedBy: userId }, { new: true });
 
     if (!vendorBill) {
       return res.status(404).json({ error: 'Vendor bill not found' });

@@ -47,7 +47,7 @@ const UserManagement = () => {
       setModalIsOpen(false);
       fetchUsers();
     } catch (error) {
-      toast.error(error.response.data.message);
+        console.log(error);
     } finally {
       setLoading(false); // End loading
     }

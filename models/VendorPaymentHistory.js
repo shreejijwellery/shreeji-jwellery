@@ -39,7 +39,7 @@ const paymentHistorySchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
 });
 

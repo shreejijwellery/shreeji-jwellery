@@ -25,7 +25,7 @@ export const createWorkRecord = async (req, res) => {
       worker_name,
       section_name,
       item_name,
-      addedBy: _id,
+      lastModifiedBy: _id,
     });
     await newRecord.save();
     res.status(201).json(newRecord);
@@ -75,7 +75,7 @@ export const updateWorkRecord = async (req, res) => {
   const { id } = req.query; // Assuming the ID is passed as a query parameter
 
   try {
-    const updatedRecord = await WorkRecord.findByIdAndUpdate(id, { ...req.body, addedBy: _id }, { new: true });
+    const updatedRecord = await WorkRecord.findByIdAndUpdate(id, { ...req.body, lastModifiedBy: _id }, { new: true });
     if (!updatedRecord) return res.status(404).json({ error: 'Record not found' });
     res.status(200).json(updatedRecord);
   } catch (error) {
@@ -92,7 +92,7 @@ export const softDeleteWorkRecord = async (req, res) => {
   try {
     const deletedRecord = await WorkRecord.findByIdAndUpdate(
       id,
-      { isDeleted: true, addedBy: _id },
+      { isDeleted: true, lastModifiedBy: _id },
       { new: true }
     );
     if (!deletedRecord) return res.status(404).json({ error: 'Record not found' });

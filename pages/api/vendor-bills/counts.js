@@ -5,9 +5,12 @@ import moment from 'moment-timezone';
 import { authMiddleware } from '../common/common.services';
 const getCounts = async (req, res) => {
     try {
+        const userId = req.userData?._id;
+        const company = req.userData?.company;
         const {vendorId, startDate, endDate, status, page, limit} = req.query;
         let criteria = {
-            isDeleted: false
+            isDeleted: false,
+            company
         };
         if (vendorId && mongoose.isValidObjectId(vendorId)) {
             criteria.vendorId = new mongoose.Types.ObjectId(vendorId);

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { toast } from 'react-toastify';
 export const fetchAllSections = async (isCallApi) => {
     try {
         if(!isCallApi) {
@@ -60,8 +61,8 @@ export const fetchAllParties = async (isCallApi) => {
             }
         }
         const response = await HTTP('GET', '/party');
-        localStorage.setItem('parties', JSON.stringify(response.data));
-        return response.data;
+        localStorage.setItem('parties', JSON.stringify(response));
+        return response;
     } catch (error) {
         console.error('Error fetching parties:', error);
         return [];
@@ -88,10 +89,14 @@ export const HTTP = async (method, url, data = null) => {
 
     try {
         const response = await axios(config);
+        console.log(response);
+        if(!response?.data){
+            throw response?.message || 'Something went wrong';
+        }
         return response?.data;
     } catch (error) {
         toast.error(error?.response?.data?.message || 'Something went wrong');
         console.error('Error fetching data:', error);
-        throw error;
+        throw error?.response?.data?.message  || 'Something went wrong';
     }
 }

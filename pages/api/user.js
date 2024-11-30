@@ -2,13 +2,14 @@ import { USER_ROLES } from '../../lib/constants';
 import connectToDatabase from '../../lib/mongodb';
 import User from '../../models/users';
 import bcrypt from 'bcryptjs';
-import { authMiddleware } from './common/common.services';
+import { authMiddleware, isUserNameAvailable } from './common/common.services';
 
 const handler = async (req, res) => {
   const { method } = req;
 
   await connectToDatabase();
-
+  const userId = req.userData?._id;
+  const company = req.userData?.company;
   if (method === 'POST') {
     const { name, mobileNumber, username, password, role, permissions } = req.body;
 
@@ -23,6 +24,10 @@ const handler = async (req, res) => {
             updates.mobileNumber = mobileNumber;
         }
         if(username){
+           const isUserNameAvailable1 = await isUserNameAvailable(username);
+           if(!isUserNameAvailable1){
+            return res.status(400).json({ message: 'Username already exists' });
+           }
             updates.username = username;
         }
         if(role){
@@ -34,6 +39,7 @@ const handler = async (req, res) => {
         if (password) {
             updates.password = await bcrypt.hash(password, 10);
         }
+        updates.company = company;
 
         const updatedUser = await User.create(updates);
         delete updatedUser.password;
@@ -62,6 +68,10 @@ const handler = async (req, res) => {
             updates.mobileNumber = mobileNumber;
         }
         if(username){
+            const isUserNameAvailable1 = await isUserNameAvailable(username, _id);
+            if(!isUserNameAvailable1){
+                return res.status(400).json({ message: 'Username already exists' });
+            }
             updates.username = username;
         }
         if(role){
@@ -91,7 +101,7 @@ const handler = async (req, res) => {
       res.status(500).json({ message: 'Error creating user', error });
     }
   }else if (method === 'GET') {
-    const users = await User.find({role : {$ne : USER_ROLES.ADMIN}, isDeleted : {$ne : true}});
+    const users = await User.find({role : {$ne : USER_ROLES.ADMIN}, isDeleted : {$ne : true}},{password : 0});
     res.status(200).json({ message: 'Users fetched successfully', data: users });
   }
   else if (method === 'DELETE') {

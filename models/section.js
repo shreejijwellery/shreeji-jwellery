@@ -5,7 +5,7 @@ const SectionSchema = new mongoose.Schema({
   name: { type: String, required: true },
   isDeleted: { type: Boolean, default: false },
   company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
-  addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, {timestamps: true});
 
 export default mongoose.models.Section || mongoose.model('Section', SectionSchema);

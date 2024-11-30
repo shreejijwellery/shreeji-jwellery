@@ -10,7 +10,7 @@ const handler = async (req, res) => {
 
   if (method === 'GET') {
   try {
-    const sections = await Section.find({isDeleted: false, company : userData?.company}).populate({path: 'addedBy', select: 'name'}).lean();
+    const sections = await Section.find({isDeleted: false, company : userData?.company}).populate({path: 'lastModifiedBy', select: 'name'}).lean();
     res.status(200).json({ sections, message: 'Sections fetched successfully!' });
   } catch (error) {
     res.status(500).json({ error: error.message, message: 'Error fetching sections from the database' }); // Added separate message key
@@ -22,7 +22,7 @@ const handler = async (req, res) => {
 
     const body = req.body;
     const {name} = body;
-    const section = new Section({name, addedBy : userData?._id, company : userData?.company });
+    const section = new Section({name, lastModifiedBy : userData?._id, company : userData?.company });
     try {
       await section.save();
       res.status(200).json({message: 'Section created successfully!'});

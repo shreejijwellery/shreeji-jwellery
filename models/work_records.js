@@ -14,7 +14,7 @@ const WorkRecordSchema = new mongoose.Schema({
     item_name: { type: String, required: true }, 
     payment_date: { type: Date },
     payment_status: { type: String, enum: [PAYMENT_STATUS.PENDING, PAYMENT_STATUS.PAID] },
-    addedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
 }, { timestamps: true });
 

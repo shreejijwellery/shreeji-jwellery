@@ -12,8 +12,8 @@ export const applyPayments = async (req, res) => {
     const payment_date = new Date().toISOString();
     try {
         const updatedRecords = await WorkRecord.updateMany(
-            { _id: { $in: recordIds.map(id => new mongoose.Types.ObjectId(id)) , company} },
-            { $set : { payment_date, payment_status, addedBy: _id }},
+            { _id: { $in: recordIds.map(id => new mongoose.Types.ObjectId(id))}, company },
+            { $set : { payment_date, payment_status, lastModifiedBy: _id }},
         );
         res.status(200).json(updatedRecords);
     } catch (error) {
