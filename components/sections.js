@@ -20,7 +20,6 @@ const SectionManager = (props) => {
   const fetchSections = async (isCallApi) => {
     setLoading(true);
     const response = await fetchAllSections(isCallApi);
-    console.log(response);
     setSections(response);
     setLoading(false);
   };

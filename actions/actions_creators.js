@@ -51,8 +51,47 @@ export const fetchAllWorker = async (isCallApi) => {
     }
 }
 
+export const fetchAllParties = async (isCallApi) => {
+    try {
+        if(!isCallApi) {
+            const workers = JSON.parse(localStorage.getItem('parties'));
+            if(workers) {
+                return workers;
+            }
+        }
+        const response = await axios.get('/api/party');
+        localStorage.setItem('parties', JSON.stringify(response.data));
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching parties:', error);
+        return [];
+    }
+}
 export const callAPisOnLogin = async () => {
     await fetchAllSections(true);
     await fetchAllItems(true);
     await fetchAllWorker(true);
+    await fetchAllParties(true);
+}
+
+export const HTTP = async (method, url, data = null) => {
+    const token = localStorage.getItem('token');
+    const config = {
+        baseURL: '/api',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
+        method: method,
+        url: url,
+        ...(data && { data })
+    };
+
+    try {
+        const response = await axios(config);
+        return response?.data;
+    } catch (error) {
+        toast.error(error?.response?.data?.message || 'Something went wrong');
+        console.error('Error fetching data:', error);
+        throw error;
+    }
 }

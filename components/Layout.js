@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { checkPermission, PERMISSIONS } from '../lib/constants';
+import { CgProfile } from 'react-icons/cg';
+import { toast } from 'react-toastify';
 
 const Layout = ({ children }) => {
   const router = useRouter();
@@ -9,18 +12,20 @@ const Layout = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    console.log("token", token);
     if (token) {
       axios
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
-        .then((response) => {
+        .then(response => {
+          delete response.data?.user?.password;
           setUser(response.data.user);
           localStorage.setItem('user', JSON.stringify(response.data.user)); // Store user data after fetching
         })
-        .catch((error) => {
-          console.error("Token validation failed:", error); // Log error for debugging
+        .catch(error => {
+          console.error('Token validation failed:', error); // Log error for debugging
           localStorage.removeItem('token'); // Remove token on error
         });
+    }else{
+      router.push('/login');
     }
   }, [router]); // Only depend on router
 
@@ -55,15 +60,23 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
-          {
-            user && router.pathname !== '/billing' && (
+          {user &&
+            checkPermission(user, PERMISSIONS.PARTY_BILLS) &&
+            router.pathname !== '/party-billing' && (
               <li>
+                <Link href="/party_dashboard">
+                  <div className="hover:underline">Vendor Pay</div>
+                </Link>
+              </li>
+            )}
+          {user && router.pathname !== '/billing' && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
+            <li>
               <Link href="/billing">
-                <div className="hover:underline">Payables</div>
+                <div className="hover:underline"> Worker Pay</div>
               </Link>
             </li>
-            )
-          }
+          )}
+
           {user && router.pathname !== '/settings' && (
             <li>
               <Link href="/settings">
@@ -71,13 +84,22 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
-          {user && router.pathname !== '/extract-sku' && (
+          {
+            user && router.pathname !== '/final-product' && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
+              <li>
+              <Link href="/final-product">
+                <div className="hover:underline">Final Product</div>
+              </Link>
+            </li>
+            )
+          }
+          {/* {user && router.pathname !== '/extract-sku' && (
             <li>
               <Link href="/extract-sku">
                 <div className="hover:underline">Extract SKU</div>
               </Link>
             </li>
-          )}
+          )} */}
           {/* Uncomment if needed
           {user && router.pathname !== '/dashboard' && (
             <li>
@@ -97,10 +119,10 @@ const Layout = ({ children }) => {
         {user && (
           <div className="flex items-center space-x-4">
             <span className="text-white">{user.name}</span>
+            <span className="text-white cursor-pointer" onClick={() => router.push('/profile')}> <CgProfile /> </span>
             <button
               onClick={handleLogout}
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-            >
+              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
               Logout
             </button>
           </div>
