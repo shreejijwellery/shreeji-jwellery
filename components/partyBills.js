@@ -11,6 +11,7 @@ import ApplyVendorPaymentModel from './ApplyVendorPaymentModel';
 import { Tooltip as ReactTooltip } from 'react-tooltip'; // Use named import for Tooltip
 import VendorBillPaymentHistory from './VendorBillPaymentHistory';
 import InlinePaymentHistory from './bill_payment';
+import { HTTP } from '../actions/actions_creators';
 
 export default function PartyBills({ selectedParty, user, isBillModified, setIsBillModified }) {
   const [bills, setBills] = useState([]);
@@ -24,7 +25,7 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
     vendorId: selectedParty?._id || '',
     invoiceNo: '',
     billDate: moment().format('MM-DD-YYYY'),
-    addedBy: user?._id || '',
+    lastModifiedBy: user?._id || '',
   });
   const [isEditing, setIsEditing] = useState(false);
 
@@ -61,7 +62,7 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
     setLoading(true);
     fetchTotalCounts();
     try {
-      const response = await axios.get(`/api/vendor-bills`, {
+      const response = await HTTP('GET',`/vendor-bills`, {
         params: {
           vendorId: selectedParty?._id || null,
           page,
@@ -72,7 +73,7 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
         },
       });
 
-      const newBills = response.data;
+      const newBills = response;
       setBills(prevBills => (reset ? newBills : [...prevBills, ...newBills]));
       setHasMore(newBills.length === 20);
     } catch (err) {
@@ -83,17 +84,16 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
   };
 
   const fetchTotalCounts = async () => {
-    const response = await axios.get(`/api/vendor-bills/counts`, {
+    const response = await HTTP('GET',`/vendor-bills/counts`, {
       params: {
         vendorId: selectedParty?._id || null,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       },
     });
-    console.log(response.data.data);
     let responseData = null;
     if (selectedParty?._id) {
-      responseData = response.data.data?.find(item => item._id === selectedParty?._id);
+      responseData = response.data?.find(item => item._id === selectedParty?._id);
       setTotalAmount(responseData?.totalAmount || 0);
       setTotalPaidAmount(responseData?.totalPaidAmount || 0);
       setTotalRemainAmount(responseData?.totalRemainAmount || 0);
@@ -124,9 +124,9 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
 
     try {
       if (isEditing) {
-        await axios.put(`/api/vendor-bills`, form);
+        const response = await HTTP('PUT',`/vendor-bills`, form);
       } else {
-        await axios.post(`/api/vendor-bills`, form);
+        const response = await HTTP('POST',`/vendor-bills`, form);
       }
       fetchVendorBills(true);
       setIsBillModified(prev => !prev);
@@ -146,7 +146,7 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
       vendorId: selectedParty?._id || '',
       invoiceNo: '',
       billDate: moment().format('MM-DD-YYYY'),
-      addedBy: user?._id || '',
+      lastModifiedBy: user?._id || '',
     });
     setIsEditing(false);
     setOpen(false);
@@ -161,7 +161,7 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
   const handleDelete = async _id => {
     setLoading(true);
     try {
-      await axios.delete(`/api/vendor-bills`, { params: { _id } });
+      const response = await HTTP('DELETE',`/vendor-bills`, { params: { _id } });
       fetchVendorBills(true);
       setIsBillModified(prev => !prev);
     } catch (err) {
@@ -253,13 +253,13 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
   };
 
   const fetchModifiedBills = async () => {
-    const response = await axios.get(`/api/vendor-bills`, {
+    const response = await HTTP('GET',`/vendor-bills`, {
       params: {
         _ids: isBillModified,
       },
     });
 
-    const newBills = response.data;
+    const newBills = response;
 
     setBills(prevBills =>
       prevBills.map(bill => newBills?.find(newBill => newBill._id === bill._id) || bill)

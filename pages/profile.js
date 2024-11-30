@@ -4,6 +4,7 @@ import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import { HTTP } from '../actions/actions_creators';
 
 function UpdateUser() {
   const [showPassword, setShowPassword] = useState(false);
@@ -39,7 +40,6 @@ function UpdateUser() {
     try {
       e.preventDefault();
       // Handle form submission logic here
-      console.log('User updated:', user);
       let updateData = {
         ...user,
         _id: user._id,
@@ -51,7 +51,7 @@ function UpdateUser() {
       setShowOldPassword(false);
     } catch (error) {
       console.error('Error updating user:', error);
-      toast.error(error.response.data.message);
+      toast.error(error);
       setShowPassword(false);
       setShowOldPassword(false);
     }

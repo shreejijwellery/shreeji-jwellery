@@ -7,6 +7,7 @@ import { VENDOR_BILL_STATUS, VENDOR_PAYMENT_MODES } from '../lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
 import axios from 'axios';
+import { HTTP } from '../actions/actions_creators';
 export default function ApplyVendorPaymentModel(props) {
   const { open, setOpen, selectedBills, selectedParty, isBillModified, setIsBillModified } = props;
   const [totalAmount, setTotalAmount] = useState(0);
@@ -23,14 +24,14 @@ export default function ApplyVendorPaymentModel(props) {
   );
 
   const getBillsWithRemainAmount = async () => {
-    const response = await axios.get(`/api/vendor-bills`, {
+    const response = await HTTP('GET',`/vendor-bills`, {
       params: {
         vendorId: selectedParty?._id || null,
         status: VENDOR_BILL_STATUS.PENDING,
       },
     });
 
-    const newBills = response.data;
+    const newBills = response;
     const totalRemainAmount = newBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
     setTotalAmount(totalRemainAmount);
     setPayingBills(newBills);
@@ -118,13 +119,7 @@ export default function ApplyVendorPaymentModel(props) {
     }
 
     // Call API to create payment
-    const response = await fetch('/api/vendor-bills/payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(paymentData),
-    });
+    const response = await HTTP('POST',`/vendor-bills/payment`, paymentData);
 
     if (response) {
       setOpen(false); // Close modal after submission

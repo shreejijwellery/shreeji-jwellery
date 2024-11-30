@@ -28,3 +28,12 @@ export const authMiddleware = (handler) => {
         return handler(req, res); // Call the next handler
     };
 };
+
+export const isUserNameAvailable = async (username, _id) => {
+    if(!_id){
+        const user = await users.findOne({ username });
+        return user ? false : true;
+    }
+    const user = await users.findOne({ username, _id: { $ne: _id } });
+    return user ? false : true;
+}

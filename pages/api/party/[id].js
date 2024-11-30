@@ -1,8 +1,9 @@
 // pages/api/workers/[id].js
 import connectToDatabase from '../../../lib/mongodb';
 import Vendor from '../../../models/party';
+import { authMiddleware } from '../common/common.services';
 
-export default async function handler(req, res) {
+const handler = async (req, res) => {
     const { id } = req.query;
     await connectToDatabase();
 
@@ -19,3 +20,4 @@ export default async function handler(req, res) {
     res.status(405).end(`Method ${req.method} Not Allowed`);
 }
 
+export default authMiddleware(handler);

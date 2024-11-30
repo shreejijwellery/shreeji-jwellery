@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   role: { type: String, required: true, enum : Object.values(USER_ROLES) },
   permissions: { type: [String], required: false },
   isDeleted: { type: Boolean, default: false },
+  company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
 });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);

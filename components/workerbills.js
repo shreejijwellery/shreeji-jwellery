@@ -5,7 +5,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import moment from 'moment';
 import { PAYMENT_STATUS } from '../lib/constants';
-
+import { HTTP } from '../actions/actions_creators';
 export default function WorkerBills(props) {
   const { selectedWorker } = props;
   const [workDetails, setWorkDetails] = useState([]);
@@ -53,8 +53,7 @@ export default function WorkerBills(props) {
       const fromDate = startDate ? `&fromDate=${startDate}` : '';
       const toDate = endDate ? `&toDate=${endDate}` : '';
       const worker = selectedWorker && selectedWorker._id !== 'all' ? selectedWorker._id : ''
-      const response = await fetch(`/api/work_records?worker=${worker}${payment_status}${fromDate}${toDate}`);
-      const data = await response.json();
+      const data = await HTTP('GET', `/work_records?worker=${worker}${payment_status}${fromDate}${toDate}`);
       setWorkDetails(data);
     } catch (error) {
       console.error('Error fetching work details:', error);
@@ -73,10 +72,7 @@ export default function WorkerBills(props) {
     const amount = Number(piece) * Number(item_rate);
 
     try {
-      const response = await fetch('/api/work_records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await HTTP('POST', '/work_records', {
           section,
           section_name,
           item,
@@ -86,10 +82,9 @@ export default function WorkerBills(props) {
           worker: selectedWorker._id,
           worker_name: selectedWorker.name,
           amount,
-        }),
-      });
+        });
 
-      const newDetail = await response.json();
+      const newDetail = response;
       setWorkDetails([newDetail,...workDetails ]);
       setNewWorkDetail({ section: '', item: '', piece: '', item_rate: '' });
     } catch (error) {
@@ -138,13 +133,9 @@ export default function WorkerBills(props) {
         amount: editData.piece * editData.item_rate,
       };
 
-      const response = await fetch(`/api/work_records?id=${editingRow}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedData),
-      });
+      const response = await HTTP('PUT', `/work_records?id=${editingRow}`, updatedData);
 
-      const savedData = await response.json();
+      const savedData = response;
 
       setWorkDetails(prevWorkDetails =>
         prevWorkDetails.map(detail => (detail._id === editingRow ? savedData : detail))
@@ -172,7 +163,7 @@ export default function WorkerBills(props) {
 
   const handleDeleteClick = async id => {
     try {
-      await fetch(`/api/work_records?id=${id}`, { method: 'DELETE' });
+      await HTTP('DELETE', `/work_records?id=${id}`);
       setWorkDetails(prevWorkDetails => prevWorkDetails.filter(detail => detail._id !== id));
     } catch (error) {
       console.error('Error deleting work detail:', error);
@@ -313,17 +304,12 @@ export default function WorkerBills(props) {
     
     const markAsPaid = async () => {
       try {
-        const response = await fetch('/api/apply_payments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID }),
-        });
+        const response = await HTTP('POST', '/apply_payments', { recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID });
 
-        if (!response.ok) {
+        if (!response) {
           throw new Error('Failed to mark records as paid');
         }
 
-        const result = await response.json();
         setSelectedRecords([]);
         fetchWorkDetails();
         // Optionally, update the UI to reflect the change

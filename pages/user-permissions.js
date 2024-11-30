@@ -1,7 +1,6 @@
 // pages/UpdateUser.js
 
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { toast } from 'react-toastify';
 import { Formik, Form, Field, FieldArray } from 'formik';
 import Modal from 'react-modal';
@@ -48,7 +47,7 @@ const UserManagement = () => {
       setModalIsOpen(false);
       fetchUsers();
     } catch (error) {
-      toast.error(error.response.data.message);
+        console.log(error);
     } finally {
       setLoading(false); // End loading
     }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
-
+import { HTTP } from '../actions/actions_creators';
 const Signup = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -11,6 +11,8 @@ const Signup = () => {
     password: '',
     role: 'manager',
     permissions: [],
+    companyName: '',
+    address: '',
   });
   const [errors, setErrors] = useState({});
   const router = useRouter();
@@ -40,11 +42,9 @@ const Signup = () => {
 
     setErrors({});
     try {
-      const response = await axios.post('/api/signup', formData);
-      if (response.status === 201) {
+      const response = await HTTP('POST', '/signup', formData);
         toast.success('Account created successfully!');
         router.push('/login');
-      }
     } catch (error) {
       console.error('Error signing up:', error);
       toast.error('Error creating account. Please try again.');
@@ -91,6 +91,23 @@ const Signup = () => {
             value={formData.password}
             onChange={handleChange}
             required
+            className="mb-4 p-2 w-full border rounded"
+          />
+          <input
+            type="text"
+            name="companyName"
+            placeholder="Company Name"
+            value={formData.companyName}
+            onChange={handleChange}
+            required
+            className="mb-4 p-2 w-full border rounded"
+          />
+          <input
+            type="text"
+            name="address"
+            placeholder="Address (optional)"
+            value={formData.address}
+            onChange={handleChange}
             className="mb-4 p-2 w-full border rounded"
           />
           <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full">

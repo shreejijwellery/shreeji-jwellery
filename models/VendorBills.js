@@ -38,10 +38,11 @@ const vendorBillSchema = new mongoose.Schema({
         enum: Object.keys(VENDOR_BILL_STATUS),
         default: VENDOR_BILL_STATUS.PENDING
     },
-    addedBy: {
-        type: mongoose.Schema.Types.ObjectId, // Assuming addedBy is an ObjectId
+    lastModifiedBy: {
+        type: mongoose.Schema.Types.ObjectId, // Assuming lastModifiedBy is an ObjectId
         required: true
     },
+    company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
 
 }, { timestamps: true });
 

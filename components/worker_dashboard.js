@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import moment from 'moment';
 import { PAYMENT_STATUS } from '../lib/constants';
 import Select from 'react-select';
-
+import { HTTP } from '../actions/actions_creators';
 export default function PayableDashboard(props) {
   const [workDetails, setWorkDetails] = useState([]);
   const [sections, setSections] = useState([]);
@@ -69,8 +69,7 @@ export default function PayableDashboard(props) {
       const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
       const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
 
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
-      const data = await response.json();
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
 
       if (reset) {
         setWorkDetails(data ?? []);
@@ -224,11 +223,7 @@ export default function PayableDashboard(props) {
   const handleMarkAsPaid = () => {
     const markAsPaid = async () => {
       try {
-        const response = await fetch('/api/apply_payments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID }),
-        });
+        const response = await HTTP('POST', '/apply_payments', { recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID });
 
         if (!response.ok) {
           throw new Error('Failed to mark records as paid');
@@ -325,8 +320,7 @@ export default function PayableDashboard(props) {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
       const fromDate = startDate ? `&fromDate=${startDate}` : '';
       const toDate = endDate ? `&toDate=${endDate}` : '';
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}`);
-      const data = await response.json();
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}`);
 
       // Convert data to CSV format
       const csvContent = [

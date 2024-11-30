@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import { FaTrash, FaEdit, FaPlus } from 'react-icons/fa'; 
 import Loader from './loader';
-import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
+import { fetchAllItems, fetchAllSections, HTTP } from '../actions/actions_creators';
 
 const ItemsManager = (props) => {
     const { user } = props;
@@ -67,11 +67,11 @@ const ItemsManager = (props) => {
         const payload = { ...newItem, user: { _id: user?._id ?? '', name: user?.name ?? '' }, section: selectedSection };
         setLoading(true); // Start loading
         try {
-            const response = await axios.post('/api/items', payload);
+            const response = await HTTP('POST','/items', payload);
             fetchItems(true);
-            setItems([response.data.item, ...items]);
+            setItems([response.item, ...items]);
             setNewItem({ name: '', rate: '' });
-            toast.success(response.data.message, { autoClose: 500 }); // Set autoClose to 1 second
+            toast.success(response.message, { autoClose: 500 }); // Set autoClose to 1 second
         } catch (error) {
             toast.error('Failed to add item');
         } finally {
@@ -83,8 +83,8 @@ const ItemsManager = (props) => {
         if (!item) return;
         setLoading(true); // Start loading
         try {
-            const response = await axios.put(`/api/items`, item);
-            setItems(items.map((i) => (i._id === item._id ? response.data.item : i)));
+            const response = await HTTP('PUT','/items', item);
+            setItems(items.map((i) => (i._id === item._id ? response.item : i)));
             fetchItems(true);
             toast.success('Item updated successfully', { autoClose: 500 }); // Set autoClose to 1 second
         } catch (error) {
@@ -98,7 +98,7 @@ const ItemsManager = (props) => {
         if (!itemId) return;
         setLoading(true); // Start loading
         try {
-            await axios.delete(`/api/items`, { data: { id: itemId } });
+            await HTTP('DELETE','/items', { id: itemId });
             setItems(items.filter((item) => item._id !== itemId));
             fetchItems(true);
             toast.success('Item deleted successfully', { autoClose: 500 }); // Set autoClose to 1 second
