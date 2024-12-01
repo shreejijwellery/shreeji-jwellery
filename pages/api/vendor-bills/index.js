@@ -3,8 +3,11 @@ import VendorBill from '../../../models/VendorBills';
 import connectToDatabase from '../../../lib/mongodb';
 import moment from 'moment-timezone';
 import { VENDOR_BILL_STATUS, VENDOR_BILL_TYPES } from '../../../lib/constants';
+import { authMiddleware } from '../common/common.services';
 async function createVendorBill(req, res) {
   try {
+    const userId = req.userData?._id;
+    const company = req.userData?.company;
     const { amount, partyName, vendorId, invoiceNo, billDate, addedBy, notes }    = req.body;
     const billData = {
         amount,
@@ -13,8 +16,9 @@ async function createVendorBill(req, res) {
         vendorId,
         invoiceNo,
         billDate : billDate ? new Date(billDate).toISOString() : new Date().toISOString(),
-        lastModifiedBy: new mongoose.Types.ObjectId(addedBy),
-        notes
+        lastModifiedBy: userId,
+        company,
+        remainAmount: amount,
     }
     const vendorBill = new VendorBill(billData);
     await vendorBill.save();
@@ -26,9 +30,12 @@ async function createVendorBill(req, res) {
 
 async function getVendorBills(req, res) {
   try {
+    const userId = req.userData?._id;
+    const company = req.userData?.company;
     const {vendorId, startDate, endDate, status, page, limit} = req.query;
     let criteria = {
-        isDeleted: false
+        isDeleted: false,
+        company
     };
     if (vendorId && mongoose.isValidObjectId(vendorId)) {
         criteria.vendorId = new mongoose.Types.ObjectId(vendorId);
@@ -95,7 +102,10 @@ async function getVendorBills(req, res) {
 async function updateVendorBill(req, res) {
   const id  = req.body._id; // Assuming ID is passed in the query
   try {
+    const userId = req.userData?._id;
+    const company = req.userData?.company;
     const updatedData = req.body;
+    updatedData.lastModifiedBy = userId;
     delete updatedData._id;
     if (updatedData.billDate) {
         updatedData.billDate = new Date(updatedData.billDate).toISOString();
@@ -124,8 +134,9 @@ async function updateVendorBill(req, res) {
 
 async function deleteVendorBill(req, res) {
   const { _id } = req.query; // Assuming ID is passed in the query
+  const userId = req.userData?._id;
   try {
-    const vendorBill = await VendorBill.findByIdAndUpdate(_id, { isDeleted: true }, { new: true });
+    const vendorBill = await VendorBill.findByIdAndUpdate(_id, { isDeleted: true, lastModifiedBy: userId }, { new: true });
 
     if (!vendorBill) {
       return res.status(404).json({ error: 'Vendor bill not found' });
@@ -137,7 +148,7 @@ async function deleteVendorBill(req, res) {
 }
 
 // Update the handler to call the new functions
-export default async function handler(req, res) {
+const handler = async (req, res) => {
     await connectToDatabase();
 
   switch (req.method) {
@@ -165,3 +176,5 @@ export default async function handler(req, res) {
 }
 
 // Handle individual vendor bill operations
+
+export default authMiddleware(handler);

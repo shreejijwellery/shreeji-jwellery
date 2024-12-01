@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import WorkerBills from '../components/workerbills';
 import PartyDropDown from '../components/party_dropdown';
 import PartyBills from '../components/partyBills';
-import axios from 'axios';
+import { HTTP } from '../actions/actions_creators';
 
 export default function MainPage() {
   const [selectedWorker, setSelectedWorker] = useState(null); // Shared state for selected worker
@@ -19,9 +18,8 @@ export default function MainPage() {
   }, [isBillModified]);
 
   const fetchTotalCounts = async () => {
-    const response = await axios.get(`/api/vendor-bills/counts`);
-    console.log("party dashboard:",response.data.data);
-    setTotalCounts(response.data.data);
+    const response = await HTTP('GET',`/vendor-bills/counts`);
+    setTotalCounts(response.data);
   };
   return (
     <div className=" mx-auto p-4">

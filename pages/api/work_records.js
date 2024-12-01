@@ -3,16 +3,20 @@ import { WorkRecord } from '../../models/work_records'; // Adjust the import pat
 import connectToDatabase from '../../lib/mongodb';
 import { PAYMENT_STATUS } from '../../lib/constants';
 import moment from 'moment-timezone';
+import { authMiddleware } from './common/common.services';
+import workers from '../../models/workers';
 // Connect to MongoDB
 
 // Create Work Record
 export const createWorkRecord = async (req, res) => {
   await connectToDatabase();
+  const { _id, company } = req.userData;
   const { section, item, worker, piece, item_rate, amount, worker_name, section_name, item_name } =
     req.body;
 
   try {
     const newRecord = new WorkRecord({
+      company,
       section,
       item,
       worker,
@@ -22,6 +26,7 @@ export const createWorkRecord = async (req, res) => {
       worker_name,
       section_name,
       item_name,
+      lastModifiedBy: _id,
     });
     await newRecord.save();
     res.status(201).json(newRecord);
@@ -33,9 +38,10 @@ export const createWorkRecord = async (req, res) => {
 // Get Work Records
 export const getWorkRecords = async (req, res) => {
   await connectToDatabase();
+  const { _id, company } = req.userData;
   try {
     const { worker, payment_status, fromDate, toDate, limit, skip, sections, items } = req.query;
-    let query = { isDeleted: false };
+    let query = { isDeleted: false, company };
     if (worker) query = { ...query, worker };
     if (payment_status === PAYMENT_STATUS.PAID) query = { ...query, payment_status };
     if (payment_status === PAYMENT_STATUS.PENDING)
@@ -54,22 +60,23 @@ export const getWorkRecords = async (req, res) => {
     if (items) query.item = { $in: items?.split(',') };
     let records = [];
     if (limit && skip) {
-      records = await WorkRecord.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
+      records = await WorkRecord.find(query).populate({path : 'worker', model : workers, select : ['name', 'lastname']}).sort({ createdAt: -1 }).limit(limit).skip(skip);
     }else {
-        records = await WorkRecord.find(query).sort({ createdAt: -1 });}
+        records = await WorkRecord.find(query).populate({path : 'worker', model : workers, select : ['name', 'lastname']}).sort({ createdAt: -1 });}
     res.status(200).json(records);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error.message }); 
   }
 };
 
 // Update Work Record
 export const updateWorkRecord = async (req, res) => {
   await connectToDatabase();
+  const { _id, company } = req.userData;
   const { id } = req.query; // Assuming the ID is passed as a query parameter
 
   try {
-    const updatedRecord = await WorkRecord.findByIdAndUpdate(id, req.body, { new: true });
+    const updatedRecord = await WorkRecord.findByIdAndUpdate(id, { ...req.body, lastModifiedBy: _id }, { new: true });
     if (!updatedRecord) return res.status(404).json({ error: 'Record not found' });
     res.status(200).json(updatedRecord);
   } catch (error) {
@@ -80,12 +87,13 @@ export const updateWorkRecord = async (req, res) => {
 // Soft Delete Work Record
 export const softDeleteWorkRecord = async (req, res) => {
   await connectToDatabase();
+  const { _id, company } = req.userData;
   const { id } = req.query; // Assuming the ID is passed as a query parameter
 
   try {
     const deletedRecord = await WorkRecord.findByIdAndUpdate(
       id,
-      { isDeleted: true },
+      { isDeleted: true, lastModifiedBy: _id },
       { new: true }
     );
     if (!deletedRecord) return res.status(404).json({ error: 'Record not found' });
@@ -96,7 +104,7 @@ export const softDeleteWorkRecord = async (req, res) => {
 };
 
 // Export the API functions
-export default async function handler(req, res) {
+const handler = async (req, res) => {
   switch (req.method) {
     case 'POST':
       return createWorkRecord(req, res);
@@ -111,3 +119,5 @@ export default async function handler(req, res) {
       res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
+
+export default authMiddleware(handler);

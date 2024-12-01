@@ -3,7 +3,8 @@ import mongoose from 'mongoose';
 import connectToDatabase from '../../../lib/mongodb';
 import VendorPaymentHistory from '../../../models/VendorPaymentHistory';
 import VendorBill from '../../../models/VendorBills';
-import { VENDOR_BILL_STATUS, VENDOR_BILL_TYPES } from '../../../lib/constants';
+import { VENDOR_BILL_STATUS,VENDOR_BILL_TYPES } from '../../../lib/constants';
+import { authMiddleware } from '../common/common.services';
 //Validations needed for vendorID, invoiceID, paymentDate
 
 export async function appliedPayment(billId) {
@@ -34,6 +35,8 @@ export async function appliedPayment(billId) {
 
 const createPayment = async (req, res) => {
   try {
+const userId = req.userData?._id;
+const company = req.userData?.company;
     const { vendorId, paymentMode,amount, notes, paymentDate, addedBy, partyName } = req.body;
   const data = {
         vendorId: new mongoose.Types.ObjectId(vendorId),
@@ -43,7 +46,8 @@ const createPayment = async (req, res) => {
         billDate: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
         amount,
         type: VENDOR_BILL_TYPES.SUB,
-        lastModifiedBy: new mongoose.Types.ObjectId(addedBy)
+        lastModifiedBy: new mongoose.Types.ObjectId(addedBy),
+        company
       }
 
       const payment = new VendorBill(data);
@@ -58,7 +62,9 @@ const createPayment = async (req, res) => {
 
 const getPayments = async (req, res) => {
     try {
-        const criteria = {isDeleted : false}
+        const userId = req.userData?._id;
+        const company = req.userData?.company;
+        const criteria = {isDeleted : false, company}
         const {vendorId, invoiceId, paymentFromDate, paymentToDate} = req.query;
         if (vendorId && mongoose.isValidObjectId(vendorId)) {
             criteria.vendorId = new mongoose.Types.ObjectId(vendorId);
@@ -89,9 +95,10 @@ const getPayments = async (req, res) => {
 
 const deletePayment = async (req, res) => {
     const { id } = req.query;
+    const userId = req.userData?._id;
     try {
         
-        const payment = await VendorPaymentHistory.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+        const payment = await VendorPaymentHistory.findByIdAndUpdate(id, { isDeleted: true, lastModifiedBy: userId }, { new: true });
         if (!payment) {
             return res.status(404).json({ error: 'Payment not found' });
         }
@@ -101,7 +108,7 @@ const deletePayment = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-export default async function handler(req, res) {
+const handler = async (req, res) => {
     await connectToDatabase();
 
   switch (req.method) {
@@ -123,3 +130,5 @@ export default async function handler(req, res) {
       break;
   }
 }
+
+export default authMiddleware(handler);

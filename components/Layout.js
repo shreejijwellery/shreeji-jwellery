@@ -2,15 +2,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { checkPermission, PERMISSIONS } from '../lib/constants';
-import { CgProfile } from 'react-icons/cg';
-
+import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
+import { CgProfile  } from 'react-icons/cg';
+import { FaUsersCog } from "react-icons/fa";
 const Layout = ({ children }) => {
   const router = useRouter();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+
+  const token = localStorage.getItem('token');
     if (token) {
       axios
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
@@ -18,11 +19,16 @@ const Layout = ({ children }) => {
           delete response.data?.user?.password;
           setUser(response.data.user);
           localStorage.setItem('user', JSON.stringify(response.data.user)); // Store user data after fetching
+          
         })
         .catch(error => {
           console.error('Token validation failed:', error); // Log error for debugging
           localStorage.removeItem('token'); // Remove token on error
         });
+    }else {
+      if (router.pathname !== '/login' && router.pathname !== '/signup') {
+        router.push('/login');
+      }
     }
   }, [router]); // Only depend on router
 
@@ -66,7 +72,7 @@ const Layout = ({ children }) => {
                 </Link>
               </li>
             )}
-          {user && router.pathname !== '/billing' && (
+          {user && router.pathname !== '/billing' && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
             <li>
               <Link href="/billing">
                 <div className="hover:underline"> Worker Pay</div>
@@ -81,6 +87,15 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
+          {
+            user && router.pathname !== '/final-product' && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
+              <li>
+              <Link href="/final-product">
+                <div className="hover:underline">Final Product</div>
+              </Link>
+            </li>
+            )
+          }
           {/* {user && router.pathname !== '/extract-sku' && (
             <li>
               <Link href="/extract-sku">
@@ -108,6 +123,13 @@ const Layout = ({ children }) => {
           <div className="flex items-center space-x-4">
             <span className="text-white">{user.name}</span>
             <span className="text-white cursor-pointer" onClick={() => router.push('/profile')}> <CgProfile /> </span>
+            {user.role === USER_ROLES.ADMIN && (
+              <span
+                onClick={() => router.push('/user-permissions')}
+                className="text-white cursor-pointer">
+                  <FaUsersCog />
+              </span>
+            )}
             <button
               onClick={handleLogout}
               className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">

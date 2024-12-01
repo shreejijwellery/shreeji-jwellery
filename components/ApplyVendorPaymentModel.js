@@ -7,6 +7,7 @@ import { VENDOR_BILL_STATUS, VENDOR_PAYMENT_MODES } from '../lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'react-toastify';
 import axios from 'axios';
+import { HTTP } from '../actions/actions_creators';
 export default function ApplyVendorPaymentModel(props) {
   const { open, setOpen, selectedParty, setIsBillModified, fetchVendorBills, user } = props;
   const [totalAmount, setTotalAmount] = useState(0);
@@ -40,13 +41,7 @@ export default function ApplyVendorPaymentModel(props) {
     };
 
     // Call API to create payment
-    const response = await fetch('/api/vendor-bills/payment', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(paymentData),
-    });
+    const response = await HTTP('POST',`/vendor-bills/payment`, paymentData);
 
     if (response) {
       setOpen(false); // Close modal after submission

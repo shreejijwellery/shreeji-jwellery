@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import moment from 'moment';
 import { PAYMENT_STATUS } from '../lib/constants';
 import Select from 'react-select';
-
+import { HTTP } from '../actions/actions_creators';
 export default function PayableDashboard(props) {
   const [workDetails, setWorkDetails] = useState([]);
   const [sections, setSections] = useState([]);
@@ -69,8 +69,7 @@ export default function PayableDashboard(props) {
       const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
       const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
 
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
-      const data = await response.json();
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
 
       if (reset) {
         setWorkDetails(data ?? []);
@@ -133,7 +132,7 @@ export default function PayableDashboard(props) {
     }
 
     // Prepare Table Data
-    const tableData = filteredWorkDetails.map(detail => [
+    const tableData = filteredWorkDetails?.reverse()?.map(detail => [
       detail.worker_name,
       detail.section_name,
       detail.item_name,
@@ -224,11 +223,7 @@ export default function PayableDashboard(props) {
   const handleMarkAsPaid = () => {
     const markAsPaid = async () => {
       try {
-        const response = await fetch('/api/apply_payments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID }),
-        });
+        const response = await HTTP('POST', '/apply_payments', { recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID });
 
         if (!response.ok) {
           throw new Error('Failed to mark records as paid');
@@ -249,7 +244,7 @@ export default function PayableDashboard(props) {
 
   const handleDownloadSelected = () => {
     const doc = new jsPDF();
-    const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id));
+    const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id)).reverse();
 
     // Add Worker Details
 
@@ -325,13 +320,12 @@ export default function PayableDashboard(props) {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
       const fromDate = startDate ? `&fromDate=${startDate}` : '';
       const toDate = endDate ? `&toDate=${endDate}` : '';
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}`);
-      const data = await response.json();
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}`);
 
       // Convert data to CSV format
       const csvContent = [
         ['Name', 'Section', 'Item', 'Piece', 'Rate', 'Amount', 'Submitted On', 'Payment Status', 'Payment Date'],
-        ...data.map(detail => [
+        ...(data?.reverse())?.map(detail => [
           detail.worker_name,
           detail.section_name,
           detail.item_name,
@@ -428,7 +422,7 @@ export default function PayableDashboard(props) {
 
 
       {/* Work Details Table */}
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-4xl">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full">
         <div className="flex justify-between items-center mb-6 px-4 py-2 bg-gray-200">
           <h2 className="text-2xl font-semibold text-gray-800">All Payable Dashboard</h2>
           {filteredWorkDetails.length > 0 && (
@@ -466,7 +460,7 @@ export default function PayableDashboard(props) {
               {filteredWorkDetails.length > 0 ? (
                 filteredWorkDetails.map(detail => (
                   <tr key={detail._id} className="border-b last:border-none text-gray-700">
-                    <td className="px-4 py-2">{detail.worker_name}</td>
+                    <td className="px-4 py-2">{detail.worker?.name} {detail.worker?.lastname ?? ""} </td>
                     <td className="px-4 py-2">{detail.section_name}</td>
                     <td className="px-4 py-2">{detail.item_name}</td>
                     <td className="px-4 py-2">{detail.piece}</td>
