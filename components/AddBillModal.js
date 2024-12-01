@@ -3,7 +3,7 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import { IoIosAddCircleOutline } from 'react-icons/io';
 import { FaEdit, FaSave } from 'react-icons/fa';
-import { VENDOR_BILL_STATUS } from '../lib/constants';
+import { VENDOR_BILL_STATUS, VENDOR_BILL_TYPES } from '../lib/constants';
 
 export default function AddBillModal(props) {
   const { isEditing, form, handleInputChange, handleSubmit, open, setOpen } = props;
@@ -49,7 +49,7 @@ export default function AddBillModal(props) {
                 {/* Amount */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700" htmlFor="amount">
-                    Amount {[VENDOR_BILL_STATUS.PAID, VENDOR_BILL_STATUS.PARTIAL].includes(form.status) ? '(Cannot be Edited as it is Paid)' : ''}
+                    Amount 
                   </label>
                   <input
                     id="amount"
@@ -58,7 +58,6 @@ export default function AddBillModal(props) {
                     placeholder="Enter Amount"
                     value={form.amount}
                     onChange={handleInputChange}
-                    disabled={[VENDOR_BILL_STATUS.PAID, VENDOR_BILL_STATUS.PARTIAL].includes(form.status)}
                     className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     required
                   />
@@ -66,7 +65,7 @@ export default function AddBillModal(props) {
 
             
 
-                {/* Invoice Number */}
+           {form.type !== VENDOR_BILL_TYPES.SUB && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700" htmlFor="invoiceNo">
                     Invoice No
@@ -81,11 +80,12 @@ export default function AddBillModal(props) {
                     className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   />
                 </div>
+                )}
 
                 {/* Bill Date */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700" htmlFor="billDate">
-                    Bill Date
+                    {form.type !== VENDOR_BILL_TYPES.SUB ? 'Bill Date' : 'Payment Date'}
                   </label>
                   <input
                     id="billDate"
@@ -96,6 +96,21 @@ export default function AddBillModal(props) {
                     className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   />
                 </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700" htmlFor="notes">
+                  Notes
+                </label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  rows={3}
+                  placeholder="Add any additional notes"
+                  value={form.notes}
+                  onChange={handleInputChange}
+                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
               </div>
 
               {/* Submit Button */}

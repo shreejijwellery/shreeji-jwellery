@@ -8,10 +8,11 @@ async function createVendorBill(req, res) {
   try {
     const userId = req.userData?._id;
     const company = req.userData?.company;
-    const { amount, partyName, vendorId, invoiceNo, billDate }    = req.body;
+    const { amount, partyName, vendorId, invoiceNo, billDate, addedBy, notes }    = req.body;
     const billData = {
         amount,
         partyName,
+        type : VENDOR_BILL_TYPES.ADD,
         vendorId,
         invoiceNo,
         billDate : billDate ? new Date(billDate).toISOString() : new Date().toISOString(),
@@ -73,7 +74,7 @@ async function getVendorBills(req, res) {
             $match: criteria
         },
         {
-            $sort: { billDate: -1 }
+            $sort: {  createdAt: -1 }
         },
         {
             $skip: options?.skip || 0

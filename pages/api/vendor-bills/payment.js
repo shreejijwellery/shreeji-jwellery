@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import connectToDatabase from '../../../lib/mongodb';
 import VendorPaymentHistory from '../../../models/VendorPaymentHistory';
 import VendorBill from '../../../models/VendorBills';
-import { VENDOR_BILL_STATUS } from '../../../lib/constants';
+import { VENDOR_BILL_STATUS,VENDOR_BILL_TYPES } from '../../../lib/constants';
 import { authMiddleware } from '../common/common.services';
 //Validations needed for vendorID, invoiceID, paymentDate
 
@@ -35,30 +35,26 @@ export async function appliedPayment(billId) {
 
 const createPayment = async (req, res) => {
   try {
-    const userId = req.userData?._id;
-    const company = req.userData?.company;
-    const { vendorId, paymentMode,totalAmount, notes, paymentDate, batchPaymentId, selectedBills } = req.body;
-    const selectedBillsData = await Promise.all(selectedBills.map(async bill => {
-      const data = {
+const userId = req.userData?._id;
+const company = req.userData?.company;
+    const { vendorId, paymentMode,amount, notes, paymentDate, addedBy, partyName } = req.body;
+  const data = {
         vendorId: new mongoose.Types.ObjectId(vendorId),
-        invoiceId: new mongoose.Types.ObjectId(bill._id),
-        amount: bill.paymentAmount,
         paymentMode,  
+        partyName,
         notes,  
-        paymentDate: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
-        batchPaymentId,
-        totalAmount,
-        lastModifiedBy: userId,
+        billDate: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
+        amount,
+        type: VENDOR_BILL_TYPES.SUB,
+        lastModifiedBy: new mongoose.Types.ObjectId(addedBy),
         company
       }
 
-      const payment = new VendorPaymentHistory(data);
+      const payment = new VendorBill(data);
       await payment.save();
-      await appliedPayment(bill._id); 
-      return payment;
-    })) ;
 
-    res.status(201).json(selectedBillsData);
+
+    res.status(201).json(payment);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

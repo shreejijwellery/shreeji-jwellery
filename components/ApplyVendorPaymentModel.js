@@ -9,121 +9,44 @@ import { toast } from 'react-toastify';
 import axios from 'axios';
 import { HTTP } from '../actions/actions_creators';
 export default function ApplyVendorPaymentModel(props) {
-  const { open, setOpen, selectedBills, selectedParty, isBillModified, setIsBillModified } = props;
+  const { open, setOpen, selectedParty, setIsBillModified, fetchVendorBills, user } = props;
   const [totalAmount, setTotalAmount] = useState(0);
   const [paymentMode, setPaymentMode] = useState(VENDOR_PAYMENT_MODES.CASH);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [payingBills, setPayingBills] = useState(selectedBills);
-  const [billPayments, setBillPayments] = useState(
-    selectedBills.map(bill => ({
-      _id: bill._id,
-      amount: bill.remainAmount, // Default to remain amount
-    }))
-  );
+  
 
-  const getBillsWithRemainAmount = async () => {
-    const response = await HTTP('GET',`/vendor-bills`, {
-      params: {
-        vendorId: selectedParty?._id || null,
-        status: VENDOR_BILL_STATUS.PENDING,
-      },
-    });
 
-    const newBills = response;
-    const totalRemainAmount = newBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
-    setTotalAmount(totalRemainAmount);
-    setPayingBills(newBills);
-    setBillPayments(
-      newBills.map(bill => ({
-        _id: bill._id,
-        paymentAmount: bill.remainAmount, // Default to remain amount
-      }))
-    );
-  };
-  useEffect(() => {
-    if (selectedBills.length > 0) {
-      setPayingBills(selectedBills);
-      const totalRemainAmount = selectedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
-      setTotalAmount(totalRemainAmount);
-      setBillPayments(
-        selectedBills.map(bill => ({
-          _id: bill._id,
-          paymentAmount: bill.remainAmount, // Default to remain amount
-        }))
-      );
-    } else {
-      getBillsWithRemainAmount();
-    }
-  }, [selectedBills]);
+ 
 
   const handleTotalAmountChange = value => {
     const enteredAmount = parseFloat(value);
-    const totalRemainAmount = payingBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
-    if (enteredAmount > totalRemainAmount) {
-      return;
-    }
-    if (enteredAmount < 0) {
-      return;
-    }
+
     setTotalAmount(enteredAmount);
 
-    if (!isNaN(enteredAmount) && enteredAmount > 0) {
-      const distributedPayments = distributeAmount(enteredAmount, payingBills);
-      setBillPayments(distributedPayments);
-    }
   };
 
-  const distributeAmount = (amount, bills) => {
-    // Sort bills by billDate (older bills first)
-    const sortedBills = [...bills].sort((a, b) => new Date(a.billDate) - new Date(b.billDate));
-    const totalRemainAmount = sortedBills.reduce((sum, bill) => sum + bill.remainAmount, 0);
-    
-    return sortedBills.map(bill => {
-      // Pay the full amount of the bill if possible
-      const paymentAmount = Math.min(bill.remainAmount, amount);
-      amount -= paymentAmount; // Decrease the remaining amount to distribute
-      return {
-        ...bill,
-        paymentAmount: paymentAmount,
-      };
-    });
-  };
-
-  const handlePaymentChange = (id, value) => {
-    const enteredValue = parseFloat(value);
-    setBillPayments(prev => {
-      const updatedBills = prev.map(bill =>
-        bill._id === id ? { ...bill, paymentAmount: enteredValue } : bill
-      );
-      const newTotalAmount = updatedBills.reduce((sum, bill) => sum + bill.paymentAmount, 0);
-      setTotalAmount(newTotalAmount);
-      return updatedBills;
-    });
-  };
 
   const handleSubmit = async () => {
     // Prepare data for submission
-    const filteredBillPayments = billPayments.filter(payment => payment.paymentAmount !== 0);
     const paymentData = {
       vendorId: selectedParty._id,
-      selectedBills: filteredBillPayments,
+      partyName: selectedParty.name,
       paymentMode,
       paymentDate,
       notes,
-      totalAmount: totalAmount, // Total amount to be paid
+      amount: totalAmount,
+      addedBy: user._id // Total amount to be paid
     };
-    if (filteredBillPayments.length > 1) {
-      paymentData.batchPaymentId = uuidv4();
-    }
 
     // Call API to create payment
     const response = await HTTP('POST',`/vendor-bills/payment`, paymentData);
 
     if (response) {
       setOpen(false); // Close modal after submission
-      setIsBillModified([...filteredBillPayments.map(bill => bill._id)]);
+      fetchVendorBills(true);
+      setIsBillModified(prev => !prev);
     } else {
       toast.error('Failed to apply payment');
     }
@@ -198,49 +121,6 @@ export default function ApplyVendorPaymentModel(props) {
           </div>
           <div className="px-6 py-4">
             <div className="flex items-center justify-between"></div>
-            <div className="overflow-x-auto" style={{ maxHeight: '400px', overflowY: 'scroll' }}>
-              <table className=" bg-white border border-gray-200 rounded shadow-md">
-                <thead>
-                  <tr className="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                    <th className="py-3 px-6 text-left">Invoice No</th>
-                    <th className="py-3 px-6 text-left">Bill Date</th>
-                    <th className="py-3 px-6 text-left">Amount</th>
-                    <th className="py-3 px-6 text-left">Paid Amount</th>
-                    <th className="py-3 px-6 text-left">Remain Amount</th>
-                    <th className="py-3 px-6 text-left">Payment Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="text-gray-600 text-sm font-light">
-                  {payingBills.map(bill => (
-                    <tr key={bill._id} className="border-b border-gray-200 hover:bg-gray-100">
-                      <td className="py-3 px-6 text-left">{bill.invoiceNo}</td>
-                      <td className="py-3 px-6 text-left">
-                        {moment(bill.billDate).format('DD-MM-YYYY')}
-                      </td>
-                      <td className="py-3 px-6 text-left">{bill.amount}</td>
-                      <td className="py-3 px-6 text-left">{bill.paidAmount}</td>
-                      <td className="py-3 px-6 text-left">{bill.remainAmount}</td>
-                      <td>
-                        <input
-                          type="number"
-                          value={billPayments.find(b => b._id === bill._id)?.paymentAmount || 0}
-                          onChange={e =>
-                            e.target.value > bill.remainAmount || e.target.value < 0
-                              ? null
-                              : handlePaymentChange(bill._id, e.target.value)
-                          }
-                          className="border rounded p-2"
-                          placeholder="Amount"
-                          max={bill.remainAmount}
-                          // min={0}
-                          
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
             {/* Submit Button */}
             <div className="mt-6 flex items-center justify-end space-x-3">
               <button

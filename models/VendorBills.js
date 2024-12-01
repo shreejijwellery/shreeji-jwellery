@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { VENDOR_BILL_STATUS } from '../lib/constants';
+import {  VENDOR_BILL_TYPES, VENDOR_PAYMENT_MODES } from '../lib/constants';
 
 
 const vendorBillSchema = new mongoose.Schema({
@@ -7,21 +7,20 @@ const vendorBillSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    paidAmount: {
-        type: Number,
-        default: 0
+    type : {
+        type: String,
+        enum: Object.keys(VENDOR_BILL_TYPES),
+        required: true
     },
     partyName: {
         type: String,
-        required: true
+        required: false
     },
     vendorId: {
         type: mongoose.Schema.Types.ObjectId, // Assuming vendorId is an ObjectId
         required: true
     },
-    remainAmount: {
-        type: Number
-    },
+
     isDeleted: {
         type: Boolean,
         default: false
@@ -33,13 +32,15 @@ const vendorBillSchema = new mongoose.Schema({
         type: String,
         required: false
     },
-    status : {
+    paymentMode: {
         type: String,
-        enum: Object.keys(VENDOR_BILL_STATUS),
-        default: VENDOR_BILL_STATUS.PENDING
+        enum: Object.keys(VENDOR_PAYMENT_MODES),
+    },
+    notes : {
+        type: String
     },
     lastModifiedBy: {
-        type: mongoose.Schema.Types.ObjectId, // Assuming lastModifiedBy is an ObjectId
+        type: mongoose.Schema.Types.ObjectId, // Assuming addedBy is an ObjectId
         required: true
     },
     company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },

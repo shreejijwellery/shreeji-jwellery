@@ -24,7 +24,7 @@ const PartyDropdown = props => {
   }, []);
   useEffect(() => {
     if (totalCounts) {
-      const totalAmount = totalCounts.reduce((acc, item) => acc + item.totalAmount, 0);
+      const totalAmount = totalCounts.reduce((acc, item) => acc +  item.totalAmount, 0);
       setTotalAmount(totalAmount);
       const totalPaidAmount = totalCounts.reduce((acc, item) => acc + item.totalPaidAmount, 0);
       setTotalPaidAmount(totalPaidAmount);
