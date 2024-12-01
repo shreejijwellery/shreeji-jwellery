@@ -2,10 +2,12 @@ import jwt from 'jsonwebtoken';
 
 
 import users from '../../../models/users';
+import connectToDatabase from '../../../lib/mongodb';
 
 
 export const authMiddleware = (handler) => {
     return async (req, res) => {
+        await connectToDatabase();
         const token = req.headers.authorization?.split(' ')[1]; // Extract token from Authorization header
 
         if (!token) {
