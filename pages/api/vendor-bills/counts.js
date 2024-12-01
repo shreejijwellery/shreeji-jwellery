@@ -41,9 +41,32 @@ const getCounts = async (req, res) => {
             {
                 $group: {
                     _id: "$vendorId",
-                    totalAmount: { $sum: "$amount" },
-                    totalRemainAmount: { $sum: "$remainAmount" },
-                    totalPaidAmount: { $sum: "$paidAmount" }
+                    totalAmount: {
+                        $sum: {
+                            $cond: [{ $eq: ["$type", "ADD"] }, "$amount", 0]
+                        }
+                    },
+                    totalPaidAmount: {
+                        $sum: {
+                            $cond: [{ $eq: ["$type", "SUB"] }, "$amount", 0]
+                        }
+                    },
+                    totalRemainAmount: {
+                        $sum: {
+                            $subtract: [
+                                {
+                                    $sum: {
+                                        $cond: [{ $eq: ["$type", "ADD"] }, "$amount", 0]
+                                    }
+                                },
+                                {
+                                    $sum: {
+                                        $cond: [{ $eq: ["$type", "SUB"] }, "$amount", 0]
+                                    }
+                                }
+                            ]
+                        }
+                    }
                 }
             }
         ]);

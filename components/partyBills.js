@@ -6,7 +6,7 @@ import 'jspdf-autotable';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import AddBillModal from './AddBillModal';
-import { VENDOR_BILL_STATUS } from '../lib/constants';
+import { VENDOR_BILL_STATUS, VENDOR_BILL_TYPES } from '../lib/constants';
 import ApplyVendorPaymentModel from './ApplyVendorPaymentModel';
 import { Tooltip as ReactTooltip } from 'react-tooltip'; // Use named import for Tooltip
 import VendorBillPaymentHistory from './VendorBillPaymentHistory';
@@ -233,10 +233,7 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
           'Vendor Name',
           'Invoice No',
           'Bill Date',
-          'Status',
           'Amount',
-          'Paid Amount',
-          'Remain Amount',
         ],
       ],
       body: selectedData.map(bill => [
@@ -300,12 +297,11 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
         <ApplyVendorPaymentModel
           open={openApplyPayment}
           setOpen={setOpenApplyPayment}
-          selectedBills={bills.filter(
-            bill => selectedBills.includes(bill._id) && bill.status !== VENDOR_BILL_STATUS.PAID
-          )}
           selectedParty={selectedParty}
           isBillModified={isBillModified}
           setIsBillModified={setIsBillModified}
+          fetchVendorBills={fetchVendorBills}
+          user={user}
         />
       )}
       {openPaymentHistory && (
@@ -369,7 +365,7 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
                 setOpenApplyPayment(true);
               }}
               className="flex items-center bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-              <FaEdit className="mr-2" /> Add Batch Payment
+              <FaEdit className="mr-2" /> Add Payment
             </button>
             <button
               onClick={() => setOpen(true)}
@@ -430,14 +426,12 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
                 />
               </th>
               <th className="py-3 px-6 text-left">Vendor Name</th>
-              <th className="py-3 px-6 text-left">Invoice No</th>
-              <th className="py-3 px-6 text-left">Bill Date</th>
-              <th className="py-3 px-6 text-left">Status </th>
+              <th className="py-3 px-6 text-left">Invoice No / Payment Mode</th>
+              <th className="py-3 px-6 text-left">Bill Date / Payment Date</th>
 
               <th className="py-3 px-6 text-left">Amount</th>
-              <th className="py-3 px-6 text-left">Remain Amount</th>
               <th className="py-3 px-6 text-left">Paid Amount</th>
-              
+              <th className="py-3 px-6 text-left">Notes</th>
               <th className="py-3 px-6 text-center">Actions</th>
             </tr>
           </thead>
@@ -453,33 +447,13 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
                   />
                 </td>
                 <td className="py-3 px-6 text-left">{bill.partyName}</td>
-                <td className="py-3 px-6 text-left">{bill.invoiceNo}</td>
+                <td className="py-3 px-6 text-left"> {bill.type === VENDOR_BILL_TYPES.ADD ? bill.invoiceNo : bill.paymentMode} </td>
                 <td className="py-3 px-6 text-left">
-                  {moment(bill.billDate).format('DD-MM-YYYY')}
+                  {moment(bill.billDate).format('DD-MM-YYYY hh:mm')}
                 </td>
-                <td className="py-3 px-6 text-left">
-                  {bill.status}
-                  {bill.status !== VENDOR_BILL_STATUS.PENDING && (
-                    <>
-                      <FaInfoCircle
-                        data-tooltip-id={`bill-status-${bill._id}`}
-                        className="inline-block ml-2 text-blue-500 hover:text-blue-700 cursor-pointer"
-                        onClick={() => {
-                          setBillForPaymentHistory(bill);
-                          setOpenPaymentHistory(true);
-                        }}
-                      />
-
-                      <ReactTooltip id={`bill-status-${bill._id}`} place="top" effect="solid">
-                        <div>View Payment History</div>
-                      </ReactTooltip>
-                    </>
-                  )}
-                </td>
-                <td className="py-3 px-6 text-left font-bold text-blue-600">Rs.{bill.amount}</td>
-               
-                <td className="py-3 px-6 text-left font-bold">Rs.{bill.remainAmount}</td>
-                <td className="py-3 px-6 text-left font-bold text-red-600">Rs.{bill.paidAmount}</td>
+                <td className="py-3 px-6 text-left font-bold text-blue-600">{bill.type === VENDOR_BILL_TYPES.ADD ? `Rs.${bill.amount}` : ""}</td>
+                <td className="py-3 px-6 text-left font-bold text-red-600">{bill.type === VENDOR_BILL_TYPES.SUB ? `Rs.${bill.amount}` : ""}</td>
+                <td className="py-3 px-6 text-left">{bill.notes}</td>
                 <td className="py-3 px-6 text-center">
                   <div className="flex items-center justify-center space-x-2">
                     <button
@@ -495,23 +469,6 @@ export default function PartyBills({ selectedParty, user, isBillModified, setIsB
                   </div>
                 </td>
               </tr>
-              {bill?.paymentHistory.length > 0 && (
-              <tr>
-                <td colSpan={6} className='text-center'>Payment History</td>
-                <td colSpan={9}>
-              
-                <InlinePaymentHistory
-                  open={openPaymentHistory}
-                  setOpen={setOpenPaymentHistory}
-                  billForPaymentHistory={bill}
-                  setIsBillModified={setIsBillModified}
-                  payments={bill?.paymentHistory || []}
-                />
-                
-                
-                </td>
-              </tr>
-              )}
               </>
             ))}
             {loading && (
