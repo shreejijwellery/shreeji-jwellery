@@ -2,18 +2,19 @@ import mongoose from 'mongoose';
 import VendorBill from '../../../models/VendorBills';
 import connectToDatabase from '../../../lib/mongodb';
 import moment from 'moment-timezone';
-import { VENDOR_BILL_STATUS } from '../../../lib/constants';
+import { VENDOR_BILL_STATUS, VENDOR_BILL_TYPES } from '../../../lib/constants';
 async function createVendorBill(req, res) {
   try {
-    const { amount, partyName, vendorId, invoiceNo, billDate, addedBy }    = req.body;
+    const { amount, partyName, vendorId, invoiceNo, billDate, addedBy, notes }    = req.body;
     const billData = {
         amount,
         partyName,
+        type : VENDOR_BILL_TYPES.ADD,
         vendorId,
         invoiceNo,
         billDate : billDate ? new Date(billDate).toISOString() : new Date().toISOString(),
-        addedBy,
-        remainAmount: amount,
+        lastModifiedBy: new mongoose.Types.ObjectId(addedBy),
+        notes
     }
     const vendorBill = new VendorBill(billData);
     await vendorBill.save();
@@ -66,7 +67,7 @@ async function getVendorBills(req, res) {
             $match: criteria
         },
         {
-            $sort: { billDate: -1 }
+            $sort: {  createdAt: -1 }
         },
         {
             $skip: options?.skip || 0
