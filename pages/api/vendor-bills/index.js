@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import VendorBill from '../../../models/VendorBills';
 import connectToDatabase from '../../../lib/mongodb';
 import moment from 'moment-timezone';
-import { VENDOR_BILL_STATUS } from '../../../lib/constants';
+import { VENDOR_BILL_STATUS, VENDOR_BILL_TYPES } from '../../../lib/constants';
 import { authMiddleware } from '../common/common.services';
 async function createVendorBill(req, res) {
   try {
