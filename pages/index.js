@@ -16,7 +16,7 @@ const Home = () => {
     }
   }, []);
   return (
-    <div className="flex justify-center">
+    <div className="flex justify-center w-full">
       {user && user.role === USER_ROLES.ADMIN && <PayableDashboard />}
     </div>
   );

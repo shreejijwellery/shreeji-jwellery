@@ -132,7 +132,7 @@ export default function PayableDashboard(props) {
     }
 
     // Prepare Table Data
-    const tableData = filteredWorkDetails.map(detail => [
+    const tableData = filteredWorkDetails?.reverse()?.map(detail => [
       detail.worker_name,
       detail.section_name,
       detail.item_name,
@@ -244,7 +244,7 @@ export default function PayableDashboard(props) {
 
   const handleDownloadSelected = () => {
     const doc = new jsPDF();
-    const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id));
+    const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id)).reverse();
 
     // Add Worker Details
 
@@ -325,7 +325,7 @@ export default function PayableDashboard(props) {
       // Convert data to CSV format
       const csvContent = [
         ['Name', 'Section', 'Item', 'Piece', 'Rate', 'Amount', 'Submitted On', 'Payment Status', 'Payment Date'],
-        ...data.map(detail => [
+        ...(data?.reverse())?.map(detail => [
           detail.worker_name,
           detail.section_name,
           detail.item_name,
@@ -422,7 +422,7 @@ export default function PayableDashboard(props) {
 
 
       {/* Work Details Table */}
-      <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full max-w-4xl">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full">
         <div className="flex justify-between items-center mb-6 px-4 py-2 bg-gray-200">
           <h2 className="text-2xl font-semibold text-gray-800">All Payable Dashboard</h2>
           {filteredWorkDetails.length > 0 && (
@@ -460,7 +460,7 @@ export default function PayableDashboard(props) {
               {filteredWorkDetails.length > 0 ? (
                 filteredWorkDetails.map(detail => (
                   <tr key={detail._id} className="border-b last:border-none text-gray-700">
-                    <td className="px-4 py-2">{detail.worker_name}</td>
+                    <td className="px-4 py-2">{detail.worker?.name} {detail.worker?.lastname ?? ""} </td>
                     <td className="px-4 py-2">{detail.section_name}</td>
                     <td className="px-4 py-2">{detail.item_name}</td>
                     <td className="px-4 py-2">{detail.piece}</td>

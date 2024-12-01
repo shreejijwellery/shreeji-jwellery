@@ -4,6 +4,7 @@ import connectToDatabase from '../../lib/mongodb';
 import { PAYMENT_STATUS } from '../../lib/constants';
 import moment from 'moment-timezone';
 import { authMiddleware } from './common/common.services';
+import workers from '../../models/workers';
 // Connect to MongoDB
 
 // Create Work Record
@@ -59,12 +60,12 @@ export const getWorkRecords = async (req, res) => {
     if (items) query.item = { $in: items?.split(',') };
     let records = [];
     if (limit && skip) {
-      records = await WorkRecord.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
+      records = await WorkRecord.find(query).populate({path : 'worker', model : workers, select : ['name', 'lastname']}).sort({ createdAt: -1 }).limit(limit).skip(skip);
     }else {
-        records = await WorkRecord.find(query).sort({ createdAt: -1 });}
+        records = await WorkRecord.find(query).populate({path : 'worker', model : workers, select : ['name', 'lastname']}).sort({ createdAt: -1 });}
     res.status(200).json(records);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error.message }); 
   }
 };
 
