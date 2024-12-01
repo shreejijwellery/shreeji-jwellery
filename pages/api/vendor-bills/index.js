@@ -67,7 +67,7 @@ async function getVendorBills(req, res) {
             $match: criteria
         },
         {
-            $sort: { billDate: -1 }
+            $sort: {  createdAt: -1 }
         },
         {
             $skip: options?.skip || 0
