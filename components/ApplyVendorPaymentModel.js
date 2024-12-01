@@ -51,7 +51,7 @@ export default function ApplyVendorPaymentModel(props) {
     if (response) {
       setOpen(false); // Close modal after submission
       fetchVendorBills(true);
-      setIsBillModified(prev => [...prev, selectedParty._id]);
+      setIsBillModified(prev => !prev);
     } else {
       toast.error('Failed to apply payment');
     }
