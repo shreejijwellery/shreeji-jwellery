@@ -63,22 +63,7 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
-          {user &&
-            checkPermission(user, PERMISSIONS.PARTY_BILLS) &&
-            router.pathname !== '/party-billing' && (
-              <li>
-                <Link href="/party_dashboard">
-                  <div className="hover:underline">Vendor Pay</div>
-                </Link>
-              </li>
-            )}
-          {user && router.pathname !== '/billing' && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
-            <li>
-              <Link href="/billing">
-                <div className="hover:underline"> Worker Pay</div>
-              </Link>
-            </li>
-          )}
+
 
           {user && router.pathname !== '/settings' && (
             <li>
@@ -87,22 +72,7 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
-          {
-            user && router.pathname !== '/final-product' && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
-              <li>
-              <Link href="/final-product">
-                <div className="hover:underline">Final Product</div>
-              </Link>
-            </li>
-            )
-          }
-          {/* {user && router.pathname !== '/extract-sku' && (
-            <li>
-              <Link href="/extract-sku">
-                <div className="hover:underline">Extract SKU</div>
-              </Link>
-            </li>
-          )} */}
+
           {/* Uncomment if needed
           {user && router.pathname !== '/dashboard' && (
             <li>
@@ -111,13 +81,7 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
-          {user && router.pathname !== '/calendar' && (
-            <li>
-              <Link href="/calendar">
-                <div className="hover:underline">Calendar</div>
-              </Link>
-            </li>
-          )} */}
+           */}
         </ul>
         {user && (
           <div className="flex items-center space-x-4">

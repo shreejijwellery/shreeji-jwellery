@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import PayableDashboard from '../components/worker_dashboard';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
@@ -17,7 +16,7 @@ const Home = () => {
   }, []);
   return (
     <div className="flex justify-center w-full">
-      {user && user.role === USER_ROLES.ADMIN && <PayableDashboard />}
+      <h1>Home</h1>
     </div>
   );
 };

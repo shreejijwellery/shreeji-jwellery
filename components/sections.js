@@ -4,7 +4,7 @@ import { FaTrash, FaEdit } from 'react-icons/fa';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Loader from './loader';
-import { fetchAllItems, fetchAllSections, HTTP } from '../actions/actions_creators';
+import { HTTP } from '../actions/actions_creators';
 
 const SectionManager = (props) => {
   const { user } = props;
@@ -19,7 +19,7 @@ const SectionManager = (props) => {
 
   const fetchSections = async (isCallApi) => {
     setLoading(true);
-    const response = await fetchAllSections(isCallApi);
+    // const response = await fetchAllSections(isCallApi);
     setSections(response);
     setLoading(false);
   };
