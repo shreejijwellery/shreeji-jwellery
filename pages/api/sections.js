@@ -1,7 +1,6 @@
 import connectToDatabase from '../../lib/mongodb';
 import Section from '../../models/section';
 import mongoose from 'mongoose';
-import items from '../../models/items';
 import { authMiddleware } from './common/common.services';
 const handler = async (req, res) => {
   const { method, query, userData } = req;
@@ -35,7 +34,7 @@ const handler = async (req, res) => {
     const {id} = body;
     try {
         const result = await Section.updateOne({_id: id }, {$set : {isDeleted: true}});
-        await items.updateMany({section: id}, {$set : {isDeleted: true}});
+     
         res.status(200).json({ result, message: 'Section deleted successfully!'});
     }
     catch (error) {
