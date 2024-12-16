@@ -55,7 +55,7 @@ const PartyDropdown = props => {
         </div>
       </div>
       <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md mx-auto">
-        <h2 className="text-lg font-semibold text-gray-800 mb-3">Select a Worker</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-3">Select a Vendor</h2>
 
         {/* Search Input */}
         <input

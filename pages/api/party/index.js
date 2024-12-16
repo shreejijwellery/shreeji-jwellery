@@ -8,7 +8,7 @@ const handler = async (req, res) => {
     const userId = req.userData?._id;
     const company = req.userData?.company;
     if (req.method === 'GET') {
-        const parties = await Vendor.find({ isDeleted: false, lastModifiedBy: userId, company });
+        const parties = await Vendor.find({ isDeleted: false, company });
         return res.status(200).json(parties);
     }
 

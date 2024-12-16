@@ -3,7 +3,7 @@ import PayableDashboard from '../components/worker_dashboard';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
-import { USER_ROLES } from '../lib/constants';
+import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
 
 const Home = () => {
   const [user, setUser] = useState(null);
@@ -17,7 +17,7 @@ const Home = () => {
   }, []);
   return (
     <div className="flex justify-center w-full">
-      {user && user.role === USER_ROLES.ADMIN && <PayableDashboard />}
+      {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && <PayableDashboard />}
     </div>
   );
 };
