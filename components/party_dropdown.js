@@ -88,7 +88,7 @@ const PartyDropdown = props => {
             </div>
           )}
           {filteredWorkers.length > 0 ? (
-            filteredWorkers.map(worker => (
+            filteredWorkers.sort((a, b) => Number(b.totalRemainAmount || 0) - Number(a.totalRemainAmount || 0 )).map(worker => (
               <div
                 key={worker._id}
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-blue-50 cursor-pointer transition">

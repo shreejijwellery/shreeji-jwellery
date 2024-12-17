@@ -77,6 +77,7 @@ export const callAPisOnLogin = async () => {
 
 export const HTTP = async (method, url, data = null) => {
     const token = localStorage.getItem('token');
+    
     const config = {
         baseURL: '/api',
         headers: {
@@ -84,7 +85,8 @@ export const HTTP = async (method, url, data = null) => {
         },
         method: method,
         url: url,
-        ...(data && { data })
+        ...(method === 'GET' && data && { params: data?.params ?? data }), // Pass data as query parameters for GET requests
+        ...(method !== 'GET' && { data }) // Pass data in the body for non-GET requests
     };
 
     try {
