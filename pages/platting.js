@@ -72,7 +72,8 @@ export default function Platting(props) {
             <div className='flex flex-col md:flex-row justify-center'>
            {
              plattingTypes.map(plattingType => (
-                <InOutPlattingComponent count={counts[plattingType]} plattingType={plattingType} newlyAddedPlatting={newlyAddedPlatting} />
+
+                <InOutPlattingComponent key={plattingType} count={counts[plattingType]} plattingType={plattingType} newlyAddedPlatting={newlyAddedPlatting} />
              ))
            } 
            </div>
