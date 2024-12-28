@@ -75,7 +75,7 @@ export default function InOutPlattingComponent(props) {
             {' '}
             {_.startCase(plattingType.toLowerCase())}
             <span className="text-gray-500 border border-gray-500 rounded-md px-2 py-1 m-1 font-bold">
-              {totalWeight} KG{' '}
+              {totalWeight?.toFixed(2)} KG{' '}
             </span>
           </h2>
 

@@ -20,6 +20,9 @@ export default function Platting(props) {
         const response = await HTTP('POST', '/platting', { type : type, weight : weight, details : details });
         setNewlyAddedPlatting(response.type);
         getCounts();
+        setWeight('');
+        setDetails('');
+        setType(plattingTypesOptions[0].value);
     }
 
     const getCounts = async () => {
