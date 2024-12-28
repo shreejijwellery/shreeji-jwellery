@@ -40,7 +40,7 @@ const Layout = ({ children }) => {
 
   return (
     <div>
-      <nav className="bg-gray-800 p-4 flex justify-between items-center">
+      <nav className="bg-gray-800 p-4 flex flex-col md:flex-row overflow-x-scroll justify-between items-center">
         <ul className="flex space-x-4 text-white">
           {router.pathname !== '/' && (
             <li>
@@ -92,6 +92,15 @@ const Layout = ({ children }) => {
               <li>
               <Link href="/final-product">
                 <div className="hover:underline">Final Product</div>
+              </Link>
+            </li>
+            )
+          }
+                    {
+            user && router.pathname !== '/platting' && checkPermission(user, PERMISSIONS.PLATTING) && (
+              <li>
+              <Link href="/platting">
+                <div className="hover:underline">Platting</div>
               </Link>
             </li>
             )
