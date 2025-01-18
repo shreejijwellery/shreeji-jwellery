@@ -105,6 +105,126 @@ export default function PayableDashboard(props) {
     return (!startDate || createdAt >= start) && (!endDate || createdAt <= end);
   });
 
+  const handleDownloadSummary = async () => {
+    const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
+    const fromDate = startDate ? `&fromDate=${startDate}` : '';
+    const toDate = endDate ? `&toDate=${endDate}` : '';
+  
+    // Add filters for sections and items
+    const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
+    const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+  
+    const data = await HTTP('GET', `/worker-pays?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}`);
+    
+    // Sort data by totalAmount in descending order
+    data.sort((a, b) => b.totalAmount - a.totalAmount);
+  
+    const doc = new jsPDF();
+  
+    // Set document title styles
+    doc.setFontSize(16);
+    doc.setFont('Arial', 'bold');
+    doc.setTextColor(34, 45, 50); // Darker gray for title
+    doc.text('Worker Pay Summary', 14, 20);
+  
+    // Date Range
+    doc.setFontSize(12);
+    doc.setFont('Arial', 'normal');
+    doc.setTextColor(80, 80, 80); // Medium gray for subtitle
+    const dateRangeText = `Date Range: ${startDate ? new Date(startDate).toLocaleDateString() : 'Start'} to ${
+      endDate ? new Date(endDate).toLocaleDateString() : 'End'
+    }`;
+    doc.text(dateRangeText, 14, 28);
+  
+    // Table Header
+    const tableStartY = 40;
+    doc.setFontSize(10);
+    doc.setFillColor(60, 120, 180); // Blue background for header
+    doc.rect(14, tableStartY, 180, 10, 'F'); // Header rectangle
+    doc.setTextColor(255, 255, 255); // White text for header
+    doc.text('Worker', 16, tableStartY + 7);
+    doc.text('Total Paid (Rs.)', 90, tableStartY + 7, { align: 'center' });
+    doc.text('Total Pending (Rs.)', 130, tableStartY + 7, { align: 'center' });
+    doc.text('Total Amount (Rs.)', 170, tableStartY + 7, { align: 'center' });
+  
+    // Reset text color for body
+    doc.setTextColor(40, 40, 40); // Dark gray for body text
+    let currentY = tableStartY + 15;
+  
+    // Totals
+    let totalPaid = 0;
+    let totalPending = 0;
+    let totalAmount = 0;
+  
+    data.forEach((record, index) => {
+      const yPosition = currentY + index * 10;
+  
+      if (yPosition > 280) {
+        // Add a new page if content exceeds page limit
+        doc.addPage();
+        currentY = 20;
+        doc.setFillColor(60, 120, 180);
+        doc.rect(14, currentY, 180, 10, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.text('Worker', 16, currentY + 7);
+        doc.text('Total Paid (Rs.)', 90, currentY + 7, { align: 'center' });
+        doc.text('Total Pending (Rs.)', 130, currentY + 7, { align: 'center' });
+        doc.text('Total Amount (Rs.)', 170, currentY + 7, { align: 'center' });
+        doc.setTextColor(40, 40, 40);
+        currentY += 15;
+      }
+  
+      // Worker name
+      doc.text(record?.worker?.name + ' ' + (record?.worker?.lastname ?? ''), 16, yPosition);
+  
+      // Payment details
+      doc.text(record.paidAmount.toFixed(2), 90, yPosition, { align: 'center' });
+      doc.text(record.pendingAmount.toFixed(2), 130, yPosition, { align: 'center' });
+      doc.text(record.totalAmount.toFixed(2), 170, yPosition, { align: 'center' });
+  
+      // Update totals
+      totalPaid += record.paidAmount;
+      totalPending += record.pendingAmount;
+      totalAmount += record.totalAmount;
+  
+      // Draw horizontal line for each row
+      doc.setDrawColor(200, 200, 200); // Light gray for row lines
+      doc.line(14, yPosition + 2, 194, yPosition + 2); // Line below each row
+    });
+  
+    // Add totals row
+    currentY += data.length * 10;
+    if (currentY > 280) {
+      doc.addPage();
+      currentY = 20;
+    }
+  
+    // Draw totals row background
+    doc.setFillColor(240, 240, 240); // Light gray background for totals
+    doc.rect(14, currentY, 180, 10, 'F');
+  
+    // Totals text
+    doc.setFont('Arial', 'bold');
+    doc.setTextColor(0, 0, 0); // Black text for totals
+    doc.text('Total', 16, currentY + 7);
+    doc.text(totalPaid.toFixed(2), 90, currentY + 7, { align: 'center' });
+    doc.text(totalPending.toFixed(2), 130, currentY + 7, { align: 'center' });
+    doc.text(totalAmount.toFixed(2), 170, currentY + 7, { align: 'center' });
+  
+    // Footer with page numbers
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100); // Light gray for footer
+      doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, 290, { align: 'center' });
+    }
+  
+    // Save the PDF
+    doc.save(`worker_pay_summary_${startDate}_${endDate}.pdf`);
+  };
+  
+  
   const handleDownload = () => {
     const doc = new jsPDF();
 
@@ -427,6 +547,11 @@ export default function PayableDashboard(props) {
           <h2 className="text-2xl font-semibold text-gray-800">All Payable Dashboard</h2>
           {filteredWorkDetails.length > 0 && (
             <div className="flex gap-2">
+              <button
+              onClick={handleDownloadSummary}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                <FaDownload /> Download Summary PDF
+              </button>
               <button
                 onClick={handleDownload}
                 className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
