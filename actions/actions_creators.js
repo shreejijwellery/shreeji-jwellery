@@ -1,8 +1,19 @@
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
-export const callAPisOnLogin = async () => {
+export const fetchAllSections = async () => {
+    const response = await HTTP('GET', '/sections');
+    return response?.sections ?? [];
+}
 
+export const fetchAllSubSections = async () => {
+    const response = await HTTP('GET', '/sub-section');
+    return response?.subSections ?? [];
+}   
+
+export const callAPisOnLogin = async () => {
+    fetchAllSections();
+    fetchAllSubSections();
 }
 
 export const HTTP = async (method, url, data = null) => {
