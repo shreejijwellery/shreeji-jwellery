@@ -105,7 +105,7 @@ export default function PayableDashboard(props) {
     return (!startDate || createdAt >= start) && (!endDate || createdAt <= end);
   });
 
-  const handleDownloadSummary = async () => {
+  const getSummaryData = async () => {
     const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
     const fromDate = startDate ? `&fromDate=${startDate}` : '';
     const toDate = endDate ? `&toDate=${endDate}` : '';
@@ -116,6 +116,35 @@ export default function PayableDashboard(props) {
     const data = await HTTP('GET', `/worker-pays?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}`);
   
     data.sort((a, b) => b.totalAmount - a.totalAmount);
+    return data;
+  }
+  const handleDownloadSummaryCSV = async () => {
+    const data = await getSummaryData();
+    const csvContent = [
+      ['Worker', 'Amount', 'Mobile No', 'Bank Account Holder Name',  'Bank Account No', 'Bank IFSC','Bank Name',  'Bank Branch'],
+      ...data.map(record => [
+        record.worker?.name + ' ' + record.worker?.lastname,
+        record.pendingAmount?.toFixed(2),
+        record.worker?.mobile_no,
+        `"${record.worker?.bank_account_holder_name ?? ""}"`,
+        `"${record.worker?.bank_account_no ?? ""}"`,
+        `${record.worker?.bank_ifsc ?? ""}`,
+        `"${record.worker?.bank_name ?? ""}"`,
+        `"${record.worker?.bank_branch ?? ""}"`,
+      ])
+    ];
+    const csv = csvContent.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `worker_pay_summary_${startDate}_${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  const handleDownloadSummary = async () => {
+    const data = await getSummaryData();
   
     const doc = new jsPDF();
   
@@ -205,6 +234,7 @@ export default function PayableDashboard(props) {
   
     doc.save(`worker_pay_summary_${startDate}_${endDate}.pdf`);
   };
+  
   
   
   const handleDownload = () => {
@@ -532,7 +562,12 @@ export default function PayableDashboard(props) {
               <button
               onClick={handleDownloadSummary}
                 className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
-                <FaDownload /> Download Summary PDF
+                <FaDownload /> Summary PDF
+              </button>
+              <button
+              onClick={handleDownloadSummaryCSV}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                <FaDownload /> Summary CSV
               </button>
               <button
                 onClick={handleDownload}
