@@ -10,6 +10,9 @@ import { join } from 'path';
 const pdfjsLib = require('pdfjs-dist');
 const pdfjsWorker = require('pdfjs-dist/build/pdf.worker.entry');
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+const companies = [
+  'Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express'
+].sort();
 export const config = {
   api: {
     bodyParser: false,
@@ -26,10 +29,23 @@ const extractSKU = (lines) => {
 const extractQuantity = (lines) => {
   const QtyIndex = lines.findIndex(line => line.includes('Qty'));
   if (QtyIndex === -1) return null;
-  const qty =  lines[QtyIndex + 1]?.trim()?.split('  ')?.[2]?.trim();
-  return Number(qty)
+  let qty =  lines[QtyIndex + 1]?.trim()?.split('  ')?.[2]?.trim();
+  let qty2 = lines[QtyIndex + 2]?.trim()?.split('  ')?.[2]?.trim();
+  if(qty2){
+    qty = Number(qty) + Number(qty2);
+  }else{
+    qty = Number(qty);
+  }
+
+  return qty;
 };
 
+const extractCompany = (lines) => {
+  const company = companies.find(company => {
+    return lines.map(line => line.trim()?.split('  ')?.[0]?.trim()?.toUpperCase()).includes(company.toUpperCase() )
+  });
+  return company;
+};
 
 const getCSVData = async (filePath) => {
   return new Promise((resolve, reject) => {
@@ -43,6 +59,7 @@ const getCSVData = async (filePath) => {
 };
 
 const processPDF = async (pdfPath, csvData) => {
+  try{
   const dataBuffer = fs.readFileSync(pdfPath);
   
   const uint8Array = new Uint8Array(dataBuffer);
@@ -72,6 +89,8 @@ const processPDF = async (pdfPath, csvData) => {
     
     const sku = extractSKU(cleanedText);
     const qty = extractQuantity(cleanedText);
+
+    const company =   extractCompany(cleanedText);
     const origin = csvData.find(row => {
       if(Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')?.length){
         return row[Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')] === sku;
@@ -85,15 +104,28 @@ const processPDF = async (pdfPath, csvData) => {
       sku, 
       originName, 
       pageNumber: i ,
-      qty
+      qty,
+      company : company || 'Zzzzz'
     });
   }
 
   pageData.sort((a, b) => {
-    if (a.qty !== b.qty) {
-      return a.qty - b.qty; // Sort by quantity first
+    const qtyA = a.qty || 0;
+    const qtyB = b.qty || 0;
+    
+    if (qtyA !== qtyB) {
+      return qtyA - qtyB;
     }
-    return a.originName.localeCompare(b.originName); // Then sort by origin name
+    
+    const originA = a.originName || '';
+    const originB = b.originName || '';
+    if (originA !== originB) {
+      return originA.localeCompare(originB);
+    }
+    
+    const companyA = a.company || '';
+    const companyB = b.company || '';
+    return companyA.localeCompare(companyB);
   });
 
   const pdfDoc = await PDFDocument.create();
@@ -115,6 +147,9 @@ const processPDF = async (pdfPath, csvData) => {
   }
 
   return await pdfDoc.save();
+}catch(err){
+  console.log(err);
+}
 };
 
 async function ensureUploadsDirectory() {
