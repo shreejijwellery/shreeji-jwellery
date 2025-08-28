@@ -7,16 +7,15 @@ import { IncomingForm } from 'formidable';
 import { v4 as uuidv4 } from 'uuid';
 import { mkdir } from 'fs/promises';
 import { join } from 'path';
-const pdfjsLib = require('pdfjs-dist');
-const pdfjsWorker = require('pdfjs-dist/build/pdf.worker.entry');
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 const companies = [
   'Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express'
 ].sort();
 export const config = {
   api: {
     bodyParser: false,
+    responseLimit: false
   },
+  maxDuration: 60
 };
 
 const extractSKU = (lines) => {
@@ -63,68 +62,74 @@ const getCSVData = async (filePath) => {
 const processPDF = async (pdfPath, csvData) => {
   try{
   const dataBuffer = fs.readFileSync(pdfPath);
-  
-  const uint8Array = new Uint8Array(dataBuffer);
-  
-  const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
-  const pdfDocument = await loadingTask.promise;
-  
+
+  const PAGE_BREAK = '---PDF-PAGE-BREAK---';
+  const renderOptions = {
+    pagerender: async (pageData) => {
+      const textContent = await pageData.getTextContent();
+
+      let lastY = null;
+      const pageText = textContent.items
+        .map(item => {
+          const text = item.str;
+          const currentY = item.transform[5];
+          const needsNewline = lastY !== null && Math.abs(currentY - lastY) > 5;
+          lastY = currentY;
+          return (needsNewline ? '\n' : ' ') + text;
+        })
+        .join('')
+        .trim();
+
+      return pageText + `\n${PAGE_BREAK}\n`;
+    }
+  };
+
+  const parsed = await pdfParse(dataBuffer, renderOptions);
+  const pages = parsed.text
+    .split(PAGE_BREAK)
+    .map(t => t.trim())
+    .filter(Boolean);
+
   const pageData = [];
-  for (let i = 1; i <= pdfDocument.numPages; i++) {
-    const page = await pdfDocument.getPage(i);
-    const textContent = await page.getTextContent();
-    
-    let lastY = null;
-    const pageText = textContent.items
-      .map(item => {
-        const text = item.str;
-        const currentY = item.transform[5];
-        const needsNewline = lastY !== null && Math.abs(currentY - lastY) > 5;
-        lastY = currentY;
-        return (needsNewline ? '\n' : ' ') + text;
-      })
-      .join('')
-      .trim();
-    
-    const lines = pageText.split('\n');
-    const cleanedText = lines
-    
+  for (let i = 0; i < pages.length; i++) {
+    const lines = pages[i].split('\n');
+    const cleanedText = lines;
+
     const sku = extractSKU(cleanedText);
     const qty = extractQuantity(cleanedText);
 
-    const company =   extractCompany(cleanedText);
+    const company = extractCompany(cleanedText);
     const origin = csvData.find(row => {
-      if(Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')?.length){
+      if (Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')?.length) {
         return row[Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')] === sku;
       }
-     
-    })
-    
+    });
+
     const originName = origin?.Origin || origin?.origin || 'Unknown Origin';
-    pageData.push({ 
-      pageText: cleanedText, 
-      sku, 
-      originName, 
-      pageNumber: i ,
+    pageData.push({
+      pageText: cleanedText,
+      sku,
+      originName,
+      pageNumber: i + 1,
       qty,
-      company : company || 'Zzzzz'
+      company: company || 'Zzzzz'
     });
   }
 
   pageData.sort((a, b) => {
     const qtyA = a.qty || 0;
     const qtyB = b.qty || 0;
-    
+
     if (qtyA !== qtyB) {
       return qtyA - qtyB;
     }
-    
+
     const originA = a.originName || '';
     const originB = b.originName || '';
     if (originA !== originB) {
       return originA.localeCompare(originB);
     }
-    
+
     const companyA = a.company || '';
     const companyB = b.company || '';
     return companyA.localeCompare(companyB);
@@ -132,19 +137,18 @@ const processPDF = async (pdfPath, csvData) => {
 
   const pdfDoc = await PDFDocument.create();
   const sourcePdfDoc = await PDFDocument.load(dataBuffer);
-  
+
   for (const page of pageData) {
     const [pageCopy] = await pdfDoc.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
-    const { height } = pageCopy.getSize();
-    
+
     const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    pageCopy.drawText(`Origin : ${page.originName}`, { 
-      x: 50, 
-      y: 25, 
+    pageCopy.drawText(`Origin : ${page.originName}`, {
+      x: 50,
+      y: 25,
       size: 14,
       font: helveticaBoldFont
     });
-    
+
     pdfDoc.addPage(pageCopy);
   }
 
@@ -154,8 +158,13 @@ const processPDF = async (pdfPath, csvData) => {
 }
 };
 
+function getUploadsDirectory() {
+  const baseDir = process.env.VERCEL ? '/tmp' : process.cwd();
+  return join(baseDir, 'uploads');
+}
+
 async function ensureUploadsDirectory() {
-  const uploadsDir = join(process.cwd(), 'uploads');
+  const uploadsDir = getUploadsDirectory();
   try {
     await mkdir(uploadsDir, { recursive: true });
   } catch (error) {
@@ -174,8 +183,10 @@ export default async function handler(req, res) {
     await ensureUploadsDirectory();
     
     const form = new IncomingForm({
-      uploadDir: './uploads',
-      keepExtensions: true
+      uploadDir: getUploadsDirectory(),
+      keepExtensions: true,
+      multiples: true,
+      maxFileSize: 50 * 1024 * 1024
     });
 
     form.parse(req, async (err, fields, files) => {
