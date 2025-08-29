@@ -4,12 +4,12 @@ import { FaTrash, FaEdit } from 'react-icons/fa';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Loader from './loader';
-import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
+import { fetchAllItems, fetchAllSections, HTTP } from '../actions/actions_creators';
 
 const SectionManager = (props) => {
   const { user } = props;
   const [sections, setSections] = useState([]);
-  const [newSection, setNewSection] = useState({ name: '', user });
+  const [newSection, setNewSection] = useState({ name: '' });
   const [editableSectionId, setEditableSectionId] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,7 +20,6 @@ const SectionManager = (props) => {
   const fetchSections = async (isCallApi) => {
     setLoading(true);
     const response = await fetchAllSections(isCallApi);
-    console.log(response);
     setSections(response);
     setLoading(false);
   };
@@ -28,9 +27,9 @@ const SectionManager = (props) => {
   const addSection = async () => {
     try {
       setLoading(true);
-      await axios.post('/api/sections', newSection);
+      await HTTP('POST', '/sections', newSection);
       fetchSections(true);
-      setNewSection({ name: '',  user });
+      setNewSection({ name: '' });
       toast.success('Section added successfully!', { autoClose: 500 });
     } catch (error) {
       toast.error('Failed to add section.');
@@ -42,7 +41,7 @@ const SectionManager = (props) => {
   const updateSection = async (updatedSection) => {
     try {
       setLoading(true);
-      await axios.put(`/api/sections`, updatedSection);
+      await HTTP('PUT', `/sections`, updatedSection);
       fetchSections(true);
       setEditableSectionId(null);
       toast.success('Section updated successfully!', { autoClose: 500 });
@@ -56,7 +55,7 @@ const SectionManager = (props) => {
   const deleteSection = async (id) => {
     try {
       setLoading(true);
-      await axios.delete('/api/sections', { data: { id } });
+      await HTTP('DELETE', `/sections`, { id });
       fetchSections(true);
       fetchAllItems(true)
       toast.success('Section deleted successfully!', { autoClose: 500 });
@@ -84,7 +83,7 @@ const SectionManager = (props) => {
           placeholder="Section Name"
           value={newSection.name}
           onChange={(e) =>
-            setNewSection({ ...newSection, name: e.target.value, user })
+            setNewSection({ ...newSection, name: e.target.value })
           }
           className="w-full p-3 border border-gray-300 rounded-md focus:ring focus:ring-blue-300"
         />

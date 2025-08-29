@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import connectToDatabase from '../../lib/mongodb';
-import User from '../../models/users';
+import  User  from '../../models/users';
 
 export default async function handler(req, res) {
   const { method } = req;
@@ -16,13 +16,13 @@ export default async function handler(req, res) {
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.userId);
+      const user = await User.findById(decoded.userId).lean();
 
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
-
-      res.status(200).json({ user: {_id : user._id, name: user.name, username: user.username, role: user.role } });
+      delete user.password;
+      res.status(200).json({ user });
     } catch (error) {
       res.status(401).json({ message: 'Invalid token' });
     }

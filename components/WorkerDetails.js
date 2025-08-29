@@ -1,16 +1,15 @@
 // components/WorkerDetails.js
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css'; 
 import { FaTrash, FaPlus, FaEdit, FaSave } from 'react-icons/fa';
 import Loader from './loader'; // Assume a custom loader component
-import { fetchAllWorker } from '../actions/actions_creators';
+import { fetchAllWorker, HTTP } from '../actions/actions_creators';
 
 const WorkerDetails = (props) => {
     const { user } = props;
     const [workers, setWorkers] = useState([]);
-    const [newWorker, setNewWorker] = useState({ name: '', lastname: '', mobile_no: '', address: '' });
+    const [newWorker, setNewWorker] = useState({ name: '', lastname: '', mobile_no: '', address: '', bank_account_no: '', bank_name: '', bank_branch: '', bank_ifsc: '', bank_account_holder_name: '' });
     const [loading, setLoading] = useState(false);
     const [editingWorker, setEditingWorker] = useState(null);
 
@@ -33,10 +32,10 @@ const WorkerDetails = (props) => {
     const handleCreateWorker = async () => {
         setLoading(true);
         try {
-            await axios.post('/api/workers', { ...newWorker, created_by: user._id });
+            const response = await HTTP('POST','/workers', { ...newWorker });
             toast.success("Worker added successfully!", { autoClose: 500 });
             fetchWorkers(true);
-            setNewWorker({ name: '', lastname: '', mobile_no: '', address: '' });
+            setNewWorker({ name: '', lastname: '', mobile_no: '', address: '', bank_account_no: '', bank_name: '', bank_branch: '', bank_ifsc: '', bank_account_holder_name: ''  });
         } catch (error) {
             toast.error("Failed to add worker.");
         } finally {
@@ -47,7 +46,7 @@ const WorkerDetails = (props) => {
     const handleDeleteWorker = async (id) => {
         setLoading(true);
         try {
-            await axios.delete(`/api/workers/${id}`);
+            const response = await HTTP('DELETE',`/workers/${id}`);
             toast.success("Worker deleted successfully!", { autoClose: 500 });
             fetchWorkers(true);
         } catch (error) {
@@ -60,7 +59,7 @@ const WorkerDetails = (props) => {
     const handleEditWorker = async () => {
         setLoading(true);
         try {
-            await axios.put(`/api/workers`, editingWorker);
+            const response = await HTTP('PUT',`/workers`, editingWorker);
             toast.success("Worker updated successfully!", { autoClose: 500 });
             fetchWorkers(true);
             setEditingWorker(null);
@@ -112,6 +111,28 @@ const WorkerDetails = (props) => {
                     onChange={(e) => setNewWorker({ ...newWorker, address: e.target.value })}
                     className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400"
                 />
+                <input
+                    type="text"
+                    placeholder="Bank Account No"
+                    value={newWorker.bank_account_no}
+                    onChange={(e) => setNewWorker({ ...newWorker, bank_account_no: e.target.value })}
+                    className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400"
+                />
+                
+                <input
+                    type="text"
+                    placeholder="Bank IFSC"
+                    value={newWorker.bank_ifsc}
+                    onChange={(e) => setNewWorker({ ...newWorker, bank_ifsc: e.target.value })}
+                    className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400"
+                />
+                <input
+                    type="text"
+                    placeholder="Account Holder Name"
+                    value={newWorker.bank_account_holder_name}
+                    onChange={(e) => setNewWorker({ ...newWorker, bank_account_holder_name: e.target.value })}
+                    className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400"
+                />
                 <button
                     onClick={handleCreateWorker}
                     className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-md transition"
@@ -128,6 +149,11 @@ const WorkerDetails = (props) => {
                             <th className="py-4 px-6 text-left text-gray-700 font-semibold">Lastname</th>
                             <th className="py-4 px-6 text-left text-gray-700 font-semibold">Mobile No</th>
                             <th className="py-4 px-6 text-left text-gray-700 font-semibold">Address</th>
+                            <th className="py-4 px-6 text-left text-gray-700 font-semibold">Bank Account No</th>
+                            <th className="py-4 px-6 text-left text-gray-700 font-semibold">Bank Name</th>
+                            <th className="py-4 px-6 text-left text-gray-700 font-semibold">Bank Branch</th>
+                            <th className="py-4 px-6 text-left text-gray-700 font-semibold">Bank IFSC</th>
+                            <th className="py-4 px-6 text-left text-gray-700 font-semibold">Account Holder Name</th>
                             <th className="py-4 px-6 text-center text-gray-700 font-semibold">Actions</th>
                         </tr>
                     </thead>
@@ -182,6 +208,50 @@ const WorkerDetails = (props) => {
                                         worker.address
                                     )}
                                 </td>
+
+                                <td className="py-3 px-6">
+                                    {editingWorker && editingWorker._id === worker._id ? (
+                                        <input
+                                            type="text"
+                                            value={editingWorker.bank_account_no}
+                                            onChange={(e) => handleEditChange(e, 'bank_account_no')}
+                                            className="p-1 border border-gray-300 rounded-md"
+                                        />
+                                    ) : (
+                                        worker.bank_account_no
+                                    )}
+                                </td>
+                                <td className="py-3 px-6">
+                                    {worker.bank_name}
+                                </td>
+                                <td className="py-3 px-6">
+                                    {worker.bank_branch}
+                                </td>
+                                <td className="py-3 px-6">
+                                    {editingWorker && editingWorker._id === worker._id ? (
+                                        <input
+                                            type="text"
+                                            value={editingWorker.bank_ifsc}
+                                            onChange={(e) => handleEditChange(e, 'bank_ifsc')}
+                                            className="p-1 border border-gray-300 rounded-md"
+                                        />
+                                    ) : (
+                                        worker.bank_ifsc
+                                    )}
+                                </td>
+                                <td className="py-3 px-6">
+                                    {editingWorker && editingWorker._id === worker._id ? (
+                                        <input
+                                            type="text"
+                                            value={editingWorker.bank_account_holder_name}
+                                            onChange={(e) => handleEditChange(e, 'bank_account_holder_name')}
+                                            className="p-1 border border-gray-300 rounded-md"
+                                        />
+                                    ) : (
+                                        worker.bank_account_holder_name
+                                    )}
+                                </td>
+                                
                                 <td className="py-3 px-6 text-center">
                                     {editingWorker && editingWorker._id === worker._id ? (
                                         <button

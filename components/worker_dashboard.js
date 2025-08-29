@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
 import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import moment from 'moment';
 import { PAYMENT_STATUS } from '../lib/constants';
-
+import Select from 'react-select';
+import { HTTP } from '../actions/actions_creators';
 export default function PayableDashboard(props) {
   const [workDetails, setWorkDetails] = useState([]);
   const [sections, setSections] = useState([]);
@@ -17,7 +18,21 @@ export default function PayableDashboard(props) {
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-
+  const [selectedSections, setSelectedSections] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [uniqueSections, setUniqueSections] = useState([]);
+  const [uniqueItems, setUniqueItems] = useState([]);
+  // Fetch unique sections and items for filtering
+  useEffect(() => {
+    setUniqueSections([...new Set(sections)]);
+  }, [sections, items]);
+  useEffect(() => {
+    if (selectedSections.length > 0) {
+      setUniqueItems([...new Set(items.filter(item => selectedSections.includes(item.section)))]);
+    } else {
+      setUniqueItems([]);
+    }
+  }, [selectedSections, items]);
   useEffect(() => {
     const fetchSections = async () => {
       try {
@@ -41,6 +56,7 @@ export default function PayableDashboard(props) {
     fetchItems();
   }, []);
 
+
   const fetchWorkDetails = async (reset = false) => {
     try {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
@@ -48,13 +64,17 @@ export default function PayableDashboard(props) {
       const toDate = endDate ? `&toDate=${endDate}` : '';
       const limit = 50;
       const skip = reset ? 0 : offset;
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}&limit=${limit}&skip=${skip}`);
-      const data = await response.json();
+
+      // Add filters for sections and items
+      const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
+      const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
 
       if (reset) {
-        setWorkDetails(data);
+        setWorkDetails(data ?? []);
       } else {
-        setWorkDetails(prevDetails => [...prevDetails, ...data]);
+        setWorkDetails(prevDetails => [...prevDetails, ...(data ?? []) ]);
       }
 
       setHasMore(data.length === limit);
@@ -67,18 +87,16 @@ export default function PayableDashboard(props) {
   useEffect(() => {
     setOffset(0);
     fetchWorkDetails(true);
-  }, [selectedPaymentStatus, startDate, endDate]);
+  }, [selectedPaymentStatus, startDate, endDate, selectedSections, selectedItems]);
 
   const handleScroll = (e) => {
     const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
-    console.log('Scrolling...', bottom, hasMore);
     if (bottom && hasMore) {
-      console.log('Fetching more data...');
       fetchWorkDetails();
     }
   };
 
-  const filteredWorkDetails = workDetails.filter(detail => {
+  const filteredWorkDetails = workDetails?.filter(detail => {
     const createdAt = new Date(detail.createdAt);
     const start = new Date(startDate);
 
@@ -87,6 +105,138 @@ export default function PayableDashboard(props) {
     return (!startDate || createdAt >= start) && (!endDate || createdAt <= end);
   });
 
+  const getSummaryData = async () => {
+    const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
+    const fromDate = startDate ? `&fromDate=${startDate}` : '';
+    const toDate = endDate ? `&toDate=${endDate}` : '';
+  
+    const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
+    const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+  
+    const data = await HTTP('GET', `/worker-pays?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}`);
+  
+    data.sort((a, b) => b.totalAmount - a.totalAmount);
+    return data;
+  }
+  const handleDownloadSummaryCSV = async () => {
+    const data = await getSummaryData();
+    const csvContent = [
+      ['Worker', 'Amount', 'Mobile No', 'Bank Account Holder Name',  'Bank Account No', 'Bank IFSC','Bank Name',  'Bank Branch'],
+      ...data.map(record => [
+        record.worker?.name + ' ' + record.worker?.lastname,
+        record.pendingAmount?.toFixed(2),
+        record.worker?.mobile_no,
+        `"${record.worker?.bank_account_holder_name ?? ""}"`,
+        `"${record.worker?.bank_account_no ?? ""}"`,
+        `${record.worker?.bank_ifsc ?? ""}`,
+        `"${record.worker?.bank_name ?? ""}"`,
+        `"${record.worker?.bank_branch ?? ""}"`,
+      ])
+    ];
+    const csv = csvContent.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `worker_pay_summary_${startDate}_${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  const handleDownloadSummary = async () => {
+    const data = await getSummaryData();
+  
+    const doc = new jsPDF();
+  
+    doc.setFontSize(16);
+    doc.setFont('Arial', 'bold');
+    doc.setTextColor(34, 45, 50);
+    doc.text('Worker Pay Summary', 14, 20);
+  
+    doc.setFontSize(12);
+    doc.setFont('Arial', 'normal');
+    doc.setTextColor(80, 80, 80);
+    const dateRangeText = `Date Range: ${startDate ? new Date(startDate).toLocaleDateString() : 'Start'} to ${
+      endDate ? new Date(endDate).toLocaleDateString() : 'End'
+    }`;
+    doc.text(dateRangeText, 14, 28);
+  
+    const tableStartY = 40;
+    doc.setFontSize(10);
+    doc.setFillColor(60, 120, 180);
+    doc.rect(14, tableStartY, 180, 10, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text('Worker', 16, tableStartY + 7);
+    doc.text('Total Paid (Rs.)', 90, tableStartY + 7, { align: 'center' });
+    doc.text('Total Pending (Rs.)', 130, tableStartY + 7, { align: 'center' });
+    doc.text('Total Amount (Rs.)', 170, tableStartY + 7, { align: 'center' });
+  
+    doc.setTextColor(40, 40, 40);
+    let currentY = tableStartY + 15;
+  
+    let totalPaid = 0;
+    let totalPending = 0;
+    let totalAmount = 0;
+  
+    data.forEach((record, index) => {
+      const rowHeight = 10; // Adjust as needed
+      if (currentY + rowHeight > doc.internal.pageSize.height - 20) {
+        doc.addPage();
+        currentY = 20;
+  
+        doc.setFillColor(60, 120, 180);
+        doc.rect(14, currentY, 180, 10, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.text('Worker', 16, currentY + 7);
+        doc.text('Total Paid (Rs.)', 90, currentY + 7, { align: 'center' });
+        doc.text('Total Pending (Rs.)', 130, currentY + 7, { align: 'center' });
+        doc.text('Total Amount (Rs.)', 170, currentY + 7, { align: 'center' });
+        doc.setTextColor(40, 40, 40);
+        currentY += 15;
+      }
+  
+      doc.text(record?.worker?.name + ' ' + (record?.worker?.lastname ?? ''), 16, currentY);
+      doc.text(record.paidAmount.toFixed(2), 90, currentY, { align: 'center' });
+      doc.text(record.pendingAmount.toFixed(2), 130, currentY, { align: 'center' });
+      doc.text(record.totalAmount.toFixed(2), 170, currentY, { align: 'center' });
+  
+      totalPaid += record.paidAmount;
+      totalPending += record.pendingAmount;
+      totalAmount += record.totalAmount;
+  
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, currentY + 2, 194, currentY + 2);
+      currentY += rowHeight;
+    });
+  
+    if (currentY + 10 > doc.internal.pageSize.height - 20) {
+      doc.addPage();
+      currentY = 20;
+    }
+  
+    doc.setFillColor(240, 240, 240);
+    doc.rect(14, currentY, 180, 10, 'F');
+  
+    doc.setFont('Arial', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Total', 16, currentY + 7);
+    doc.text(totalPaid.toFixed(2), 90, currentY + 7, { align: 'center' });
+    doc.text(totalPending.toFixed(2), 130, currentY + 7, { align: 'center' });
+    doc.text(totalAmount.toFixed(2), 170, currentY + 7, { align: 'center' });
+  
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width / 2, 290, { align: 'center' });
+    }
+  
+    doc.save(`worker_pay_summary_${startDate}_${endDate}.pdf`);
+  };
+  
+  
+  
   const handleDownload = () => {
     const doc = new jsPDF();
 
@@ -114,7 +264,7 @@ export default function PayableDashboard(props) {
     }
 
     // Prepare Table Data
-    const tableData = filteredWorkDetails.map(detail => [
+    const tableData = filteredWorkDetails?.reverse()?.map(detail => [
       detail.worker_name,
       detail.section_name,
       detail.item_name,
@@ -205,11 +355,7 @@ export default function PayableDashboard(props) {
   const handleMarkAsPaid = () => {
     const markAsPaid = async () => {
       try {
-        const response = await fetch('/api/apply_payments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID }),
-        });
+        const response = await HTTP('POST', '/apply_payments', { recordIds: selectedRecords, payment_status: PAYMENT_STATUS.PAID });
 
         if (!response.ok) {
           throw new Error('Failed to mark records as paid');
@@ -230,7 +376,7 @@ export default function PayableDashboard(props) {
 
   const handleDownloadSelected = () => {
     const doc = new jsPDF();
-    const selectedDetails = workDetails.filter(detail => selectedRecords.includes(detail._id));
+    const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id)).reverse();
 
     // Add Worker Details
 
@@ -306,13 +452,12 @@ export default function PayableDashboard(props) {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
       const fromDate = startDate ? `&fromDate=${startDate}` : '';
       const toDate = endDate ? `&toDate=${endDate}` : '';
-      const response = await fetch(`/api/work_records?${payment_status}${fromDate}${toDate}`);
-      const data = await response.json();
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}`);
 
       // Convert data to CSV format
       const csvContent = [
         ['Name', 'Section', 'Item', 'Piece', 'Rate', 'Amount', 'Submitted On', 'Payment Status', 'Payment Date'],
-        ...data.map(detail => [
+        ...(data?.reverse())?.map(detail => [
           detail.worker_name,
           detail.section_name,
           detail.item_name,
@@ -339,16 +484,91 @@ export default function PayableDashboard(props) {
     }
   };
 
+  const sectionOptions = uniqueSections.map(section => ({
+    value: section._id,
+    label: section.name,
+  }));
+
+  const itemOptions = uniqueItems.map(item => ({
+    value: item._id,
+    label: `${item.name} (${uniqueSections.find(sec => sec._id === item.section)?.name})`,
+  }));
+
   return (
-    <div className="flex justify-center" >
-      {/* Date Filter Inputs */}
+    <div className="flex flex-col items-center p-4 bg-gray-100 min-h-screen">
+      {/* Filters in One Line */}
+      <div className="flex flex-wrap items-center mb-4 space-x-2">
+        <input
+          type="date"
+          value={startDate}
+          onChange={e => setStartDate(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <input
+          type="date"
+          value={endDate}
+          onChange={e => setEndDate(e.target.value)}
+          className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          onClick={() =>
+            setSelectedPaymentStatus(prev =>
+              prev !== PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : null
+            )
+          }
+          className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-green-600 transition ${
+            selectedPaymentStatus === PAYMENT_STATUS.PAID && 'bg-blue-800 underline'
+          }`}>
+          Paid
+        </button>
+        <button
+          onClick={() =>
+            setSelectedPaymentStatus(prev =>
+              prev !== PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.PENDING : null
+            )
+          }
+          className={`bg-red-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-red-600 transition ${
+            selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'
+          }`}>
+          Unpaid
+        </button>
+        <Select
+          isMulti
+          options={sectionOptions}
+          value={sectionOptions.filter(option => selectedSections.includes(option.value))}
+          onChange={selected => setSelectedSections(selected.map(option => option.value))}
+          className="basic-multi-select w-64"
+          classNamePrefix="select"
+          placeholder="Select Sections"
+        />
+        <Select
+            isMulti
+            options={itemOptions}
+            value={itemOptions.filter(option => selectedItems.includes(option.value))}
+          onChange={selected => setSelectedItems(selected.map(option => option.value))}
+          className="basic-multi-select w-64 "
+          classNamePrefix="select"
+          placeholder="Select Items"
+        />
+      </div>
+
 
       {/* Work Details Table */}
-      <div className="mt-12 bg-white shadow-lg rounded-lg  ">
-        <div className="flex justify-between items-center mb-6 px-4">
+      <div className="bg-white shadow-lg rounded-lg overflow-hidden w-full">
+        <div className="flex justify-between items-center mb-6 px-4 py-2 bg-gray-200">
           <h2 className="text-2xl font-semibold text-gray-800">All Payable Dashboard</h2>
           {filteredWorkDetails.length > 0 && (
             <div className="flex gap-2">
+              <button
+              onClick={handleDownloadSummary}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                <FaDownload /> Summary PDF
+              </button>
+              <button
+              onClick={handleDownloadSummaryCSV}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                <FaDownload /> Summary CSV
+              </button>
               <button
                 onClick={handleDownload}
                 className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
@@ -363,113 +583,83 @@ export default function PayableDashboard(props) {
           )}
         </div>
 
-        <div className="mb-4 mx-5">
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2 mr-2"
-          />
-          <input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="border border-gray-300 rounded-lg p-2"
-          />
-
-          <button
-            onClick={() =>
-              setSelectedPaymentStatus(prev =>
-                prev !== PAYMENT_STATUS.PAID ? PAYMENT_STATUS.PAID : null
-              )
-            }
-            className={`bg-green-500 text-white font-semibold px-4 py-2 rounded-lg ml-2 hover:bg-green-600 transition ${
-              selectedPaymentStatus === PAYMENT_STATUS.PAID && 'bg-blue-800 underline'
-            }`}>
-            Paid
-          </button>
-          <button
-            onClick={() =>
-              setSelectedPaymentStatus(prev =>
-                prev !== PAYMENT_STATUS.PENDING ? PAYMENT_STATUS.PENDING : null
-              )
-            }
-            className={`bg-red-500 text-white font-semibold px-4 py-2  ml-2 rounded-lg hover:bg-red-600 transition ${
-              selectedPaymentStatus === PAYMENT_STATUS.PENDING && 'bg-blue-800 underline'
-            }`}>
-            Unpaid
-          </button>
-        </div>
-        <div className="overflow-x-scroll text-wrap" style={{ maxHeight: '500px', overflowY: 'scroll' }} onScroll={handleScroll}>
-          <div className="w-max bg-gray-100 p-4 font-medium text-gray-700 flex gap-4 ">
-            <div className="w-20">Name</div>
-            <div className="w-32">Section</div>
-            <div className="w-32">Item</div>
-            <div className="w-10">Piece</div>
-            <div className="w-10">Rate</div>
-            <div className="w-16">Amount</div>
-            <div className="w-32">Submitted On</div>
-            <div className="w-20">Payment Status</div>
-            <div className="w-32">Payment Date</div>
-          </div>
-            <div>
-          {filteredWorkDetails.length > 0 ? (
-            <>
-              {filteredWorkDetails.map(detail => (
-                <div
-                  key={detail._id}
-                  className="w-max flex gap-4 p-4 border-b last:border-none text-gray-700">
-                  <>
-                    <div className="w-20">{detail.worker_name}</div>
-
-                    <div className="w-32">{detail.section_name}</div>
-                    <div className="w-32">{detail.item_name}</div>
-                    <div className="w-10">{detail.piece}</div>
-                    <div className="w-10">₹{detail.item_rate}</div>
-                    <div className="w-16">
+        <div className="overflow-x-auto" style={{ maxHeight: '500px', overflowY: 'scroll' }} onScroll={handleScroll}>
+          <table className="min-w-full bg-white">
+            <thead>
+              <tr className="bg-gray-100 p-4 font-medium text-gray-700">
+                <th className="px-4 py-2">Name</th>
+                <th className="px-4 py-2">Section</th>
+                <th className="px-4 py-2">Item</th>
+                <th className="px-4 py-2">Piece</th>
+                <th className="px-4 py-2">Rate</th>
+                <th className="px-4 py-2">Amount</th>
+                <th className="px-4 py-2">Submitted On</th>
+                <th className="px-4 py-2">Payment Status</th>
+                <th className="px-4 py-2">Payment Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredWorkDetails.length > 0 ? (
+                filteredWorkDetails.map(detail => (
+                  <tr key={detail._id} className="border-b last:border-none text-gray-700">
+                    <td className="px-4 py-2">{detail.worker?.name} {detail.worker?.lastname ?? ""} </td>
+                    <td className="px-4 py-2">{detail.section_name}</td>
+                    <td className="px-4 py-2">{detail.item_name}</td>
+                    <td className="px-4 py-2">{detail.piece}</td>
+                    <td className="px-4 py-2">₹{detail.item_rate}</td>
+                    <td className="px-4 py-2">
                       ₹
                       {detail.amount
                         ? detail.amount.toFixed(2)
                         : (detail.piece * detail.item_rate).toFixed(2)}
-                    </div>
-                    <div className="w-32">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}
-                    </div>
-                    <div className="w-20">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.payment_status === PAYMENT_STATUS.PAID
                         ? PAYMENT_STATUS.PAID
                         : PAYMENT_STATUS.PENDING}
-                    </div>
-                    <div className="w-32">
+                    </td>
+                    <td className="px-4 py-2">
                       {detail.payment_date ? moment(detail.payment_date).format('LLL') : ''}
-                    </div>
-                  </>
-                </div>
-              ))}
-
-              {/* Add Total Row */}
-              <div className="min-w-full flex p-4 border-t bg-gray-50 font-semibold">
-                <div className="w-20">Total</div>
-                <div className="w-32"></div>
-                <div className="w-32"></div>
-                <div className="w-40"></div>
-                <div className="w-32">
-                  ₹
-                  {filteredWorkDetails
-                    .reduce(
-                      (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
-                      0
-                    )
-                    .toFixed(2)}
-                </div>
-                <div className="w-40"></div>
-                <div className="w-32"></div>
-              </div>
-            </>
-          ) : (
-            <div className="p-4 text-gray-500 text-center">No work details found</div>
-          )}
-          </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="9" className="p-4 text-gray-500 text-center">No work details found</td>
+                </tr>
+              )}
+            </tbody>
+            {filteredWorkDetails.length > 0 && (
+              <tfoot>
+                <tr className="border-t bg-gray-50 font-semibold">
+                  <td className="px-4 py-2">Total</td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                  {filteredWorkDetails.reduce((sum, detail) => sum + detail.piece, 0)}
+                  </td>
+                  <td className="px-4 py-2">
+                    ₹
+                    {filteredWorkDetails
+                      .reduce(
+                        (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
+                        0
+                      )
+                      .toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2">
+                  <td className="px-4 py-2">
+                   
+                  </td>
+                  </td>
+                  <td className="px-4 py-2"></td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
         </div>
 
         {/* Action Bar */}
