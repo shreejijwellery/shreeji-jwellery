@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 export default function ExtractSKU() {
@@ -6,6 +7,23 @@ export default function ExtractSKU() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [status, setStatus] = useState('');
+  const [allowed, setAllowed] = useState(null);
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) { setAllowed(false); return; }
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (!user || !user.role) { setAllowed(false); return; }
+        if (!['admin', 'manager'].includes(user.role)) { setAllowed(false); return; }
+        const { data } = await axios.get('/api/company/flags', { headers: { Authorization: `Bearer ${token}` } });
+        setAllowed(Boolean(data?.featureFlags?.isExtractSKU));
+      } catch (e) {
+        setAllowed(false);
+      }
+    };
+    init();
+  }, []);
 
   const companies = ['Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express'].sort();
 
@@ -228,6 +246,9 @@ export default function ExtractSKU() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
         <h1 className="text-2xl font-semibold text-center text-gray-700">PDF and CSV Processor</h1>
+        {allowed === false && (
+          <p className="text-center text-red-500">This feature is disabled for your company. Please contact your admin.</p>
+        )}
         <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-4">
           <div>
             <label htmlFor="pdf" className="block text-sm font-medium text-gray-600">
@@ -257,9 +278,9 @@ export default function ExtractSKU() {
           </div>
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || allowed === false || allowed === null}
             className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
-              hover:bg-blue-600 transition ${loading ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+              hover:bg-blue-600 transition ${(loading || allowed !== true) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
           >
             {loading ? 'Processing...' : 'Process Files'}
           </button>

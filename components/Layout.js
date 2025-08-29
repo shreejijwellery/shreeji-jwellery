@@ -80,7 +80,7 @@ const Layout = ({ children }) => {
             </li>
           )}
 
-          {user && router.pathname !== '/settings' && (
+          {user && router.pathname !== '/settings' && user.role !== USER_ROLES.ADMINISTRATOR && (
             <li>
               <Link href="/settings">
                 <div className="hover:underline">Settings</div>
@@ -105,7 +105,7 @@ const Layout = ({ children }) => {
             </li>
             )
           }
-         {user && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && router.pathname !== '/extract-sku' && (
+         {user && user.role !== USER_ROLES.ADMINISTRATOR && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && router.pathname !== '/extract-sku' && (
             <li>
               <Link href="/extract-sku">
                 <div className="hover:underline">Extract SKU</div>
@@ -135,6 +135,13 @@ const Layout = ({ children }) => {
             {user.role === USER_ROLES.ADMIN && (
               <span
                 onClick={() => router.push('/user-permissions')}
+                className="text-white cursor-pointer">
+                  <FaUsersCog />
+              </span>
+            )}
+            {user.role === USER_ROLES.ADMINISTRATOR && (
+              <span
+                onClick={() => router.push('/admin')}
                 className="text-white cursor-pointer">
                   <FaUsersCog />
               </span>

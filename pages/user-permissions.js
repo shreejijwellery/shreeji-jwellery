@@ -13,7 +13,7 @@ const UserManagement = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [loading, setLoading] = useState(false); // Loading state
-  const roles = Object.values(USER_ROLES)?.filter(role => role !== USER_ROLES.ADMIN); // Example roles
+  const roles = Object.values(USER_ROLES)?.filter(role => ![USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR].includes(role)); // Example roles
   const permissions = Object.values(PERMISSIONS); // Example permissions
 
   const fetchUsers = async () => {

@@ -5,6 +5,9 @@ import pdfParse from 'pdf-parse';
 import csv from 'csv-parser';
 import { IncomingForm } from 'formidable';
 import { v4 as uuidv4 } from 'uuid';
+import Company from '../../models/company';
+import { USER_ROLES } from '../../lib/constants';
+import { authMiddleware } from './common/common.services';
 
 import { mkdir } from 'fs/promises';
 import { join } from 'path';
@@ -176,12 +179,27 @@ async function ensureUploadsDirectory() {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
   try {
+    const user = req.userData;
+    if (!user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const company = await Company.findById(user.company).lean();
+    if (!company) {
+      return res.status(404).json({ message: 'Company not found' });
+    }
+    if (![USER_ROLES.ADMIN, USER_ROLES.MANAGER].includes(user.role)) {
+      return res.status(403).json({ message: 'Insufficient role to use Extract SKU' });
+    }
+    if (!company.featureFlags?.isExtractSKU) {
+      return res.status(403).json({ message: 'Extract SKU is disabled for your company' });
+    }
+
     await ensureUploadsDirectory();
     
     const form = new IncomingForm({
@@ -249,3 +267,5 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Error processing files' });
   }
 }
+
+export default authMiddleware(handler);

@@ -5,10 +5,13 @@ import WorkerDetails from '../components/WorkerDetails';
 import PartyDashboard from './party_dashboard';
 import PartyDetails from '../components/partyDetails';
 import { checkPermission, PERMISSIONS } from '../lib/constants';
+import axios from 'axios';
 
 const SettingsTabs = () => {
   const [selectedTab, setSelectedTab] = useState();
   const [user, setUser] = useState(null);
+  const [flags, setFlags] = useState(null);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user'));
     if (userData) {
@@ -21,6 +24,30 @@ const SettingsTabs = () => {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const fetchFlags = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const { data } = await axios.get('/api/company/flags', { headers: { Authorization: `Bearer ${token}` } });
+        setFlags(data?.featureFlags || {});
+      } catch (e) {}
+    };
+    fetchFlags();
+  }, []);
+
+  const saveFlags = async (nextFlags) => {
+    try {
+      setSaving(true);
+      const token = localStorage.getItem('token');
+      const { data } = await axios.put('/api/company/flags', { featureFlags: nextFlags }, { headers: { Authorization: `Bearer ${token}` } });
+      setFlags(data?.featureFlags || nextFlags);
+    } catch (e) {
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <>
       {user ? (
@@ -80,6 +107,24 @@ const SettingsTabs = () => {
             {selectedTab === 'party' && (
               <div>
                 <PartyDetails user={user} />
+              </div>
+            )}
+            {user?.role === 'ADMINISTRATOR' && (
+              <div className="mt-6 p-4 border rounded">
+                <h2 className="text-lg font-semibold mb-2">Company Feature Flags</h2>
+                {flags ? (
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={!!flags.isExtractSKU}
+                      onChange={(e) => saveFlags({ ...flags, isExtractSKU: e.target.checked })}
+                      disabled={saving}
+                    />
+                    <span>Enable Extract SKU</span>
+                  </label>
+                ) : (
+                  <p className="text-sm text-gray-500">Loading flags…</p>
+                )}
               </div>
             )}
           </div>
