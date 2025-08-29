@@ -188,11 +188,14 @@ export default async function handler(req, res) {
       uploadDir: getUploadsDirectory(),
       keepExtensions: true,
       multiples: true,
-      maxFileSize: 200 * 1024 * 1024
+      maxFileSize: 25 * 1024 * 1024
     });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
+        if (err.message && err.message.toLowerCase().includes('max file size')) {
+          return res.status(413).json({ error: 'File too large for free plan. Please upload <= 25MB.' });
+        }
         res.status(500).json({ error: 'Error parsing files' });
         return;
       }
@@ -230,6 +233,9 @@ export default async function handler(req, res) {
         res.setHeader('Content-Disposition', 'attachment; filename=sorted_output.pdf');
         res.send(Buffer.from(processedPdf));
       } catch (error) {
+        if (String(error?.message || '').toLowerCase().includes('timeout') || String(error).toLowerCase().includes('timed out')) {
+          return res.status(504).json({ error: 'Processing took too long on free plan. Try smaller files.' });
+        }
         try {
           if (pdfPath) fs.unlinkSync(pdfPath);
           if (csvPath) fs.unlinkSync(csvPath);
