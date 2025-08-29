@@ -42,21 +42,21 @@ const Layout = ({ children }) => {
     <div>
       <nav className="bg-gray-800 p-4 flex flex-col md:flex-row overflow-x-scroll justify-between items-center">
         <ul className="flex space-x-4 text-white">
-          {/* {router.pathname !== '/' && (
+          {router.pathname !== '/' && (
             <li>
               <Link href="/">
                 <div className="hover:underline">Home</div>
               </Link>
             </li>
-          )} */}
-          {/* {!user && router.pathname !== '/signup' && (
+          )}
+          {!user && router.pathname !== '/signup' && (
             <li>
               <Link href="/signup">
                 <div className="hover:underline">Signup</div>
               </Link>
             </li>
-          )} */}
-          {/* {!user && router.pathname !== '/login' && (
+          )}
+         {!user && router.pathname !== '/login' && (
             <li>
               <Link href="/login">
                 <div className="hover:underline">Login</div>
@@ -105,7 +105,7 @@ const Layout = ({ children }) => {
             </li>
             )
           }
-          {/* {user && router.pathname !== '/extract-sku' && (
+         {user && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && router.pathname !== '/extract-sku' && (
             <li>
               <Link href="/extract-sku">
                 <div className="hover:underline">Extract SKU</div>
