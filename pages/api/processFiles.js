@@ -187,7 +187,7 @@ export default async function handler(req, res) {
       uploadDir: getUploadsDirectory(),
       keepExtensions: true,
       multiples: true,
-      maxFileSize: 50 * 1024 * 1024
+      maxFileSize: 200 * 1024 * 1024
     });
 
     form.parse(req, async (err, fields, files) => {
