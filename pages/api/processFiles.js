@@ -64,103 +64,147 @@ const getCSVData = async (filePath) => {
 };
 
 const processPDF = async (pdfPath, csvData) => {
-  try{
-  const dataBuffer = fs.readFileSync(pdfPath);
-
-  const PAGE_BREAK = '---PDF-PAGE-BREAK---';
-  const renderOptions = {
-    pagerender: async (pageData) => {
-      const textContent = await pageData.getTextContent();
-
-      let lastY = null;
-      const pageText = textContent.items
-        .map(item => {
-          const text = item.str;
-          const currentY = item.transform[5];
-          const needsNewline = lastY !== null && Math.abs(currentY - lastY) > 5;
-          lastY = currentY;
-          return (needsNewline ? '\n' : ' ') + text;
-        })
-        .join('')
-        .trim();
-
-      return pageText + `\n${PAGE_BREAK}\n`;
+  try {
+    const dataBuffer = fs.readFileSync(pdfPath);
+    
+    // Check file size to prevent memory issues
+    const fileSizeInMB = dataBuffer.length / (1024 * 1024);
+    if (fileSizeInMB > 50) {
+      throw new Error('PDF file too large. Please use files under 50MB.');
     }
-  };
 
-  const parsed = await pdfParse(dataBuffer, renderOptions);
-  const pages = parsed.text
-    .split(PAGE_BREAK)
-    .map(t => t.trim())
-    .filter(Boolean);
+    const PAGE_BREAK = '---PDF-PAGE-BREAK---';
+    const renderOptions = {
+      pagerender: async (pageData) => {
+        try {
+          const textContent = await pageData.getTextContent();
 
-  const pageData = [];
-  for (let i = 0; i < pages.length; i++) {
-    const lines = pages[i].split('\n');
-    const cleanedText = lines;
+          let lastY = null;
+          const pageText = textContent.items
+            .map(item => {
+              const text = item.str;
+              const currentY = item.transform[5];
+              const needsNewline = lastY !== null && Math.abs(currentY - lastY) > 5;
+              lastY = currentY;
+              return (needsNewline ? '\n' : ' ') + text;
+            })
+            .join('')
+            .trim();
 
-    const sku = extractSKU(cleanedText);
-    const qty = extractQuantity(cleanedText);
-
-    const company = extractCompany(cleanedText);
-    const origin = csvData.find(row => {
-      if (Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')?.length) {
-        return row[Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')] === sku;
+          return pageText + `\n${PAGE_BREAK}\n`;
+        } catch (pageError) {
+          console.error('Error processing page:', pageError);
+          return `Error processing page\n${PAGE_BREAK}\n`;
+        }
       }
-    });
+    };
 
-    const originName = origin?.Origin || origin?.origin || 'Unknown Origin';
-    pageData.push({
-      pageText: cleanedText,
-      sku,
-      originName,
-      pageNumber: i + 1,
-      qty,
-      company: company || 'Zzzzz'
-    });
-  }
+    const parsed = await pdfParse(dataBuffer, renderOptions);
+    const pages = parsed.text
+      .split(PAGE_BREAK)
+      .map(t => t.trim())
+      .filter(Boolean);
 
-  pageData.sort((a, b) => {
-    const qtyA = a.qty || 0;
-    const qtyB = b.qty || 0;
-
-    if (qtyA !== qtyB) {
-      return qtyA - qtyB;
+    // Limit number of pages to prevent memory issues
+    if (pages.length > 1000) {
+      throw new Error('PDF has too many pages. Please use files with fewer than 1000 pages.');
     }
 
-    const originA = a.originName || '';
-    const originB = b.originName || '';
-    if (originA !== originB) {
-      return originA.localeCompare(originB);
+    const pageData = [];
+    for (let i = 0; i < pages.length; i++) {
+      try {
+        const lines = pages[i].split('\n');
+        const cleanedText = lines;
+
+        const sku = extractSKU(cleanedText);
+        const qty = extractQuantity(cleanedText);
+
+        const company = extractCompany(cleanedText);
+        const origin = csvData.find(row => {
+          if (Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')?.length) {
+            return row[Object.keys(row).filter(key => key.trim()?.toUpperCase() == 'SKU')] === sku;
+          }
+        });
+
+        const originName = origin?.Origin || origin?.origin || 'Unknown Origin';
+        pageData.push({
+          pageText: cleanedText,
+          sku,
+          originName,
+          pageNumber: i + 1,
+          qty,
+          company: company || 'Zzzzz'
+        });
+      } catch (pageError) {
+        console.error(`Error processing page ${i + 1}:`, pageError);
+        // Continue with next page instead of crashing
+        continue;
+      }
     }
 
-    const companyA = a.company || '';
-    const companyB = b.company || '';
-    return companyA.localeCompare(companyB);
-  });
+    // Check if we have any valid pages
+    if (pageData.length === 0) {
+      throw new Error('No valid pages could be processed from the PDF.');
+    }
 
-  const pdfDoc = await PDFDocument.create();
-  const sourcePdfDoc = await PDFDocument.load(dataBuffer);
+    pageData.sort((a, b) => {
+      const qtyA = a.qty || 0;
+      const qtyB = b.qty || 0;
 
-  for (const page of pageData) {
-    const [pageCopy] = await pdfDoc.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
+      if (qtyA !== qtyB) {
+        return qtyA - qtyB;
+      }
 
-    const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    pageCopy.drawText(`Origin : ${page.originName}`, {
-      x: 50,
-      y: 25,
-      size: 14,
-      font: helveticaBoldFont
+      const originA = a.originName || '';
+      const originB = b.originName || '';
+      if (originA !== originB) {
+        return originA.localeCompare(originB);
+      }
+
+      const companyA = a.company || '';
+      const companyB = b.company || '';
+      return companyA.localeCompare(companyB);
     });
 
-    pdfDoc.addPage(pageCopy);
-  }
+    const pdfDoc = await PDFDocument.create();
+    const sourcePdfDoc = await PDFDocument.load(dataBuffer);
 
-  return await pdfDoc.save();
-}catch(err){
-  
-  console.log(err);
-}
+    // Process pages in batches to prevent memory issues
+    const batchSize = 50;
+    for (let i = 0; i < pageData.length; i += batchSize) {
+      const batch = pageData.slice(i, i + batchSize);
+      
+      for (const page of batch) {
+        try {
+          const [pageCopy] = await pdfDoc.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
+
+          const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          pageCopy.drawText(`Origin : ${page.originName}`, {
+            x: 50,
+            y: 25,
+            size: 14,
+            font: helveticaBoldFont
+          });
+
+          pdfDoc.addPage(pageCopy);
+        } catch (pageError) {
+          console.error(`Error adding page ${page.pageNumber}:`, pageError);
+          // Continue with next page instead of crashing
+          continue;
+        }
+      }
+      
+      // Force garbage collection between batches if available
+      if (global.gc) {
+        global.gc();
+      }
+    }
+
+    return await pdfDoc.save();
+  } catch (err) {
+    console.error('Error in processPDF:', err);
+    throw err;
+  }
 };
 
 function getUploadsDirectory() {
@@ -206,7 +250,9 @@ async function handler(req, res) {
       uploadDir: getUploadsDirectory(),
       keepExtensions: true,
       multiples: true,
-      maxFileSize: 25 * 1024 * 1024
+      maxFileSize: 50 * 1024 * 1024, // Increased to 50MB
+      maxFields: 10,
+      maxFieldsSize: 50 * 1024 * 1024
     });
 
     form.parse(req, async (err, fields, files) => {

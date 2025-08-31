@@ -425,27 +425,63 @@ export default function ExtractSKU() {
 
               
                 setStatus('Generating Excel...');
-                const token = localStorage.getItem('token');
                 const baseName = (pdfFile.name || 'extracted').split('.')?.[0] || 'extracted';
                 
-                const response = await fetch('/api/extractSkuExcelData', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(token ? { Authorization: `Bearer ${token}` } : {})
-                  },
-                  body: JSON.stringify({
-                    results: results,
-                    fileName: baseName
-                  })
+                // Define the custom order for the sheets (exactly as in your script)
+                const customOrder = [
+                  "SHREEJI#", "SHREEJI NEW", "Cosmetic King", "AKIRA_FASHION", "Gajanand_Enterprise",
+                  "ZXRIZ", "JEWELL SWERA CREATION", "BHAKTI CREATION", "LA'KAILASHA", "ghanshyam_enterprise",
+                  "FOREIGN FALCON", "HAYAAT ENTERPRISE", "SERENA JEWELLERY", "SAHJANAND ENTERPRISSE",
+                  "NORDIC CREATION", "KARMA_ENTERPRISE", "SUVRAT ENTERPRISE", "SAHAJ JEWELLERY", "JAY KHODAL CREATION", "SUNSHINECREATION"
+                ];
+
+                // Sort the companies based on the custom order
+                const sortedCompanies = Object.keys(results).sort((a, b) => {
+                  const indexA = customOrder.indexOf(a);
+                  const indexB = customOrder.indexOf(b);
+                  if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+                  if (indexA === -1) return 1;
+                  if (indexB === -1) return -1;
+                  return indexA - indexB;
                 });
 
-                if (!response.ok) {
-                  if (response.status === 403) throw new Error('Excel from PDF is disabled for your company');
-                  throw new Error('Server failed to generate Excel');
+                // Create a new workbook
+                const workbook = XLSX.utils.book_new();
+
+                for (const company of sortedCompanies) {
+                  const skus = results[company];
+                  const csvArray = [];
+                  
+                  // Prepare the header row
+                  csvArray.push(["SKU", "Quantity"]);
+                  
+                  // Sort SKUs alphabetically
+                  const sortedSKUs = Object.keys(skus).sort();
+                  for (const sku of sortedSKUs) {
+                    const quantity = skus[sku];
+                    csvArray.push([sku, quantity]);
+                  }
+
+                  // Convert the array to a worksheet
+                  const worksheet = XLSX.utils.aoa_to_sheet(csvArray);
+
+                  // Center all cells
+                  const range = XLSX.utils.decode_range(worksheet['!ref']);
+                  for (let R = range.s.r; R <= range.e.r; ++R) {
+                    for (let C = range.s.c; C <= range.e.c; ++C) {
+                      const address = XLSX.utils.encode_cell({ c: C, r: R });
+                      if (!worksheet[address]) continue;
+                      worksheet[address].s = { alignment: { horizontal: "center" } };
+                    }
+                  }
+
+                  // Add the worksheet to the workbook with the company name as the sheet name
+                  XLSX.utils.book_append_sheet(workbook, worksheet, company);
                 }
 
-                const blob = await response.blob();
+                // Generate Excel file
+                const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+                const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
                 const url = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
