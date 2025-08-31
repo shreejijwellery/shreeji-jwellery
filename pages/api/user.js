@@ -101,7 +101,7 @@ const handler = async (req, res) => {
       res.status(500).json({ message: 'Error creating user', error });
     }
   }else if (method === 'GET') {
-    const users = await User.find({role : {$ne : USER_ROLES.ADMIN}, isDeleted : {$ne : true}},{password : 0});
+    const users = await User.find({role : {$nin : [USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR]}, isDeleted : {$ne : true}},{password : 0});
     res.status(200).json({ message: 'Users fetched successfully', data: users });
   }
   else if (method === 'DELETE') {
