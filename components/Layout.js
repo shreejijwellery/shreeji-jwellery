@@ -35,7 +35,7 @@ const Layout = ({ children }) => {
   const handleLogout = () => {
     localStorage.clear();
     setUser(null);
-    // router.push('/login');
+    router.push('/login');
   };
 
   return (
@@ -56,7 +56,7 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
-         {!user && router.pathname !== '/login' && (
+          {!user && router.pathname !== '/login' && (
             <li>
               <Link href="/login">
                 <div className="hover:underline">Login</div>
@@ -80,7 +80,7 @@ const Layout = ({ children }) => {
             </li>
           )}
 
-          {user && router.pathname !== '/settings' && user.role !== USER_ROLES.ADMINISTRATOR && (
+          {user && router.pathname !== '/settings' && (
             <li>
               <Link href="/settings">
                 <div className="hover:underline">Settings</div>
@@ -105,13 +105,13 @@ const Layout = ({ children }) => {
             </li>
             )
           }
-         {user && user.role !== USER_ROLES.ADMINISTRATOR && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && router.pathname !== '/extract-sku' && (
+          {/* {user && router.pathname !== '/extract-sku' && (
             <li>
               <Link href="/extract-sku">
                 <div className="hover:underline">Extract SKU</div>
               </Link>
             </li>
-          )}
+          )} */}
           {/* Uncomment if needed
           {user && router.pathname !== '/dashboard' && (
             <li>
@@ -135,13 +135,6 @@ const Layout = ({ children }) => {
             {user.role === USER_ROLES.ADMIN && (
               <span
                 onClick={() => router.push('/user-permissions')}
-                className="text-white cursor-pointer">
-                  <FaUsersCog />
-              </span>
-            )}
-            {user.role === USER_ROLES.ADMINISTRATOR && (
-              <span
-                onClick={() => router.push('/admin')}
                 className="text-white cursor-pointer">
                   <FaUsersCog />
               </span>
