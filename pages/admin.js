@@ -31,8 +31,16 @@ const AdminPortal = () => {
     try {
       setSavingId(companyId);
       const token = localStorage.getItem('token');
+      
       const { data } = await axios.put(`/api/admin/company/${companyId}`, { featureFlags: nextFlags }, { headers: { Authorization: `Bearer ${token}` } });
+      
+      // Optimistically update, then hard refresh from server to ensure persisted state contains all flags
       setCompanies(prev => prev.map(c => c._id === companyId ? { ...c, featureFlags: data?.featureFlags || nextFlags } : c));
+      
+      try {
+        const refreshed = await axios.get('/api/admin/company', { headers: { Authorization: `Bearer ${token}` } });
+        setCompanies(refreshed?.data?.companies || []);
+      } catch {}
     } catch (e) {
     } finally {
       setSavingId(null);
@@ -57,10 +65,19 @@ const AdminPortal = () => {
                 <input
                   type="checkbox"
                   checked={!!company.featureFlags?.isExtractSKU}
-                  onChange={(e) => toggleFlag(company._id, { ...company.featureFlags, isExtractSKU: e.target.checked })}
+                  onChange={(e) => toggleFlag(company._id, { ...(company.featureFlags || {}), isExtractSKU: e.target.checked })}
                   disabled={savingId === company._id}
                 />
                 <span>Enable Extract SKU</span>
+              </label>
+              <label className="flex items-center space-x-2"> 
+                <input
+                  type="checkbox"
+                  checked={!!company.featureFlags?.isExcelFromPDF}
+                  onChange={(e) => toggleFlag(company._id, { ...(company.featureFlags || {}), isExcelFromPDF: e.target.checked })}
+                  disabled={savingId === company._id}
+                />
+                <span>Enable Excel from PDF</span>
               </label>
             </div>
           ))}

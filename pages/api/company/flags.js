@@ -23,20 +23,42 @@ async function handler(req, res) {
     }
 
     if (method === 'PUT') {
-      if (![USER_ROLES.ADMINISTRATOR].includes(user.role)) {
+      if (![USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR].includes(user.role)) {
         return res.status(403).json({ message: 'Only administrator can update flags' });
       }
       const { featureFlags } = req.body || {};
-      const updates = {};
-      if (featureFlags && typeof featureFlags.isExtractSKU === 'boolean') {
-        updates['featureFlags.isExtractSKU'] = featureFlags.isExtractSKU;
-      }
-      if (!Object.keys(updates).length) {
+      
+      if (!featureFlags || typeof featureFlags !== 'object') {
         return res.status(400).json({ message: 'No valid flag provided' });
       }
-      await Company.updateOne({ _id: company._id }, { $set: updates });
-      const updated = await Company.findById(company._id).lean();
-      return res.status(200).json({ featureFlags: updated.featureFlags || {} });
+      
+      const coerceBool = (v) => (typeof v === 'string' ? v === 'true' : Boolean(v));
+      const mergedFlags = {
+        ...(company.featureFlags || {}),
+        ...(featureFlags.hasOwnProperty('isExtractSKU') ? { isExtractSKU: coerceBool(featureFlags.isExtractSKU) } : {}),
+        ...(featureFlags.hasOwnProperty('isExcelFromPDF') ? { isExcelFromPDF: coerceBool(featureFlags.isExcelFromPDF) } : {}),
+      };
+      
+      try {
+        const updateResult = await Company.updateOne(
+          { _id: company._id }, 
+          { $set: { featureFlags: mergedFlags } }
+        );
+        
+        if (updateResult.modifiedCount === 0) {
+          return res.status(500).json({ message: 'No documents were modified' });
+        }
+        
+        const updated = await Company.findById(company._id).lean();
+        
+        const normalized = {
+          isExtractSKU: Boolean(updated?.featureFlags?.isExtractSKU),
+          isExcelFromPDF: Boolean(updated?.featureFlags?.isExcelFromPDF),
+        };
+        return res.status(200).json({ featureFlags: normalized });
+      } catch (dbError) {
+        return res.status(500).json({ message: 'Database update failed', error: String(dbError) });
+      }
     }
 
     res.setHeader('Allow', ['GET', 'PUT']);

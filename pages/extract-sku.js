@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+import * as XLSX from 'xlsx';
 
 export default function ExtractSKU() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [status, setStatus] = useState('');
+  const [selectedTab, setSelectedTab] = useState('sort');
+  const [featureFlags, setFeatureFlags] = useState(null);
   const [allowed, setAllowed] = useState(null);
   useEffect(() => {
     const init = async () => {
@@ -17,6 +20,7 @@ export default function ExtractSKU() {
         if (!user || !user.role) { setAllowed(false); return; }
         if (!['admin', 'manager'].includes(user.role)) { setAllowed(false); return; }
         const { data } = await axios.get('/api/company/flags', { headers: { Authorization: `Bearer ${token}` } });
+        setFeatureFlags(data?.featureFlags || {});
         setAllowed(Boolean(data?.featureFlags?.isExtractSKU));
       } catch (e) {
         setAllowed(false);
@@ -24,6 +28,19 @@ export default function ExtractSKU() {
     };
     init();
   }, []);
+
+  useEffect(() => {
+    const refreshFlagsIfNeeded = async () => {
+      try {
+        if (selectedTab !== 'excel') return;
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const { data } = await axios.get('/api/company/flags', { headers: { Authorization: `Bearer ${token}` } });
+        setFeatureFlags(data?.featureFlags || {});
+      } catch {}
+    };
+    refreshFlagsIfNeeded();
+  }, [selectedTab]);
 
   const companies = ['Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express'].sort();
 
@@ -242,49 +259,235 @@ export default function ExtractSKU() {
     }
   };
 
+
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-semibold text-center text-gray-700">PDF and CSV Processor</h1>
-        {allowed === false && (
-          <p className="text-center text-red-500">This feature is disabled for your company. Please contact your admin.</p>
-        )}
-        <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-4">
-          <div>
-            <label htmlFor="pdf" className="block text-sm font-medium text-gray-600">
-              Upload PDF:
-            </label>
-            <input
-              type="file"
-              id="pdf"
-              name="pdf"
-              accept=".pdf"
-              required
-              className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label htmlFor="csv" className="block text-sm font-medium text-gray-600">
-              Upload CSV:
-            </label>
-            <input
-              type="file"
-              id="csv"
-              name="csv"
-              accept=".csv"
-              required
-              className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
-            />
-          </div>
+        <h1 className="text-2xl font-semibold text-center text-gray-700">Extract Tools</h1>
+        <div className="flex space-x-2 justify-center items-center">
           <button
-            type="submit"
-            disabled={loading || allowed === false || allowed === null}
-            className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
-              hover:bg-blue-600 transition ${(loading || allowed !== true) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+            onClick={() => setSelectedTab('sort')}
+            className={`px-3 py-1 rounded ${selectedTab === 'sort' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
           >
-            {loading ? 'Processing...' : 'Process Files'}
+            Sort PDF (with CSV)
           </button>
-        </form>
+          <button
+            onClick={() => setSelectedTab('excel')}
+            className={`px-3 py-1 rounded ${selectedTab === 'excel' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            disabled={!featureFlags || featureFlags.isExcelFromPDF !== true}
+          >
+            Generate Excel
+          </button>
+        </div>
+
+        {selectedTab === 'sort' && (
+          <>
+            {allowed === false && (
+              <p className="text-center text-red-500">This feature is disabled for your company. Please contact your admin.</p>
+            )}
+            <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-4">
+              <div>
+                <label htmlFor="pdf" className="block text-sm font-medium text-gray-600">
+                  Upload PDF:
+                </label>
+                <input
+                  type="file"
+                  id="pdf"
+                  name="pdf"
+                  accept=".pdf"
+                  required
+                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="csv" className="block text-sm font-medium text-gray-600">
+                  Upload CSV:
+                </label>
+                <input
+                  type="file"
+                  id="csv"
+                  name="csv"
+                  accept=".csv"
+                  required
+                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || allowed === false || allowed === null}
+                className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
+                  hover:bg-blue-600 transition ${(loading || allowed !== true) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+              >
+                {loading ? 'Processing...' : 'Process Files'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {selectedTab === 'excel' && (
+          <>
+            {(featureFlags?.isExcelFromPDF !== true) && (
+              <p className="text-center text-red-500">Excel generation is disabled for your company. Please contact your admin.</p>
+            )}
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setLoading(true);
+              setError(null);
+              setSuccess(false);
+              setStatus('Reading PDF...');
+              try {
+                const pdfFile = e.target.pdf_excel.files[0];
+                if (!pdfFile) throw new Error('Please select a PDF file');
+
+                const [pdfjsLib, pdfArrayBuffer] = await Promise.all([
+                  loadPdfJs(),
+                  readFileAsArrayBuffer(pdfFile)
+                ]);
+
+                setStatus('Extracting text from PDF...');
+                const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+                const pdf = await loadingTask.promise;
+
+                // Extract all text from PDF using your exact script logic
+                const allLines = [];
+                for (let i = 1; i <= pdf.numPages; i++) {
+                  setStatus(`Extracting text from page ${i} of ${pdf.numPages}...`);
+                  const page = await pdf.getPage(i);
+                  const textContent = await page.getTextContent();
+                  const pageLines = reconstructLinesFromTextItems(textContent.items || []);
+                  for (const ln of pageLines) allLines.push(ln);
+                }
+
+                // Split the text content into pages based on line breaks (exactly as in your script)
+                const lines = allLines.filter(line => line.trim() !== '');
+                
+                let currentPageLines = [];
+                const pages = [];
+
+                // Identify pages based on a specific pattern (exactly as in your script)
+                for (const line of lines) {
+                  // Check for a specific pattern that indicates a new page
+                  if (line.match(/Page \d+/) || line.match(/Customer Address/)) {
+                    if (currentPageLines.length > 0) {
+                      pages.push(currentPageLines.join('\n'));
+                      currentPageLines = [];
+                    }
+                  }
+                  currentPageLines.push(line);
+                }
+                // Push the last page if it exists
+                if (currentPageLines.length > 0) {
+                  pages.push(currentPageLines.join('\n'));
+                }
+
+                setStatus('Processing extracted data...');
+                const results = {};    
+                
+                // Process each page (exactly as in your script)
+                for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+                  const pageLines = pages[pageIndex].split('\n'); // Split each page into lines
+                  
+                  let beforCompanyIndex = pageLines.findIndex(line => line.trim().match(/If undelivered, return to:/));
+                  let companyName = pageLines[beforCompanyIndex + 1];
+                  if(!results[companyName]){
+                    results[companyName] = {};
+                  }
+                  const findSKU = pageLines.findIndex(line => line.match(/SKU/));
+
+                  const taxInvoiceIndex = pageLines.indexOf("TAX INVOICE") > 0 ? pageLines.indexOf("TAX INVOICE") : pageLines.length;
+                  
+                  for (let i = findSKU + 1; i < taxInvoiceIndex; i++) {
+                    let dataLine = pageLines[i];
+                    
+                    const freeSizeIndex = dataLine.split("  ").findIndex(item => item.trim() === "Free Size");
+                    const kj_403Index = dataLine.indexOf("kj_403");
+                    if(companyName === "AKIRA_FASHION" && kj_403Index !== -1){
+                      console.log("dataLine", dataLine);
+                    }
+                    if(freeSizeIndex === -1 ){
+                      continue;
+                    }
+
+                    let beforeFreeSize = dataLine?.split("  ")[freeSizeIndex - 1]?.trim();
+                    
+                    const qty = dataLine?.split("  ")?.[freeSizeIndex +1]?.trim()?.split(" ")?.[0];
+
+                    if(beforeFreeSize === ''){
+                      beforeFreeSize = pageLines[i-1]
+                    }
+                    if(beforeFreeSize == undefined || beforeFreeSize == 'undefined'){
+                      continue;
+                    }
+                    results[companyName][beforeFreeSize] = (results[companyName][beforeFreeSize] || 0) + Number(qty);
+                  }
+                }
+
+              
+                setStatus('Generating Excel...');
+                const token = localStorage.getItem('token');
+                const baseName = (pdfFile.name || 'extracted').split('.')?.[0] || 'extracted';
+                
+                const response = await fetch('/api/extractSkuExcelData', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                  },
+                  body: JSON.stringify({
+                    results: results,
+                    fileName: baseName
+                  })
+                });
+
+                if (!response.ok) {
+                  if (response.status === 403) throw new Error('Excel from PDF is disabled for your company');
+                  throw new Error('Server failed to generate Excel');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `${baseName}_extracted.xlsx`);
+                document.body.appendChild(link);
+                link.click();
+                link.parentNode.removeChild(link);
+
+                setSuccess(true);
+                setStatus('Done. Excel downloaded.');
+              } catch (err) {
+                console.error(err);
+                setError(err.message || 'Failed to generate Excel');
+                setStatus('');
+              } finally {
+                setLoading(false);
+              }
+            }} encType="multipart/form-data" className="space-y-4">
+              <div>
+                <label htmlFor="pdf_excel" className="block text-sm font-medium text-gray-600">
+                  Upload PDF:
+                </label>
+                <input
+                  type="file"
+                  id="pdf_excel"
+                  name="pdf_excel"
+                  accept=".pdf"
+                  required
+                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || (featureFlags?.isExcelFromPDF !== true)}
+                className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
+                  hover:bg-blue-600 transition ${(loading || (featureFlags?.isExcelFromPDF !== true)) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+              >
+                {loading ? 'Generating...' : 'Generate Excel'}
+              </button>
+            </form>
+          </>
+        )}
         {status && <p className="text-sm text-gray-600 text-center">{status}</p>}
         {error && <p className="text-sm text-red-500 text-center">{error}</p>}
         {success && <p className="text-sm text-green-500 text-center">File processed successfully. Check your downloads.</p>}

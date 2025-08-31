@@ -6,6 +6,7 @@ const CompanySchema = new mongoose.Schema({
     isDeleted: { type: Boolean, default: false },
     featureFlags: {
         isExtractSKU: { type: Boolean, default: false },
+        isExcelFromPDF: { type: Boolean, default: false },
     },
 }, { timestamps: true });
 

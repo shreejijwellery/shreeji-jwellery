@@ -41,8 +41,16 @@ const SettingsTabs = () => {
     try {
       setSaving(true);
       const token = localStorage.getItem('token');
+      
       const { data } = await axios.put('/api/company/flags', { featureFlags: nextFlags }, { headers: { Authorization: `Bearer ${token}` } });
+      
+      // Optimistically set, then hard refresh from server to ensure persisted state
       setFlags(data?.featureFlags || nextFlags);
+      
+      try {
+        const refreshed = await axios.get('/api/company/flags', { headers: { Authorization: `Bearer ${token}` } });
+        setFlags(refreshed?.data?.featureFlags || data?.featureFlags || nextFlags);
+      } catch {}
     } catch (e) {
     } finally {
       setSaving(false);
@@ -109,19 +117,30 @@ const SettingsTabs = () => {
                 <PartyDetails user={user} />
               </div>
             )}
-            {user?.role === 'ADMINISTRATOR' && (
+            {(user?.role === 'ADMINISTRATOR' || user?.role === 'admin') && (
               <div className="mt-6 p-4 border rounded">
                 <h2 className="text-lg font-semibold mb-2">Company Feature Flags</h2>
                 {flags ? (
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={!!flags.isExtractSKU}
-                      onChange={(e) => saveFlags({ ...flags, isExtractSKU: e.target.checked })}
-                      disabled={saving}
-                    />
-                    <span>Enable Extract SKU</span>
-                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={!!flags.isExtractSKU}
+                        onChange={(e) => saveFlags({ ...flags, isExtractSKU: e.target.checked })}
+                        disabled={saving}
+                      />
+                      <span>Enable Extract SKU</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={!!flags.isExcelFromPDF}
+                        onChange={(e) => saveFlags({ ...flags, isExcelFromPDF: e.target.checked })}
+                        disabled={saving}
+                      />
+                      <span>Enable Excel from PDF (UI-only)</span>
+                    </label>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-500">Loading flags…</p>
                 )}
