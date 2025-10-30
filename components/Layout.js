@@ -41,74 +41,132 @@ const Layout = ({ children }) => {
   return (
     <div>
       <nav className="bg-gray-800 p-4 flex flex-col md:flex-row overflow-x-scroll justify-between items-center">
-        <ul className="flex space-x-4 text-white">
-          {router.pathname !== '/' && (
-            <li>
-              <Link href="/">
-                <div className="hover:underline">Home</div>
-              </Link>
-            </li>
-          )}
-          {!user && router.pathname !== '/signup' && (
-            <li>
-              <Link href="/signup">
-                <div className="hover:underline">Signup</div>
-              </Link>
-            </li>
-          )}
-         {!user && router.pathname !== '/login' && (
-            <li>
-              <Link href="/login">
-                <div className="hover:underline">Login</div>
-              </Link>
-            </li>
-          )}
-          {user &&
-            checkPermission(user, PERMISSIONS.PARTY_BILLS) &&
-            router.pathname !== '/party-billing' && (
+        <ul className="flex space-x-2 text-white">
+          <li>
+            <Link href="/">
+              <div className={`px-3 py-2 rounded transition ${
+                router.pathname === '/' 
+                  ? 'bg-blue-600 font-semibold' 
+                  : 'hover:bg-gray-700'
+              }`}>
+                Home
+              </div>
+            </Link>
+          </li>
+          {!user && (
+            <>
               <li>
-                <Link href="/party_dashboard">
-                  <div className="hover:underline">Vendor Pay</div>
+                <Link href="/signup">
+                  <div className={`px-3 py-2 rounded transition ${
+                    router.pathname === '/signup' 
+                      ? 'bg-blue-600 font-semibold' 
+                      : 'hover:bg-gray-700'
+                  }`}>
+                    Signup
+                  </div>
                 </Link>
               </li>
-            )}
-          {user && router.pathname !== '/billing' && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
+              <li>
+                <Link href="/login">
+                  <div className={`px-3 py-2 rounded transition ${
+                    router.pathname === '/login' 
+                      ? 'bg-blue-600 font-semibold' 
+                      : 'hover:bg-gray-700'
+                  }`}>
+                    Login
+                  </div>
+                </Link>
+              </li>
+            </>
+          )}
+          {user && checkPermission(user, PERMISSIONS.PARTY_BILLS) && (
+            <li>
+              <Link href="/party_dashboard">
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/party_dashboard' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  Vendor Pay
+                </div>
+              </Link>
+            </li>
+          )}
+          {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
             <li>
               <Link href="/billing">
-                <div className="hover:underline"> Worker Pay</div>
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/billing' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  Worker Pay
+                </div>
               </Link>
             </li>
           )}
-
-          {user && router.pathname !== '/settings' && user.role !== USER_ROLES.ADMINISTRATOR && (
+          {user && user.role !== USER_ROLES.ADMINISTRATOR && (
             <li>
               <Link href="/settings">
-                <div className="hover:underline">Settings</div>
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/settings' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  Settings
+                </div>
               </Link>
             </li>
           )}
-          {
-            user && router.pathname !== '/final-product' && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
-              <li>
+          {user && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
+            <li>
               <Link href="/final-product">
-                <div className="hover:underline">Final Product</div>
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/final-product' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  Final Product
+                </div>
               </Link>
             </li>
-            )
-          }
-                    {
-            user && router.pathname !== '/platting' && checkPermission(user, PERMISSIONS.PLATTING) && (
-              <li>
+          )}
+          {user && checkPermission(user, PERMISSIONS.IN_PROCESS_PRODUCT) && (
+            <li>
+              <Link href="/in-process-product">
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/in-process-product' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  In-Process
+                </div>
+              </Link>
+            </li>
+          )}
+          {user && checkPermission(user, PERMISSIONS.PLATTING) && (
+            <li>
               <Link href="/platting">
-                <div className="hover:underline">Platting</div>
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/platting' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  Platting
+                </div>
               </Link>
             </li>
-            )
-          }
-         {user && user.role !== USER_ROLES.ADMINISTRATOR && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && router.pathname !== '/extract-sku' && (
+          )}
+          {user && user.role !== USER_ROLES.ADMINISTRATOR && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && (
             <li>
               <Link href="/extract-sku">
-                <div className="hover:underline">Extract SKU</div>
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/extract-sku' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  Extract SKU
+                </div>
               </Link>
             </li>
           )}
