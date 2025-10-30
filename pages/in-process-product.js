@@ -10,7 +10,8 @@ import { toast } from 'react-toastify';
 import _ from 'lodash';
 import ItemOptionsForFinalProduct from '../components/ItemOptionsForFinalProduct';
 import ConfirmationModal from '../components/ConfirmationModal';
-export default function PayableDashboard(props) {
+
+export default function InProcessProductDashboard(props) {
   const [items, setItems] = useState([]);
   const [selectedSection, setSelectedSection] = useState({});
   const [startDate, setStartDate] = useState(moment().startOf('day').format('YYYY-MM-DD'));
@@ -30,7 +31,6 @@ export default function PayableDashboard(props) {
   const [productToDelete, setProductToDelete] = useState(null);
 
   // Fetch unique sections and items for filtering
-
   useEffect(() => {
     const fetchSections = async () => {
       try {
@@ -62,15 +62,15 @@ export default function PayableDashboard(props) {
 
   const getProducts = async (reset, off_set) => {
     try {
-      const response = await HTTP('GET', `/final-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(    
+      const response = await HTTP('GET', `/in-process-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(
         ','
       )}&limit=${limit}&skip=${reset ? 0 : off_set}`
       );
       if (!response) {
-        throw new Error('Failed to fetch products');
+        throw new Error('Failed to fetch in-process products');
       }
-      const {data, counts} = response;
-      if(counts){
+      const { data, counts } = response;
+      if (counts) {
         setProductsCounts(counts)
       }
       if (reset) {
@@ -84,8 +84,8 @@ export default function PayableDashboard(props) {
       }
       setHasMore(data?.length === limit);
     } catch (error) {
-      console.error('Error fetching products:', error);
-      toast.error('An error occurred while fetching products.');
+      console.error('Error fetching in-process products:', error);
+      toast.error('An error occurred while fetching in-process products.');
     }
   };
 
@@ -111,6 +111,7 @@ export default function PayableDashboard(props) {
     // Add Title, Mobile Number, and Address
     doc.setFontSize(mainTitleFontSize);
     doc.setTextColor(...titleColor);
+    doc.text('In-Process Products Report', 14, 20);
 
     doc.setFontSize(normalFontSize);
     doc.setTextColor(0, 0, 0); // Black text for body
@@ -137,7 +138,7 @@ export default function PayableDashboard(props) {
     ]);
 
     // Add Total Row for Pieces
-    tableData.push(['Total Pieces', totalPieces.toString(), '']);
+    tableData.push(['Total Pieces', totalPieces.toString(), '', '']);
 
     // Generate Table with Improved Design
     doc.autoTable({
@@ -146,8 +147,8 @@ export default function PayableDashboard(props) {
         [
           'Item Name',
           'Pieces',
-          'Submitted On',
-          'Submitted By',
+          'Started On',
+          'Started By',
         ],
       ],
       body: tableData,
@@ -190,25 +191,25 @@ export default function PayableDashboard(props) {
     });
 
     // Save the PDF
-    doc.save(`payables${startDate}_${endDate}.pdf`);
+    doc.save(`in_process_products_${startDate}_${endDate}.pdf`);
   };
 
   const handleDownloadCSV = async () => {
     try {
-      // Fetch final product data using HTTP instead of fetch
-      const response = await HTTP('GET', `/final-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(',')}`);
-      const data = response.data; // Assuming the response structure has a data field
+      // Fetch in-process product data using HTTP
+      const response = await HTTP('GET', `/in-process-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(',')}`);
+      const data = response.data;
 
       // Calculate total pieces
       const totalPieces = data.reduce((sum, detail) => sum + detail.piece, 0);
 
-      // Convert data to CSV format for final products
+      // Convert data to CSV format
       const csvContent = [
         [
           'Item Name',
           'Pieces',
-          'Submitted On',
-          'Submitted By',
+          'Started On',
+          'Started By',
         ],
         ...data.map(detail => [
           detail.item_name,
@@ -227,7 +228,7 @@ export default function PayableDashboard(props) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `final_product_details_${startDate}_${endDate}.csv`);
+      link.setAttribute('download', `in_process_products_${startDate}_${endDate}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -250,7 +251,7 @@ export default function PayableDashboard(props) {
     }
 
     try {
-      const response = await HTTP('POST', '/final-product', {
+      const response = await HTTP('POST', '/in-process-product', {
         item: newItem.value,
         piece: parseInt(newPiece, 10),
         item_name: newItem.label,
@@ -259,16 +260,16 @@ export default function PayableDashboard(props) {
       });
 
       if (response) {
-        toast.success('Items submitted successfully!');
+        toast.success('Items started successfully!');
         setNewItem(null);
         setNewPiece('');
         getProducts(true);
       } else {
-        toast.error('Failed to submit items.');
+        toast.error('Failed to start items.');
       }
     } catch (error) {
-      console.error('Error submitting items:', error);
-      toast.error('An error occurred while submitting items.');
+      console.error('Error starting items:', error);
+      toast.error('An error occurred while starting items.');
     }
   };
 
@@ -289,7 +290,7 @@ export default function PayableDashboard(props) {
     }
 
     try {
-      const response = await HTTP('PUT', `/final-product?id=${productId}`, {
+      const response = await HTTP('PUT', `/in-process-product?id=${productId}`, {
         piece: parseInt(editingPiece, 10),
       });
 
@@ -321,7 +322,7 @@ export default function PayableDashboard(props) {
     if (!productToDelete) return;
 
     try {
-      const response = await HTTP('DELETE', `/final-product?id=${productToDelete._id}`);
+      const response = await HTTP('DELETE', `/in-process-product?id=${productToDelete._id}`);
 
       if (response) {
         toast.success('Product deleted successfully!');
@@ -340,7 +341,7 @@ export default function PayableDashboard(props) {
   return (
     <div className='h-full'>
       <div className="flex flex-col md:flex-row justify-between items-center mb-2 px-4 py-2">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-2 md:mb-0">All Products Submitted</h2>
+        <h2 className="text-2xl font-semibold text-gray-800 mb-2 md:mb-0">In-Process Products (Manufacturing to Handwork)</h2>
         {products?.length > 0 && (
           <div className="flex gap-2">
             <button
@@ -400,7 +401,7 @@ export default function PayableDashboard(props) {
             <button
               onClick={handleCreateRecord}
               className="bg-blue-600 flex items-center justify-between text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-              <FaSave className='mr-2' /> Submit Items
+              <FaSave className='mr-2' /> Start Process
             </button>
           </div>
           {/* Work Details Table */}
@@ -415,8 +416,8 @@ export default function PayableDashboard(props) {
                   <tr className="bg-gray-100 p-4 font-medium text-gray-700">
                     <th className="px-4 py-2 text-left">Item</th>
                     <th className="px-4 py-2 text-left">Piece</th>
-                    <th className="px-4 py-2 text-left">Submitted On</th>
-                    <th className="px-4 py-2 text-left">Submitted By</th>
+                    <th className="px-4 py-2 text-left">Started On</th>
+                    <th className="px-4 py-2 text-left">Started By</th>
                     <th className="px-4 py-2 text-left">Actions</th>
                   </tr>
                 </thead>
@@ -484,7 +485,7 @@ export default function PayableDashboard(props) {
                   ) : (
                     <tr>
                       <td colSpan="5" className="p-4 text-gray-500 text-center">
-                        No Products found
+                        No In-Process Products found
                       </td>
                     </tr>
                   )}
@@ -496,11 +497,12 @@ export default function PayableDashboard(props) {
       </div>
       <ConfirmationModal
         isOpen={isDeleteModalOpen}
-        title="Delete Product"
-        message={`Are you sure you want to delete this product record? (Item: ${productToDelete?.item_name}, Pieces: ${productToDelete?.piece})`}
+        title="Delete In-Process Product"
+        message={`Are you sure you want to delete this in-process product record? (Item: ${productToDelete?.item_name}, Pieces: ${productToDelete?.piece})`}
         onProceed={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
     </div>
   );
 }
+

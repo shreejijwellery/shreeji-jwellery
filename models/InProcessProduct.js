@@ -1,0 +1,15 @@
+import mongoose from 'mongoose';
+
+const InProcessProductSchema = new mongoose.Schema({
+    section: { type: mongoose.Schema.Types.ObjectId, ref: 'Section', required: true },
+    item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', required: true },
+    piece: { type: Number, required: true },
+    isDeleted: { type: Boolean, default: false },
+    section_name: { type: String, required: true }, 
+    item_name: { type: String, required: true }, 
+    lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true }, 
+}, { timestamps: true });
+
+export const InProcessProduct = mongoose.models.InProcessProduct || mongoose.model('InProcessProduct', InProcessProductSchema);
+

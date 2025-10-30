@@ -22,6 +22,7 @@ export default function PayableDashboard(props) {
   const [selectedItems, setSelectedItems] = useState([]);
   const [uniqueSections, setUniqueSections] = useState([]);
   const [uniqueItems, setUniqueItems] = useState([]);
+  const [totals, setTotals] = useState({ totalPieces: 0, totalAmount: 0, totalRecords: 0 });
   // Fetch unique sections and items for filtering
   useEffect(() => {
     setUniqueSections([...new Set(sections)]);
@@ -84,9 +85,26 @@ export default function PayableDashboard(props) {
     }
   };
 
+  const fetchTotals = async () => {
+    try {
+      const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
+      const fromDate = startDate ? `&fromDate=${startDate}` : '';
+      const toDate = endDate ? `&toDate=${endDate}` : '';
+      const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
+      const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+
+      const data = await HTTP('GET', `/work_records_totals?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}`);
+      setTotals(data ?? { totalPieces: 0, totalAmount: 0, totalRecords: 0 });
+    } catch (error) {
+      console.error('Error fetching totals:', error);
+      setTotals({ totalPieces: 0, totalAmount: 0, totalRecords: 0 });
+    }
+  };
+
   useEffect(() => {
     setOffset(0);
     fetchWorkDetails(true);
+    fetchTotals();
   }, [selectedPaymentStatus, startDate, endDate, selectedSections, selectedItems]);
 
   const handleScroll = (e) => {
@@ -585,19 +603,51 @@ export default function PayableDashboard(props) {
 
         <div className="overflow-x-auto" style={{ maxHeight: '500px', overflowY: 'scroll' }} onScroll={handleScroll}>
           <table className="min-w-full bg-white">
-            <thead>
-              <tr className="bg-gray-100 p-4 font-medium text-gray-700">
-                <th className="px-4 py-2">Name</th>
-                <th className="px-4 py-2">Section</th>
-                <th className="px-4 py-2">Item</th>
-                <th className="px-4 py-2">Piece</th>
-                <th className="px-4 py-2">Rate</th>
-                <th className="px-4 py-2">Amount</th>
-                <th className="px-4 py-2">Submitted On</th>
-                <th className="px-4 py-2">Payment Status</th>
-                <th className="px-4 py-2">Payment Date</th>
-              </tr>
-            </thead>
+            {filteredWorkDetails.length > 0 && (
+              <thead className="sticky top-0">
+                <tr className="bg-gray-100 font-medium text-gray-700">
+                  <th className="px-4 py-2">Name</th>
+                  <th className="px-4 py-2">Section</th>
+                  <th className="px-4 py-2">Item</th>
+                  <th className="px-4 py-2">Piece</th>
+                  <th className="px-4 py-2">Rate</th>
+                  <th className="px-4 py-2">Amount</th>
+                  <th className="px-4 py-2">Submitted On</th>
+                  <th className="px-4 py-2">Payment Status</th>
+                  <th className="px-4 py-2">Payment Date</th>
+                </tr>
+                <tr className="bg-gray-200 font-semibold text-gray-800">
+                  <td className="px-4 py-2">Total ({totals.totalRecords} records)</td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                    {totals.totalPieces}
+                  </td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2">
+                    ₹{totals.totalAmount.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                  <td className="px-4 py-2"></td>
+                </tr>
+              </thead>
+            )}
+            {filteredWorkDetails.length === 0 && (
+              <thead>
+                <tr className="bg-gray-100 p-4 font-medium text-gray-700">
+                  <th className="px-4 py-2">Name</th>
+                  <th className="px-4 py-2">Section</th>
+                  <th className="px-4 py-2">Item</th>
+                  <th className="px-4 py-2">Piece</th>
+                  <th className="px-4 py-2">Rate</th>
+                  <th className="px-4 py-2">Amount</th>
+                  <th className="px-4 py-2">Submitted On</th>
+                  <th className="px-4 py-2">Payment Status</th>
+                  <th className="px-4 py-2">Payment Date</th>
+                </tr>
+              </thead>
+            )}
             <tbody>
               {filteredWorkDetails.length > 0 ? (
                 filteredWorkDetails.map(detail => (
@@ -632,33 +682,6 @@ export default function PayableDashboard(props) {
                 </tr>
               )}
             </tbody>
-            {filteredWorkDetails.length > 0 && (
-              <tfoot>
-                <tr className="border-t bg-gray-50 font-semibold">
-                  <td className="px-4 py-2">Total</td>
-                  <td className="px-4 py-2"></td>
-                  <td className="px-4 py-2"></td>
-                  <td className="px-4 py-2">
-                  {filteredWorkDetails.reduce((sum, detail) => sum + detail.piece, 0)}
-                  </td>
-                  <td className="px-4 py-2">
-                    ₹
-                    {filteredWorkDetails
-                      .reduce(
-                        (sum, detail) => sum + (detail.amount || detail.piece * detail.item_rate),
-                        0
-                      )
-                      .toFixed(2)}
-                  </td>
-                  <td className="px-4 py-2">
-                  <td className="px-4 py-2">
-                   
-                  </td>
-                  </td>
-                  <td className="px-4 py-2"></td>
-                </tr>
-              </tfoot>
-            )}
           </table>
         </div>
 
