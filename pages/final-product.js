@@ -9,6 +9,7 @@ import Select from 'react-select';
 import { toast } from 'react-toastify';
 import _ from 'lodash';
 import ItemOptionsForFinalProduct from '../components/ItemOptionsForFinalProduct';
+import ConfirmationModal from '../components/ConfirmationModal';
 export default function PayableDashboard(props) {
   const [items, setItems] = useState([]);
   const [selectedSection, setSelectedSection] = useState({});
@@ -23,6 +24,10 @@ export default function PayableDashboard(props) {
   const [newPiece, setNewPiece] = useState('');
   const [limit, setLimit] = useState(20);
   const [productsCounts, setProductsCounts] = useState([]);
+  const [editingId, setEditingId] = useState(null);
+  const [editingPiece, setEditingPiece] = useState('');
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
 
   // Fetch unique sections and items for filtering
 
@@ -267,6 +272,71 @@ export default function PayableDashboard(props) {
     }
   };
 
+  const handleEditClick = (product) => {
+    setEditingId(product._id);
+    setEditingPiece(product.piece.toString());
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingPiece('');
+  };
+
+  const handleUpdatePiece = async (productId) => {
+    if (!editingPiece || parseInt(editingPiece, 10) <= 0) {
+      toast.error('Please enter a valid number of pieces.');
+      return;
+    }
+
+    try {
+      const response = await HTTP('PUT', `/final-product?id=${productId}`, {
+        piece: parseInt(editingPiece, 10),
+      });
+
+      if (response) {
+        toast.success('Piece count updated successfully!');
+        setEditingId(null);
+        setEditingPiece('');
+        getProducts(true);
+      } else {
+        toast.error('Failed to update piece count.');
+      }
+    } catch (error) {
+      console.error('Error updating piece count:', error);
+      toast.error('An error occurred while updating piece count.');
+    }
+  };
+
+  const handleDeleteClick = (product) => {
+    setProductToDelete(product);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleCancelDelete = () => {
+    setIsDeleteModalOpen(false);
+    setProductToDelete(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+
+    try {
+      const response = await HTTP('DELETE', `/final-product?id=${productToDelete._id}`);
+
+      if (response) {
+        toast.success('Product deleted successfully!');
+        getProducts(true);
+        setIsDeleteModalOpen(false);
+        setProductToDelete(null);
+      } else {
+        toast.error('Failed to delete product.');
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast.error('An error occurred while deleting product.');
+    }
+  };
+
   return (
     <div className='h-full'>
       <div className="flex flex-col md:flex-row justify-between items-center mb-2 px-4 py-2">
@@ -347,6 +417,7 @@ export default function PayableDashboard(props) {
                     <th className="px-4 py-2 text-left">Piece</th>
                     <th className="px-4 py-2 text-left">Submitted On</th>
                     <th className="px-4 py-2 text-left">Submitted By</th>
+                    <th className="px-4 py-2 text-left">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -354,16 +425,65 @@ export default function PayableDashboard(props) {
                     products.map(detail => (
                       <tr key={detail._id} className="border-b last:border-none text-gray-700">
                         <td className="px-4 py-2">{detail.item_name}</td>
-                        <td className="px-4 py-2">{detail.piece}</td>
+                        <td className="px-4 py-2">
+                          {editingId === detail._id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={editingPiece}
+                                onChange={e => setEditingPiece(e.target.value)}
+                                className="border border-gray-300 rounded px-2 py-1 w-24 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                min="1"
+                              />
+                            </div>
+                          ) : (
+                            detail.piece
+                          )}
+                        </td>
                         <td className="px-4 py-2">
                           {detail.createdAt ? moment(detail.createdAt).format('LLL') : ''}
                         </td>
                         <td className="px-4 py-2">{detail.lastModifiedBy?.name}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center gap-2">
+                            {editingId === detail._id ? (
+                              <>
+                                <button
+                                  onClick={() => handleUpdatePiece(detail._id)}
+                                  className="text-green-600 hover:text-green-800 transition"
+                                  title="Save">
+                                  <FaSave size={16} />
+                                </button>
+                                <button
+                                  onClick={handleCancelEdit}
+                                  className="text-gray-600 hover:text-gray-800 transition"
+                                  title="Cancel">
+                                  <FaTimes size={16} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleEditClick(detail)}
+                                  className="text-blue-600 hover:text-blue-800 transition"
+                                  title="Edit">
+                                  <FaEdit size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(detail)}
+                                  className="text-red-600 hover:text-red-800 transition"
+                                  title="Delete">
+                                  <FaTrash size={16} />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="3" className="p-4 text-gray-500 text-center">
+                      <td colSpan="5" className="p-4 text-gray-500 text-center">
                         No Products found
                       </td>
                     </tr>
@@ -374,6 +494,13 @@ export default function PayableDashboard(props) {
           </div>
         </div>
       </div>
+      <ConfirmationModal
+        isOpen={isDeleteModalOpen}
+        title="Delete Product"
+        message={`Are you sure you want to delete this product record? (Item: ${productToDelete?.item_name}, Pieces: ${productToDelete?.piece})`}
+        onProceed={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   );
 }
