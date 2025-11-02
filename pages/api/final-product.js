@@ -34,7 +34,13 @@ export const createFinalProductRecord = async (req, res) => {
 const getItemWiseCounts = async (query) => {
   const itemWiseCounts = await FinalProduct.aggregate([
     { $match: query },
-    { $group: { _id: "$item", totalPiece: { $sum: "$piece" } } }
+    { 
+      $group: { 
+        _id: "$item", 
+        item_name: { $first: "$item_name" },
+        totalPiece: { $sum: "$piece" } 
+      } 
+    }
   ]);
   return itemWiseCounts;
 }
@@ -43,7 +49,7 @@ export const getFinalProductRecord = async (req, res) => {
   await connectToDatabase();
   try {
     const company = req.userData?.company;
-    const {  fromDate, toDate, limit, skip, items, } = req.query;
+    const {  fromDate, toDate, limit, skip, items, section } = req.query;
     let query = { isDeleted: false, company };
     if (fromDate && toDate) {
       query.createdAt = {
@@ -55,9 +61,20 @@ export const getFinalProductRecord = async (req, res) => {
     } else if (toDate) {
       query.createdAt = { $lte: new Date(moment(toDate).tz('IST').endOf('day').toISOString()) };
     }
-    const queryForItemWiseCounts = { ...query, isDeleted: false };
+    
+    // Apply section filter
+    if (section) {
+      query.section = new mongoose.Types.ObjectId(section);
+    }
+    
+    // Apply items filter BEFORE creating counts query
+    if (items) {
+      const itemIds = items.split(',').map(id => new mongoose.Types.ObjectId(id));
+      query.item = { $in: itemIds };
+    }
+    
+    const queryForItemWiseCounts = { ...query };
     const itemWiseCounts = await getItemWiseCounts(queryForItemWiseCounts);
-    if (items) query.item = { $in: items?.split(',')?.map(id => new mongoose.Types.ObjectId(id)) };
     let records = [];
     if (limit && skip) {
       records = await FinalProduct.find(query).populate(
