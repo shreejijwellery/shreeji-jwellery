@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 
 export default function ExtractSKU() {
@@ -11,7 +11,7 @@ export default function ExtractSKU() {
   const [selectedTab, setSelectedTab] = useState('sort');
   const [featureFlags, setFeatureFlags] = useState(null);
   const [allowed, setAllowed] = useState(null);
-  const [hasExcelFile, setHasExcelFile] = useState(false);
+  const [hasCsvFile, setHasCsvFile] = useState(false);
   useEffect(() => {
     const init = async () => {
       try {
@@ -114,7 +114,6 @@ export default function ExtractSKU() {
   function extractSnapdealCompany(lines) {
     // TODO: Customize this for Snapdeal PDF format
     const company = lines[3]?.trim();
-    console.log("company", company)
     return company;
   }
 
@@ -236,30 +235,30 @@ export default function ExtractSKU() {
     setStatus('Preparing files...');
     try {
       const pdfFile = event.target.pdf_snapdeal.files[0];
-      const excelFile = event.target.excel_snapdeal?.files?.[0] || null;
+      const csvFile = event.target.csv_snapdeal?.files?.[0] || null;
       
       if (!pdfFile) throw new Error('Please select a PDF file');
 
       const loadPdfJsPromise = loadPdfJs();
       const pdfArrayBufferPromise = readFileAsArrayBuffer(pdfFile);
-      const excelArrayBufferPromise = excelFile ? readFileAsArrayBufferPromise(excelFile) : Promise.resolve(null);
+      const csvTextPromise = csvFile ? readFileAsText(csvFile) : Promise.resolve(null);
 
-      const [pdfjsLib, pdfArrayBuffer, excelArrayBuffer] = await Promise.all([
+      const [pdfjsLib, pdfArrayBuffer, csvText] = await Promise.all([
         loadPdfJsPromise,
         pdfArrayBufferPromise,
-        excelArrayBufferPromise
+        csvTextPromise
       ]);
 
-      let excelData = [];
+      let csvData = [];
       let skuKey = null;
       let originKey = null;
 
-      if (excelArrayBuffer) {
-        setStatus('Parsing Excel...');
-        excelData = parseExcel(excelArrayBuffer);
-        if (excelData.length > 0) {
-          skuKey = findHeaderKeyInsensitive(excelData[0], 'SKU');
-          originKey = findHeaderKeyInsensitive(excelData[0], 'Origin') || findHeaderKeyInsensitive(excelData[0], 'origin');
+      if (csvText) {
+        setStatus('Parsing CSV...');
+        csvData = parseCSV(csvText);
+        if (csvData.length > 0) {
+          skuKey = findHeaderKeyInsensitive(csvData[0], 'SKU');
+          originKey = findHeaderKeyInsensitive(csvData[0], 'Origin') || findHeaderKeyInsensitive(csvData[0], 'origin');
         }
       }
 
@@ -279,17 +278,16 @@ export default function ExtractSKU() {
         const qty = extractSnapdealQuantity(lines) || 0;
         
         let originName = 'Unknown Origin';
-        if (excelData.length > 0 && skuKey && originKey) {
-          const originRow = excelData.find(row => String(row[skuKey]).trim() === String(sku).trim());
+        if (csvData.length > 0 && skuKey && originKey) {
+          const originRow = csvData.find(row => String(row[skuKey]).trim() === String(sku).trim() || String(row.Origin).trim() === String(sku).trim());
           if (originRow) originName = originRow[originKey] || 'Unknown Origin';
         }
-        
         const company = extractSnapdealCompany(lines) || 'Zzzzz';
         pageData.push({ pageNumber: i, sku, qty, originName, company });
       }
 
       // Sort by SKU name if no excel, otherwise by qty -> origin -> company
-      if (!excelFile) {
+      if (!csvFile) {
         setStatus('Sorting by quantity, SKU, and company...');
         pageData.sort((a, b) => {
           const qtyA = a.qty || 0;
@@ -303,14 +301,14 @@ export default function ExtractSKU() {
           return companyA.localeCompare(companyB);
         });
       } else {
-        setStatus('Sorting by quantity, origin, and company...');
+        setStatus('Sorting by origin, quantity, and company...');
         pageData.sort((a, b) => {
-          const qtyA = a.qty || 0;
-          const qtyB = b.qty || 0;
-          if (qtyA !== qtyB) return qtyA - qtyB;
           const originA = a.originName || '';
           const originB = b.originName || '';
           if (originA !== originB) return originA.localeCompare(originB);
+          const qtyA = a.qty || 0;
+          const qtyB = b.qty || 0;
+          if (qtyA !== qtyB) return qtyA - qtyB;
           const companyA = a.company || '';
           const companyB = b.company || '';
           return companyA.localeCompare(companyB);
@@ -322,17 +320,8 @@ export default function ExtractSKU() {
       const outPdf = await PDFDocument.create();
       const helveticaBoldFont = await outPdf.embedFont(StandardFonts.HelveticaBold);
       
-      for (const page of pageData) {
-        const [copied] = await outPdf.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
-        
-        if (excelFile) {
-          // Add origin label if excel was provided
-          copied.drawText(`Origin: ${page.originName}`, { x: 50, y: 25, size: 14, font: helveticaBoldFont });
-        } else {
-          // Add SKU label if no excel
-          copied.drawText(`SKU: ${page.sku}`, { x: 50, y: 25, size: 14, font: helveticaBoldFont });
-        }
-        
+      for (const pageInfo of pageData) {
+        const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
         outPdf.addPage(copied);
       }
       
@@ -340,7 +329,13 @@ export default function ExtractSKU() {
       const url = window.URL.createObjectURL(new Blob([outBytes], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'snapdeal_sorted_output.pdf');
+      
+      // Generate output filename based on input filename
+      const inputFileName = pdfFile.name || 'snapdeal_output.pdf';
+      const fileNameWithoutExt = inputFileName.replace(/\.pdf$/i, '');
+      const outputFileName = `${fileNameWithoutExt}_sorted.pdf`;
+      
+      link.setAttribute('download', outputFileName);
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);
@@ -561,21 +556,21 @@ export default function ExtractSKU() {
                 />
               </div>
               <div>
-                <label htmlFor="excel_snapdeal" className="block text-sm font-medium text-gray-600">
-                  Upload Excel (Optional):
+                <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-600">
+                  Upload CSV (Optional):
                 </label>
                 <input
                   type="file"
-                  id="excel_snapdeal"
-                  name="excel_snapdeal"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => setHasExcelFile(e.target.files.length > 0)}
+                  id="csv_snapdeal"
+                  name="csv_snapdeal"
+                  accept=".csv"
+                  onChange={(e) => setHasCsvFile(e.target.files.length > 0)}
                   className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {hasExcelFile 
-                    ? "Excel file will be used to add origin information" 
-                    : "Without Excel, sorting will be done by SKU name only"}
+                  {hasCsvFile 
+                    ? "CSV file will be used to add origin information" 
+                    : "Without CSV, sorting will be done by quantity, SKU, and company"}
                 </p>
               </div>
               <button
@@ -667,9 +662,6 @@ export default function ExtractSKU() {
                     
                     const freeSizeIndex = dataLine.split("  ").findIndex(item => item.trim() === "Free Size");
                     const kj_403Index = dataLine.indexOf("kj_403");
-                    if(companyName === "AKIRA_FASHION" && kj_403Index !== -1){
-                      console.log("dataLine", dataLine);
-                    }
                     if(freeSizeIndex === -1 ){
                       continue;
                     }
