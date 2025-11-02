@@ -170,6 +170,19 @@ const Layout = ({ children }) => {
               </Link>
             </li>
           )}
+          {user && checkPermission(user, PERMISSIONS.PRODUCTION_FLOW) && (
+            <li>
+              <Link href="/production-flow">
+                <div className={`px-3 py-2 rounded transition ${
+                  router.pathname === '/production-flow' 
+                    ? 'bg-blue-600 font-semibold' 
+                    : 'hover:bg-gray-700'
+                }`}>
+                  Production Flow
+                </div>
+              </Link>
+            </li>
+          )}
           {/* Uncomment if needed
           {user && router.pathname !== '/dashboard' && (
             <li>
