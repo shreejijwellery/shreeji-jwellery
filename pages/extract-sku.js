@@ -322,6 +322,20 @@ export default function ExtractSKU() {
       
       for (const pageInfo of pageData) {
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
+        
+        // Add text overlay at the bottom of the page
+        const textToDisplay = csvFile 
+          ? `Origin: ${pageInfo.originName}` 
+          : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`;
+        
+        copied.drawText(textToDisplay, {
+          x: 50,
+          y: 25,
+          size: 10,
+          font: helveticaBoldFont,
+          color: rgb(0, 0, 0)
+        });
+        
         outPdf.addPage(copied);
       }
       
