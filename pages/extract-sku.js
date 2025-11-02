@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 
 export default function ExtractSKU() {
@@ -11,6 +11,7 @@ export default function ExtractSKU() {
   const [selectedTab, setSelectedTab] = useState('sort');
   const [featureFlags, setFeatureFlags] = useState(null);
   const [allowed, setAllowed] = useState(null);
+  const [hasCsvFile, setHasCsvFile] = useState(false);
   useEffect(() => {
     const init = async () => {
       try {
@@ -69,6 +70,50 @@ export default function ExtractSKU() {
     const company = companies.find(company => {
       return lines.map(line => line.trim()?.split('  ')?.[0]?.trim()?.toUpperCase()).includes(company.toUpperCase());
     });
+    return company;
+  }
+
+  // Snapdeal-specific extraction functions
+  function extractSnapdealSKU(lines, i) {
+    // TODO: Customize this for Snapdeal PDF format
+    // debugger
+    let name;
+    const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
+    if (SKUIndex > -1) {
+      const withPipeline = lines[SKUIndex + 1]?.trim()?.split('  ')?.[0]?.trim();
+      name = withPipeline?.split('|')?.[1]?.trim();
+    }else{
+      const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
+      if (PRODUCTNameIndex) {
+        name = lines[PRODUCTNameIndex + 2]?.trim()?.split('  ')?.[0]?.trim();
+      }
+    }
+    return name;
+  }
+
+  function extractSnapdealQuantity(lines) {
+    // TODO: Customize this for Snapdeal PDF format
+    const QtyIndex = lines.findIndex(line => line.includes('QUANTITY'));
+    
+    if (QtyIndex === -1) return null;
+    let qty = 0;
+    const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
+    if (SKUIndex > -1) {
+      const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.[1]?.trim();
+      qty = Number(numberWithSpace);
+    }else{
+      const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
+      if (PRODUCTNameIndex) {
+        const numberWithSpace = lines[PRODUCTNameIndex + 3];
+        qty = Number(numberWithSpace);
+      }
+    }
+    return qty;
+  }
+
+  function extractSnapdealCompany(lines) {
+    // TODO: Customize this for Snapdeal PDF format
+    const company = lines[3]?.trim();
     return company;
   }
 
@@ -160,6 +205,165 @@ export default function ExtractSKU() {
       reader.readAsText(file);
     });
   }
+
+  function parseExcel(arrayBuffer) {
+    try {
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(firstSheet);
+      return data;
+    } catch (err) {
+      console.error('Excel parsing error:', err);
+      return [];
+    }
+  }
+
+  function readFileAsArrayBufferPromise(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  const handleSnapdealSubmit = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+    setStatus('Preparing files...');
+    try {
+      const pdfFile = event.target.pdf_snapdeal.files[0];
+      const csvFile = event.target.csv_snapdeal?.files?.[0] || null;
+      
+      if (!pdfFile) throw new Error('Please select a PDF file');
+
+      const loadPdfJsPromise = loadPdfJs();
+      const pdfArrayBufferPromise = readFileAsArrayBuffer(pdfFile);
+      const csvTextPromise = csvFile ? readFileAsText(csvFile) : Promise.resolve(null);
+
+      const [pdfjsLib, pdfArrayBuffer, csvText] = await Promise.all([
+        loadPdfJsPromise,
+        pdfArrayBufferPromise,
+        csvTextPromise
+      ]);
+
+      let csvData = [];
+      let skuKey = null;
+      let originKey = null;
+
+      if (csvText) {
+        setStatus('Parsing CSV...');
+        csvData = parseCSV(csvText);
+        if (csvData.length > 0) {
+          skuKey = findHeaderKeyInsensitive(csvData[0], 'SKU');
+          originKey = findHeaderKeyInsensitive(csvData[0], 'Origin') || findHeaderKeyInsensitive(csvData[0], 'origin');
+        }
+      }
+
+      setStatus('Reading PDF...');
+      const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+      const pdf = await loadingTask.promise;
+
+      const pageData = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        setStatus(`Analyzing page ${i} of ${pdf.numPages}...`);
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const lines = reconstructLinesFromTextItems(textContent.items || []);
+        
+        // Use Snapdeal-specific extraction functions
+        const sku = extractSnapdealSKU(lines, i) || `Page_${i}`;
+        const qty = extractSnapdealQuantity(lines) || 0;
+        
+        let originName = 'Unknown Origin';
+        if (csvData.length > 0 && skuKey && originKey) {
+          const originRow = csvData.find(row => String(row[skuKey]).trim() === String(sku).trim() || String(row.Origin).trim() === String(sku).trim());
+          if (originRow) originName = originRow[originKey] || 'Unknown Origin';
+        }
+        const company = extractSnapdealCompany(lines) || 'Zzzzz';
+        pageData.push({ pageNumber: i, sku, qty, originName, company });
+      }
+
+      // Sort by SKU name if no excel, otherwise by qty -> origin -> company
+      if (!csvFile) {
+        setStatus('Sorting by quantity, SKU, and company...');
+        pageData.sort((a, b) => {
+          const qtyA = a.qty || 0;
+          const qtyB = b.qty || 0;
+          if (qtyA !== qtyB) return qtyA - qtyB;
+          const skuA = a.sku || '';
+          const skuB = b.sku || '';
+          if (skuA !== skuB) return skuA.localeCompare(skuB);
+          const companyA = a.company || '';
+          const companyB = b.company || '';
+          return companyA.localeCompare(companyB);
+        });
+      } else {
+        setStatus('Sorting by origin, quantity, and company...');
+        pageData.sort((a, b) => {
+          const originA = a.originName || '';
+          const originB = b.originName || '';
+          if (originA !== originB) return originA.localeCompare(originB);
+          const qtyA = a.qty || 0;
+          const qtyB = b.qty || 0;
+          if (qtyA !== qtyB) return qtyA - qtyB;
+          const companyA = a.company || '';
+          const companyB = b.company || '';
+          return companyA.localeCompare(companyB);
+        });
+      }
+
+      setStatus('Building output PDF...');
+      const sourcePdfDoc = await PDFDocument.load(pdfArrayBuffer);
+      const outPdf = await PDFDocument.create();
+      const helveticaBoldFont = await outPdf.embedFont(StandardFonts.HelveticaBold);
+      
+      for (const pageInfo of pageData) {
+        const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
+        
+        // Add text overlay at the bottom of the page
+        const textToDisplay = csvFile 
+          ? `Origin: ${pageInfo.originName}` 
+          : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`;
+        
+        copied.drawText(textToDisplay, {
+          x: 50,
+          y: 25,
+          size: 10,
+          font: helveticaBoldFont,
+          color: rgb(0, 0, 0)
+        });
+        
+        outPdf.addPage(copied);
+      }
+      
+      const outBytes = await outPdf.save();
+      const url = window.URL.createObjectURL(new Blob([outBytes], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Generate output filename based on input filename
+      const inputFileName = pdfFile.name || 'snapdeal_output.pdf';
+      const fileNameWithoutExt = inputFileName.replace(/\.pdf$/i, '');
+      const outputFileName = `${fileNameWithoutExt}_sorted.pdf`;
+      
+      link.setAttribute('download', outputFileName);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+
+      setSuccess(true);
+      setStatus('Done. File downloaded.');
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Processing failed');
+      setStatus('');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -262,24 +466,45 @@ export default function ExtractSKU() {
 
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-semibold text-center text-gray-700">Extract Tools</h1>
-        <div className="flex space-x-2 justify-center items-center">
+    <div className="flex flex-col items-center min-h-screen bg-gray-100 p-4">
+      <div className="w-full max-w-2xl mt-8">
+        <h1 className="text-2xl font-semibold text-center text-gray-700 mb-6">Extract Tools</h1>
+        
+        <div className="flex bg-white rounded-t-lg shadow-sm overflow-hidden mb-0">
           <button
             onClick={() => setSelectedTab('sort')}
-            className={`px-3 py-1 rounded ${selectedTab === 'sort' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
+              selectedTab === 'sort' 
+                ? 'border-blue-500 text-blue-600 bg-white' 
+                : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+            }`}
           >
-            Sort PDF (with CSV)
+            Meesho Sort
+          </button>
+          <button
+            onClick={() => setSelectedTab('snapdeal')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
+              selectedTab === 'snapdeal' 
+                ? 'border-blue-500 text-blue-600 bg-white' 
+                : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+            }`}
+          >
+            Snapdeal Sort
           </button>
           <button
             onClick={() => setSelectedTab('excel')}
-            className={`px-3 py-1 rounded ${selectedTab === 'excel' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
             disabled={!featureFlags || featureFlags.isExcelFromPDF !== true}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
+              selectedTab === 'excel' 
+                ? 'border-blue-500 text-blue-600 bg-white' 
+                : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+            } ${(!featureFlags || featureFlags.isExcelFromPDF !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Generate Excel
           </button>
         </div>
+
+      <div className="w-full p-8 space-y-6 bg-white rounded-b-lg shadow-md">
 
         {selectedTab === 'sort' && (
           <>
@@ -320,6 +545,55 @@ export default function ExtractSKU() {
                   hover:bg-blue-600 transition ${(loading || allowed !== true) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
               >
                 {loading ? 'Processing...' : 'Process Files'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {selectedTab === 'snapdeal' && (
+          <>
+            {allowed === false && (
+              <p className="text-center text-red-500">This feature is disabled for your company. Please contact your admin.</p>
+            )}
+            <form onSubmit={handleSnapdealSubmit} encType="multipart/form-data" className="space-y-4">
+              <div>
+                <label htmlFor="pdf_snapdeal" className="block text-sm font-medium text-gray-600">
+                  Upload PDF: <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  id="pdf_snapdeal"
+                  name="pdf_snapdeal"
+                  accept=".pdf"
+                  required
+                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-600">
+                  Upload CSV (Optional):
+                </label>
+                <input
+                  type="file"
+                  id="csv_snapdeal"
+                  name="csv_snapdeal"
+                  accept=".csv"
+                  onChange={(e) => setHasCsvFile(e.target.files.length > 0)}
+                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {hasCsvFile 
+                    ? "CSV file will be used to add origin information" 
+                    : "Without CSV, sorting will be done by quantity, SKU, and company"}
+                </p>
+              </div>
+              <button
+                type="submit"
+                disabled={loading || allowed === false || allowed === null}
+                className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
+                  hover:bg-blue-600 transition ${(loading || allowed !== true) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+              >
+                {loading ? 'Processing...' : 'Process Snapdeal PDF'}
               </button>
             </form>
           </>
@@ -402,9 +676,6 @@ export default function ExtractSKU() {
                     
                     const freeSizeIndex = dataLine.split("  ").findIndex(item => item.trim() === "Free Size");
                     const kj_403Index = dataLine.indexOf("kj_403");
-                    if(companyName === "AKIRA_FASHION" && kj_403Index !== -1){
-                      console.log("dataLine", dataLine);
-                    }
                     if(freeSizeIndex === -1 ){
                       continue;
                     }
@@ -527,6 +798,7 @@ export default function ExtractSKU() {
         {status && <p className="text-sm text-gray-600 text-center">{status}</p>}
         {error && <p className="text-sm text-red-500 text-center">{error}</p>}
         {success && <p className="text-sm text-green-500 text-center">File processed successfully. Check your downloads.</p>}
+      </div>
       </div>
     </div>
   );
