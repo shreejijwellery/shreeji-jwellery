@@ -36,6 +36,7 @@ export default function ExtractSKU() {
   const [uploadProgress, setUploadProgress] = useState({ percent: 0, message: '' });
   const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
   const [existingDataInfo, setExistingDataInfo] = useState(null);
+  const [actualDataDateRange, setActualDataDateRange] = useState({ min: '', max: '' });
 
   // Date formatting utility
   const formatDate = (dateString) => {
@@ -546,6 +547,20 @@ export default function ExtractSKU() {
             trimmedData[trimmedName] = data.data[companyName];
           }
         });
+      }
+      
+      // Calculate actual date range from rawData
+      if (data.rawData && data.rawData.length > 0) {
+        const dates = data.rawData.map(item => new Date(item.selectedDate));
+        const minDate = new Date(Math.min(...dates));
+        const maxDate = new Date(Math.max(...dates));
+        setActualDataDateRange({
+          min: minDate.toISOString().split('T')[0],
+          max: maxDate.toISOString().split('T')[0]
+        });
+      } else {
+        // No data, reset actual date range
+        setActualDataDateRange({ min: '', max: '' });
       }
       
       console.log('📊 Inventory Data Fetched:', {
@@ -1657,16 +1672,16 @@ export default function ExtractSKU() {
               )}
 
               {/* Currently Showing Data */}
-              {inventoryData && filterStartDate && filterEndDate && (
+              {inventoryData && actualDataDateRange.min && actualDataDateRange.max && (
                 <div className="mb-3 px-4 py-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="text-sm text-green-700">
-                      Currently showing data: <strong>{formatDate(filterStartDate)}</strong> 
-                      {filterStartDate !== filterEndDate && (
-                        <> to <strong>{formatDate(filterEndDate)}</strong></>
+                      Currently showing data: <strong>{formatDate(actualDataDateRange.min)}</strong> 
+                      {actualDataDateRange.min !== actualDataDateRange.max && (
+                        <> to <strong>{formatDate(actualDataDateRange.max)}</strong></>
                       )}
                     </span>
                   </div>
