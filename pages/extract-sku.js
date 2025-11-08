@@ -12,6 +12,41 @@ export default function ExtractSKU() {
   const [featureFlags, setFeatureFlags] = useState(null);
   const [allowed, setAllowed] = useState(null);
   const [hasCsvFile, setHasCsvFile] = useState(false);
+  
+  // SKU Inventory Management states
+  const [inventoryData, setInventoryData] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterCompany, setFilterCompany] = useState('');
+  const [filterSKU, setFilterSKU] = useState('');
+  const [availableDates, setAvailableDates] = useState([]);
+  const [availableCompanies, setAvailableCompanies] = useState([]);
+  const [customOrder, setCustomOrder] = useState([]);
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+  const [tempCustomOrder, setTempCustomOrder] = useState([]);
+  const [activeCompanyTab, setActiveCompanyTab] = useState('all');
+  const [selectedCompanies, setSelectedCompanies] = useState([]);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteDate, setDeleteDate] = useState('');
+  const [draggedTabIndex, setDraggedTabIndex] = useState(null);
+  const [dateRange, setDateRange] = useState({ min: '', max: '' });
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState({ percent: 0, message: '' });
+  const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
+  const [existingDataInfo, setExistingDataInfo] = useState(null);
+
+  // Date formatting utility
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -29,6 +64,29 @@ export default function ExtractSKU() {
     };
     init();
   }, []);
+
+  // Initialize inventory tab data when switching to inventory tab
+  useEffect(() => {
+    if (selectedTab === 'inventory' && featureFlags?.isExtractSKU === true) {
+      const initInventory = async () => {
+        await fetchFilterOptions();
+        await fetchCustomOrder();
+        // Fetch initial data after filters and order are loaded
+        fetchInventoryData();
+      };
+      initInventory();
+    }
+  }, [selectedTab, featureFlags]);
+
+  // Auto-fetch data when filters change
+  useEffect(() => {
+    if (selectedTab === 'inventory' && (filterStartDate || filterEndDate)) {
+      const timer = setTimeout(() => {
+        fetchInventoryData();
+      }, 300); // Debounce for 300ms
+      return () => clearTimeout(timer);
+    }
+  }, [filterStartDate, filterEndDate]);
 
   useEffect(() => {
     const refreshFlagsIfNeeded = async () => {
@@ -464,146 +522,876 @@ export default function ExtractSKU() {
   };
 
 
+  // SKU Inventory Management Functions
+  const fetchInventoryData = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (filterStartDate) params.append('startDate', filterStartDate);
+      if (filterEndDate) params.append('endDate', filterEndDate);
+      if (filterCompany) params.append('companyName', filterCompany);
+      if (filterSKU) params.append('sku', filterSKU);
+
+      const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Trim all company names in the data
+      const trimmedData = {};
+      if (data.data) {
+        Object.keys(data.data).forEach(companyName => {
+          const trimmedName = companyName.trim();
+          if (trimmedName) {
+            trimmedData[trimmedName] = data.data[companyName];
+          }
+        });
+      }
+      
+      console.log('📊 Inventory Data Fetched:', {
+        companiesCount: Object.keys(trimmedData).length,
+        companies: Object.keys(trimmedData),
+        originalCompanies: data.data ? Object.keys(data.data) : [],
+        data: trimmedData
+      });
+      
+      setInventoryData(trimmedData);
+      
+      // DO NOT modify customOrder here!
+      // customOrder should only be set by:
+      // 1. fetchCustomOrder() on initialization
+      // 2. handleTabDrop() when user explicitly reorders via drag-drop
+      console.log('ℹ️ Inventory data loaded. Not modifying customOrder.');
+      
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch inventory data');
+      setInventoryData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchFilterOptions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get('/api/sku-inventory-filters', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const dates = data.dates || [];
+      const companyNames = (data.companyNames || []).map(name => name.trim()).filter(name => name);
+      
+      console.log('🏢 Filter Options Fetched:', {
+        datesCount: dates.length,
+        companiesCount: companyNames.length,
+        originalCompanies: data.companyNames || [],
+        companies: companyNames
+      });
+      
+      setAvailableDates(dates);
+      setAvailableCompanies(companyNames);
+      
+      // Set date range info
+      if (dates.length > 0) {
+        const sortedDates = [...dates].sort();
+        setDateRange({ min: sortedDates[0], max: sortedDates[sortedDates.length - 1] });
+        
+        // Set default filter dates if not set
+        if (!filterStartDate && !filterEndDate) {
+          // Use last date as default
+          setFilterStartDate(sortedDates[sortedDates.length - 1]);
+          setFilterEndDate(sortedDates[sortedDates.length - 1]);
+        }
+      }
+      
+      // DO NOT set customOrder here - let fetchCustomOrder() handle it!
+      // fetchCustomOrder() will be called after this in initInventory()
+      console.log('ℹ️ fetchFilterOptions completed, available companies:', companyNames.length);
+    } catch (err) {
+      console.error('Failed to fetch filter options:', err);
+    }
+  };
+
+  const fetchCustomOrder = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get('/api/company-order-preference', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Trim all company names in the order
+      const trimmedOrder = data.customOrder 
+        ? data.customOrder.map(name => name.trim()).filter(name => name)
+        : [];
+      
+      console.log('📋 Custom Order Fetched from API:', {
+        hasOrder: trimmedOrder.length > 0,
+        orderLength: trimmedOrder.length,
+        isDefault: data.isDefault,
+        originalOrder: data.customOrder,
+        order: trimmedOrder
+      });
+      
+      // Always use default order as the base, then merge with saved order or API returned order
+      const defaultOrder = getDefaultCompanyOrder();
+      
+      // If we have a saved order (and it's not the default from API), use it
+      // Otherwise, use the default order
+      if (trimmedOrder.length > 0 && !data.isDefault) {
+        console.log('📋 Using Saved Order from database');
+        setCustomOrder(trimmedOrder);
+        setTempCustomOrder(trimmedOrder);
+      } else {
+        console.log('📋 Using Default Order (no saved order or API returned default)');
+        setCustomOrder(defaultOrder);
+        setTempCustomOrder(defaultOrder);
+      }
+    } catch (err) {
+      console.error('Failed to fetch custom order:', err);
+      // Use default order if API fails
+      const defaultOrder = getDefaultCompanyOrder();
+      console.log('📋 Using Default Order (API error):', defaultOrder);
+      setCustomOrder(defaultOrder);
+      setTempCustomOrder(defaultOrder);
+    }
+  };
+
+  const getDefaultCompanyOrder = () => {
+    return [
+      'SHREEJI#', 'SHREEJI NEW', 'Cosmetic King', 'AKIRA_FASHION', 'Gajanand_Enterprise',
+      'ZXRIZ', 'JEWELL SWERA CREATION', 'BHAKTI CREATION', "LA'KAILASHA", 'ghanshyam_enterprise',
+      'FOREIGN FALCON', 'HAYAAT ENTERPRISE', 'SERENA JEWELLERY', 'SAHJANAND ENTERPRISSE',
+      'NORDIC CREATION', 'KARMA_ENTERPRISE', 'SUVRAT ENTERPRISE', 'SAHAJ JEWELLERY', 
+      'JAY KHODAL CREATION', 'SUNSHINECREATION', 'Ornexa Enterprise'
+    ];
+  };
+
+  const mergeNewCompanies = (existingOrder, foundCompanies) => {
+    // Trim all company names
+    const trimmedExisting = existingOrder.map(name => name.trim()).filter(name => name);
+    const trimmedFound = foundCompanies.map(name => name.trim()).filter(name => name);
+    
+    // Add any new companies found in data that aren't in the custom order
+    const newCompanies = trimmedFound.filter(company => !trimmedExisting.includes(company));
+    
+    // Combine and deduplicate
+    const merged = [...trimmedExisting, ...newCompanies.sort()];
+    return [...new Set(merged)];
+  };
+
+  const handleDragStart = (e, index) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+    const dragIndex = parseInt(e.dataTransfer.getData('text/html'));
+    
+    if (dragIndex === dropIndex) return;
+    
+    const newOrder = [...tempCustomOrder];
+    const [removed] = newOrder.splice(dragIndex, 1);
+    newOrder.splice(dropIndex, 0, removed);
+    
+    setTempCustomOrder(newOrder);
+  };
+
+  const handleTabDragStart = (e, company) => {
+    setDraggedTabIndex(company); // Store company name instead of index
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', company);
+  };
+
+  const handleTabDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleTabDrop = async (e, dropCompany) => {
+    e.preventDefault();
+    const dragCompany = draggedTabIndex; // This is now the company name
+    
+    if (!dragCompany || dragCompany === dropCompany) return;
+    
+    // Build the current visible list (same logic as rendering)
+    const companiesFromData = inventoryData ? Object.keys(inventoryData) : [];
+    const baseOrder = customOrder.length > 0 ? customOrder : getDefaultCompanyOrder();
+    
+    // Get the ordered list
+    const orderedCompanies = [];
+    for (const company of baseOrder) {
+      if (availableCompanies.includes(company) || companiesFromData.includes(company)) {
+        orderedCompanies.push(company);
+      }
+    }
+    const newCompanies = companiesFromData
+      .filter(company => !baseOrder.includes(company))
+      .sort();
+    const currentVisibleOrder = [...orderedCompanies, ...newCompanies];
+    
+    // Reorder based on drag and drop
+    const dragIndex = currentVisibleOrder.indexOf(dragCompany);
+    const dropIndex = currentVisibleOrder.indexOf(dropCompany);
+    
+    if (dragIndex === -1 || dropIndex === -1) return;
+    
+    const newOrder = [...currentVisibleOrder];
+    const [removed] = newOrder.splice(dragIndex, 1);
+    newOrder.splice(dropIndex, 0, removed);
+    
+    // Trim and deduplicate the order before saving
+    const cleanedOrder = [...new Set(newOrder.map(name => name?.trim()).filter(name => name))];
+    
+    setCustomOrder(cleanedOrder);
+    setTempCustomOrder(cleanedOrder);
+    setDraggedTabIndex(null);
+    
+    // Auto-save the new order
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/company-order-preference', 
+        { customOrder: cleanedOrder },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      console.log('Order saved successfully:', response.data);
+      
+      // Show success message
+      setSuccess(true);
+      setStatus('Company order saved successfully');
+      setTimeout(() => { 
+        setSuccess(false); 
+        setStatus(''); 
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to save reordered tabs:', err);
+      setError('Failed to save company order');
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const handleCompanySelect = (company) => {
+    if (company === 'all') {
+      setActiveCompanyTab('all');
+      setSelectedCompanies([]);
+    } else {
+      setActiveCompanyTab('');
+      setSelectedCompanies(prev => {
+        if (prev.includes(company)) {
+          return prev.filter(c => c !== company);
+        } else {
+          return [...prev, company];
+        }
+      });
+    }
+  };
+
+  const handleCompanyClick = (company) => {
+    setActiveCompanyTab(company);
+    setSelectedCompanies([]);
+  };
+
+  const toggleSelectAll = () => {
+    if (!inventoryData) return;
+    const allCompanies = Object.keys(inventoryData);
+    if (selectedCompanies.length === allCompanies.length) {
+      setSelectedCompanies([]);
+    } else {
+      setSelectedCompanies(allCompanies);
+      setActiveCompanyTab('');
+    }
+  };
+
+  const saveCustomOrder = async () => {
+    try {
+      setLoading(true);
+      
+      // Trim and deduplicate before saving
+      const cleanedOrder = [...new Set(tempCustomOrder.map(name => name.trim()))].filter(name => name);
+      
+      const token = localStorage.getItem('token');
+      await axios.post('/api/company-order-preference', 
+        { customOrder: cleanedOrder },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCustomOrder(cleanedOrder);
+      setTempCustomOrder(cleanedOrder);
+      setIsEditingOrder(false);
+      setSuccess(true);
+      setStatus('Custom order saved successfully');
+      setTimeout(() => { setSuccess(false); setStatus(''); }, 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to save custom order');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uploadInventoryData = async (skuData) => {
+    try {
+      setLoading(true);
+      setStatus('Uploading data...');
+      const token = localStorage.getItem('token');
+      const { data } = await axios.post('/api/sku-inventory', 
+        { selectedDate, skuData },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setSuccess(true);
+      setStatus(data.message);
+      
+      // DO NOT modify customOrder here!
+      // customOrder should only be set by:
+      // 1. fetchCustomOrder() on initialization
+      // 2. handleTabDrop() when user explicitly reorders via drag-drop
+      console.log('ℹ️ Data uploaded successfully. Not modifying customOrder.');
+      
+      await fetchFilterOptions();
+      await fetchInventoryData();
+      setShowUploadModal(false); // Close modal after successful upload
+      setSelectedFile(null); // Reset selected file
+      setTimeout(() => { setSuccess(false); setStatus(''); }, 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to upload data');
+      setStatus('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteInventoryDataByDate = async (date) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const { data } = await axios.delete(`/api/sku-inventory?date=${date}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSuccess(true);
+      setStatus(data.message);
+      
+      // Close modal and reset
+      setShowDeleteModal(false);
+      setDeleteDate('');
+      
+      // Refresh data
+      await fetchFilterOptions();
+      await fetchInventoryData();
+      
+      setTimeout(() => { setSuccess(false); setStatus(''); }, 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadInventoryExcel = async () => {
+    if (!filterStartDate || !filterEndDate) {
+      setError('Please select both start and end dates');
+      return;
+    }
+    try {
+      setLoading(true);
+      setStatus('Generating Excel...');
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/sku-inventory-download', 
+        { startDate: filterStartDate, endDate: filterEndDate },
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        }
+      );
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      // Create formatted filename with date range
+      const startDateFormatted = formatDate(filterStartDate);
+      const endDateFormatted = formatDate(filterEndDate);
+      const filename = filterStartDate === filterEndDate 
+        ? `SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}.xlsx`
+        : `SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}_to_${endDateFormatted.replace(/\//g, '-')}.xlsx`;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      
+      setSuccess(true);
+      setStatus('Excel downloaded successfully');
+      setTimeout(() => { setSuccess(false); setStatus(''); }, 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to download Excel');
+      setStatus('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInventoryUpload = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+    
+    // Check if data exists for selected date
+    const existingData = await checkExistingData(selectedDate);
+    if (existingData) {
+      setExistingDataInfo(existingData);
+      setShowOverwriteWarning(true);
+      setLoading(false);
+      return;
+    }
+    
+    // Proceed with upload
+    await processAndUploadPDF(event);
+  };
+
+  const checkExistingData = async (date) => {
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get(`/api/sku-inventory?startDate=${date}&endDate=${date}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (data.data && Object.keys(data.data).length > 0) {
+        // Calculate summary
+        const companies = Object.keys(data.data);
+        const totalSKUs = companies.reduce((sum, company) => {
+          return sum + Object.keys(data.data[company]).length;
+        }, 0);
+        const totalQuantity = companies.reduce((sum, company) => {
+          return sum + Object.values(data.data[company]).reduce((qtySum, qty) => qtySum + qty, 0);
+        }, 0);
+        
+        return {
+          companiesCount: companies.length,
+          skuCount: totalSKUs,
+          totalQuantity: totalQuantity,
+          companies: companies
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error('Error checking existing data:', err);
+      return null;
+    }
+  };
+
+  const processAndUploadPDF = async (event) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+    setUploadProgress({ percent: 5, message: 'Reading PDF file...' });
+    
+    try {
+      const pdfFile = event.target.pdf_inventory.files[0];
+      if (!pdfFile) throw new Error('Please select a PDF file');
+
+      setUploadProgress({ percent: 10, message: 'Loading PDF library...' });
+      const [pdfjsLib, pdfArrayBuffer] = await Promise.all([
+        loadPdfJs(),
+        readFileAsArrayBuffer(pdfFile)
+      ]);
+
+      setUploadProgress({ percent: 15, message: 'Parsing PDF document...' });
+      const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+
+      // Extract text from all pages (15% to 75% of progress)
+      const allLines = [];
+      for (let i = 1; i <= totalPages; i++) {
+        const progress = 15 + Math.floor(((i / totalPages) * 60)); // 15% to 75%
+        setUploadProgress({ 
+          percent: progress, 
+          message: `Extracting SKU from page ${i} of ${totalPages}...` 
+        });
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageLines = reconstructLinesFromTextItems(textContent.items || []);
+        for (const ln of pageLines) allLines.push(ln);
+      }
+
+      setUploadProgress({ percent: 80, message: 'Processing extracted data...' });
+      const lines = allLines.filter(line => line.trim() !== '');
+      let currentPageLines = [];
+      const pages = [];
+
+      for (const line of lines) {
+        if (line.match(/Page \d+/) || line.match(/Customer Address/)) {
+          if (currentPageLines.length > 0) {
+            pages.push(currentPageLines.join('\n'));
+            currentPageLines = [];
+          }
+        }
+        currentPageLines.push(line);
+      }
+      if (currentPageLines.length > 0) {
+        pages.push(currentPageLines.join('\n'));
+      }
+
+      setUploadProgress({ percent: 85, message: 'Analyzing SKU data...' });
+      const results = {};    
+      const totalDataPages = pages.length;
+      
+      for (let pageIndex = 0; pageIndex < totalDataPages; pageIndex++) {
+        const progress = 85 + Math.floor(((pageIndex + 1) / totalDataPages) * 10); // 85% to 95%
+        setUploadProgress({ 
+          percent: progress, 
+          message: `Processing SKU data... (${pageIndex + 1}/${totalDataPages})` 
+        });
+        const pageLines = pages[pageIndex].split('\n');
+        let beforCompanyIndex = pageLines.findIndex(line => line.trim().match(/If undelivered, return to:/));
+        let companyName = pageLines[beforCompanyIndex + 1]?.trim(); // Trim company name
+        if (!companyName) continue; // Skip if no company name found
+        
+        if(!results[companyName]){
+          results[companyName] = {};
+        }
+        const findSKU = pageLines.findIndex(line => line.match(/SKU/));
+        const taxInvoiceIndex = pageLines.indexOf("TAX INVOICE") > 0 ? pageLines.indexOf("TAX INVOICE") : pageLines.length;
+        
+        for (let i = findSKU + 1; i < taxInvoiceIndex; i++) {
+          let dataLine = pageLines[i];
+          const freeSizeIndex = dataLine.split("  ").findIndex(item => item.trim() === "Free Size");
+          if(freeSizeIndex === -1 ){
+            continue;
+          }
+          let beforeFreeSize = dataLine?.split("  ")[freeSizeIndex - 1]?.trim();
+          const qty = dataLine?.split("  ")?.[freeSizeIndex +1]?.trim()?.split(" ")?.[0];
+          if(beforeFreeSize === ''){
+            beforeFreeSize = pageLines[i-1]
+          }
+          if(beforeFreeSize == undefined || beforeFreeSize == 'undefined'){
+            continue;
+          }
+          results[companyName][beforeFreeSize] = (results[companyName][beforeFreeSize] || 0) + Number(qty);
+        }
+      }
+
+      setUploadProgress({ percent: 97, message: 'Uploading to database...' });
+      await uploadInventoryData(results);
+      setUploadProgress({ percent: 100, message: 'Upload complete!' });
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to process PDF');
+      setUploadProgress({ percent: 0, message: '' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
-    <div className="flex flex-col items-center min-h-screen bg-gray-100 p-4">
-      <div className="w-full max-w-2xl mt-8">
-        <h1 className="text-2xl font-semibold text-center text-gray-700 mb-6">Extract Tools</h1>
-        
-        <div className="flex bg-white rounded-t-lg shadow-sm overflow-hidden mb-0">
-          <button
-            onClick={() => setSelectedTab('sort')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
-              selectedTab === 'sort' 
-                ? 'border-blue-500 text-blue-600 bg-white' 
-                : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-            }`}
-          >
-            Meesho Sort
-          </button>
-          <button
-            onClick={() => setSelectedTab('snapdeal')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
-              selectedTab === 'snapdeal' 
-                ? 'border-blue-500 text-blue-600 bg-white' 
-                : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-            }`}
-          >
-            Snapdeal Sort
-          </button>
-          <button
-            onClick={() => setSelectedTab('excel')}
-            disabled={!featureFlags || featureFlags.isExcelFromPDF !== true}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
-              selectedTab === 'excel' 
-                ? 'border-blue-500 text-blue-600 bg-white' 
-                : 'border-transparent text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-            } ${(!featureFlags || featureFlags.isExcelFromPDF !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            Generate Excel
-          </button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">SKU Management Tools</h1>
+              <p className="mt-1 text-sm text-gray-500">Process, manage, and export SKU data efficiently</p>
+            </div>
+            {status && (
+              <div className="flex items-center space-x-2 text-sm">
+                {loading && (
+                  <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                <span className="text-gray-600">{status}</span>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
 
-      <div className="w-full p-8 space-y-6 bg-white rounded-b-lg shadow-md">
+      {/* Tabs Navigation */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setSelectedTab('sort')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'sort'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                </svg>
+                <span>Meesho Sort</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('snapdeal')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'snapdeal'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <span>Snapdeal Sort</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('excel')}
+              disabled={!featureFlags || featureFlags.isExcelFromPDF !== true}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'excel'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } ${(!featureFlags || featureFlags.isExcelFromPDF !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Generate Excel</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('inventory')}
+              disabled={!featureFlags || featureFlags.isExtractSKU !== true}
+              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'inventory'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } ${(!featureFlags || featureFlags.isExtractSKU !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <span>SKU Inventory</span>
+              </div>
+            </button>
+          </nav>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Alert Messages */}
+        {error && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {success && (
+          <div className="mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-md shadow-sm">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-green-700">File processed successfully. Check your downloads.</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
 
         {selectedTab === 'sort' && (
-          <>
+          <div className="p-8">
             {allowed === false && (
-              <p className="text-center text-red-500">This feature is disabled for your company. Please contact your admin.</p>
+              <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <p className="text-sm text-yellow-700">This feature is disabled for your company. Please contact your admin.</p>
+              </div>
             )}
-            <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-4">
+            <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-6">
               <div>
-                <label htmlFor="pdf" className="block text-sm font-medium text-gray-600">
-                  Upload PDF:
+                <label htmlFor="pdf" className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload PDF File
                 </label>
-                <input
-                  type="file"
-                  id="pdf"
-                  name="pdf"
-                  accept=".pdf"
-                  required
-                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
-                />
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition-colors">
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="flex text-sm text-gray-600">
+                      <label htmlFor="pdf" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                        <span>Upload a file</span>
+                        <input
+                          type="file"
+                          id="pdf"
+                          name="pdf"
+                          accept=".pdf"
+                          required
+                          className="sr-only"
+                        />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-gray-500">PDF up to 25MB</p>
+                  </div>
+                </div>
               </div>
               <div>
-                <label htmlFor="csv" className="block text-sm font-medium text-gray-600">
-                  Upload CSV:
+                <label htmlFor="csv" className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload CSV File
                 </label>
-                <input
-                  type="file"
-                  id="csv"
-                  name="csv"
-                  accept=".csv"
-                  required
-                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
-                />
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition-colors">
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="flex text-sm text-gray-600">
+                      <label htmlFor="csv" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                        <span>Upload a file</span>
+                        <input
+                          type="file"
+                          id="csv"
+                          name="csv"
+                          accept=".csv"
+                          required
+                          className="sr-only"
+                        />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-gray-500">CSV file</p>
+                  </div>
+                </div>
               </div>
               <button
                 type="submit"
                 disabled={loading || allowed === false || allowed === null}
-                className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
-                  hover:bg-blue-600 transition ${(loading || allowed !== true) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
-                {loading ? 'Processing...' : 'Process Files'}
+                {loading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  'Process Files'
+                )}
               </button>
             </form>
-          </>
+          </div>
         )}
 
         {selectedTab === 'snapdeal' && (
-          <>
+          <div className="p-8">
             {allowed === false && (
-              <p className="text-center text-red-500">This feature is disabled for your company. Please contact your admin.</p>
+              <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <p className="text-sm text-yellow-700">This feature is disabled for your company. Please contact your admin.</p>
+              </div>
             )}
-            <form onSubmit={handleSnapdealSubmit} encType="multipart/form-data" className="space-y-4">
+            <form onSubmit={handleSnapdealSubmit} encType="multipart/form-data" className="space-y-6">
               <div>
-                <label htmlFor="pdf_snapdeal" className="block text-sm font-medium text-gray-600">
-                  Upload PDF: <span className="text-red-500">*</span>
+                <label htmlFor="pdf_snapdeal" className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload PDF File <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="file"
-                  id="pdf_snapdeal"
-                  name="pdf_snapdeal"
-                  accept=".pdf"
-                  required
-                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
-                />
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition-colors">
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="flex text-sm text-gray-600">
+                      <label htmlFor="pdf_snapdeal" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                        <span>Upload a file</span>
+                        <input
+                          type="file"
+                          id="pdf_snapdeal"
+                          name="pdf_snapdeal"
+                          accept=".pdf"
+                          required
+                          className="sr-only"
+                        />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-gray-500">PDF up to 25MB</p>
+                  </div>
+                </div>
               </div>
               <div>
-                <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-600">
-                  Upload CSV (Optional):
+                <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload CSV (Optional)
                 </label>
-                <input
-                  type="file"
-                  id="csv_snapdeal"
-                  name="csv_snapdeal"
-                  accept=".csv"
-                  onChange={(e) => setHasCsvFile(e.target.files.length > 0)}
-                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {hasCsvFile 
-                    ? "CSV file will be used to add origin information" 
-                    : "Without CSV, sorting will be done by quantity, SKU, and company"}
-                </p>
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-green-400 transition-colors">
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="flex text-sm text-gray-600">
+                      <label htmlFor="csv_snapdeal" className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500">
+                        <span>Upload a file</span>
+                        <input
+                          type="file"
+                          id="csv_snapdeal"
+                          name="csv_snapdeal"
+                          accept=".csv"
+                          onChange={(e) => setHasCsvFile(e.target.files.length > 0)}
+                          className="sr-only"
+                        />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-gray-500">CSV file</p>
+                  </div>
+                </div>
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-xs text-blue-700">
+                    {hasCsvFile 
+                      ? "✓ CSV file will be used to add origin information" 
+                      : "ℹ Without CSV, sorting will be done by quantity, SKU, and company"}
+                  </p>
+                </div>
               </div>
               <button
                 type="submit"
                 disabled={loading || allowed === false || allowed === null}
-                className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
-                  hover:bg-blue-600 transition ${(loading || allowed !== true) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
-                {loading ? 'Processing...' : 'Process Snapdeal PDF'}
+                {loading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </>
+                ) : (
+                  'Process Snapdeal PDF'
+                )}
               </button>
             </form>
-          </>
+          </div>
         )}
 
         {selectedTab === 'excel' && (
           <>
-            {(featureFlags?.isExcelFromPDF !== true) && (
-              <p className="text-center text-red-500">Excel generation is disabled for your company. Please contact your admin.</p>
-            )}
             <form onSubmit={async (e) => {
               e.preventDefault();
               setLoading(true);
@@ -700,20 +1488,35 @@ export default function ExtractSKU() {
                 
                 // Define the custom order for the sheets (exactly as in your script)
                 const customOrder = [
-                  "SHREEJI#", "SHREEJI NEW", "Cosmetic King", "AKIRA_FASHION", "Gajanand_Enterprise",
-                  "ZXRIZ", "JEWELL SWERA CREATION", "BHAKTI CREATION", "LA'KAILASHA", "ghanshyam_enterprise",
-                  "FOREIGN FALCON", "HAYAAT ENTERPRISE", "SERENA JEWELLERY", "SAHJANAND ENTERPRISSE",
-                  "NORDIC CREATION", "KARMA_ENTERPRISE", "SUVRAT ENTERPRISE", "SAHAJ JEWELLERY", "JAY KHODAL CREATION", "SUNSHINECREATION"
+                 "SHREEJI#", "SHREEJI NEW", "Cosmetic King", "AKIRA_FASHION", "Gajanand_Enterprise",
+            "ZXRIZ", "JEWELL SWERA CREATION", "BHAKTI CREATION", "LA'KAILASHA", "ghanshyam_enterprise",
+            "FOREIGN FALCON", "HAYAAT ENTERPRISE", "SERENA JEWELLERY", "SAHJANAND ENTERPRISSE",
+            "NORDIC CREATION", "KARMA_ENTERPRISE", "SUVRAT ENTERPRISE", "SAHAJ JEWELLERY", "JAY KHODAL CREATION", "SUNSHINECREATION", "Ornexa Enterprise"
                 ];
+
+                // Normalize company names by trimming whitespace
+                const normalizedCustomOrder = customOrder.map(name => name.trim());
 
                 // Sort the companies based on the custom order
                 const sortedCompanies = Object.keys(results).sort((a, b) => {
-                  const indexA = customOrder.indexOf(a);
-                  const indexB = customOrder.indexOf(b);
-                  if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-                  if (indexA === -1) return 1;
-                  if (indexB === -1) return -1;
-                  return indexA - indexB;
+                  const aTrimmed = a.trim();
+                  const bTrimmed = b.trim();
+                  const indexA = normalizedCustomOrder.indexOf(aTrimmed);
+                  const indexB = normalizedCustomOrder.indexOf(bTrimmed);
+                  
+                  // Both found in custom order - sort by custom order
+                  if (indexA !== -1 && indexB !== -1) {
+                    return indexA - indexB;
+                  }
+                  
+                  // Only A found in custom order - A comes first
+                  if (indexA !== -1) return -1;
+                  
+                  // Only B found in custom order - B comes first
+                  if (indexB !== -1) return 1;
+                  
+                  // Neither found in custom order - sort alphabetically
+                  return aTrimmed.localeCompare(bTrimmed);
                 });
 
                 // Create a new workbook
@@ -770,35 +1573,939 @@ export default function ExtractSKU() {
               } finally {
                 setLoading(false);
               }
-            }} encType="multipart/form-data" className="space-y-4">
+            }} encType="multipart/form-data" className="p-8 space-y-6">
+              {(featureFlags?.isExcelFromPDF !== true) && (
+                <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                  <p className="text-sm text-yellow-700">Excel generation is disabled for your company. Please contact your admin.</p>
+                </div>
+              )}
               <div>
-                <label htmlFor="pdf_excel" className="block text-sm font-medium text-gray-600">
-                  Upload PDF:
+                <label htmlFor="pdf_excel" className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload PDF File
                 </label>
-                <input
-                  type="file"
-                  id="pdf_excel"
-                  name="pdf_excel"
-                  accept=".pdf"
-                  required
-                  className="w-full px-3 py-2 mt-1 border rounded-lg focus:ring focus:ring-blue-200 focus:outline-none"
-                />
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-purple-400 transition-colors">
+                  <div className="space-y-1 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <div className="flex text-sm text-gray-600">
+                      <label htmlFor="pdf_excel" className="relative cursor-pointer bg-white rounded-md font-medium text-purple-600 hover:text-purple-500">
+                        <span>Upload a file</span>
+                        <input
+                          type="file"
+                          id="pdf_excel"
+                          name="pdf_excel"
+                          accept=".pdf"
+                          required
+                          className="sr-only"
+                        />
+                      </label>
+                      <p className="pl-1">or drag and drop</p>
+                    </div>
+                    <p className="text-xs text-gray-500">PDF up to 25MB</p>
+                  </div>
+                </div>
               </div>
               <button
                 type="submit"
                 disabled={loading || (featureFlags?.isExcelFromPDF !== true)}
-                className={`w-full px-4 py-2 font-medium text-white bg-blue-500 rounded-lg 
-                  hover:bg-blue-600 transition ${(loading || (featureFlags?.isExcelFromPDF !== true)) ? 'bg-blue-300 cursor-not-allowed' : ''}`}
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
-                {loading ? 'Generating...' : 'Generate Excel'}
+                {loading ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Excel'
+                )}
               </button>
             </form>
           </>
         )}
-        {status && <p className="text-sm text-gray-600 text-center">{status}</p>}
-        {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-        {success && <p className="text-sm text-green-500 text-center">File processed successfully. Check your downloads.</p>}
-      </div>
+
+        {selectedTab === 'inventory' && (
+          <div className="p-0">
+            {(featureFlags?.isExtractSKU !== true) && (
+              <div className="m-8 mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <p className="text-sm text-yellow-700">SKU Inventory is disabled for your company. Please contact your admin.</p>
+              </div>
+            )}
+            
+            {/* Filters Bar */}
+            <div className="bg-white border-b border-gray-200 px-8 py-4">
+              {/* Date Range Info */}
+              {dateRange.min && dateRange.max && (
+                <div className="mb-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm text-blue-700">
+                      Data available from <strong>{formatDate(dateRange.min)}</strong> to <strong>{formatDate(dateRange.max)}</strong>
+                    </span>
+                  </div>
+                  {inventoryData && (
+                    <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                      {Object.keys(inventoryData).length} companies loaded
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Currently Showing Data */}
+              {inventoryData && filterStartDate && filterEndDate && (
+                <div className="mb-3 px-4 py-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm text-green-700">
+                      Currently showing data: <strong>{formatDate(filterStartDate)}</strong> 
+                      {filterStartDate !== filterEndDate && (
+                        <> to <strong>{formatDate(filterEndDate)}</strong></>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {selectedCompanies.length > 0 && (
+                      <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                        {selectedCompanies.length} {selectedCompanies.length === 1 ? 'company' : 'companies'} selected
+                      </span>
+                    )}
+                    {activeCompanyTab !== 'all' && selectedCompanies.length === 0 && (
+                      <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">
+                        {activeCompanyTab}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* Date Filters */}
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">From:</label>
+                  <input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={(e) => setFilterStartDate(e.target.value)}
+                    min={dateRange.min}
+                    max={dateRange.max}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">To:</label>
+                  <input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={(e) => setFilterEndDate(e.target.value)}
+                    min={dateRange.min}
+                    max={dateRange.max}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                {/* SKU Search */}
+                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={filterSKU}
+                    onChange={(e) => setFilterSKU(e.target.value)}
+                    placeholder="Search SKU..."
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Loading Indicator */}
+                {loading && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                    <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span className="text-sm text-gray-600">Loading...</span>
+                  </div>
+                )}
+
+                {/* Spacer */}
+                <div className="flex-1"></div>
+
+                {/* Upload Button */}
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Upload
+                </button>
+
+                {/* Delete Button */}
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+
+                {/* Download Excel Button */}
+                <button
+                  onClick={downloadInventoryExcel}
+                  disabled={loading || !filterStartDate || !filterEndDate || !inventoryData}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+              </div>
+            </div>
+
+            {/* Main Content Area with Sidebar */}
+            <div className="flex">
+              {/* Left Sidebar - Company List (Draggable) */}
+              <div className="w-72 bg-gray-50 border-r border-gray-200 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 250px)' }}>
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Companies</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={toggleSelectAll}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                        disabled={!inventoryData || Object.keys(inventoryData).length === 0}
+                      >
+                        {selectedCompanies.length === Object.keys(inventoryData || {}).length && selectedCompanies.length > 0 ? 'Deselect All' : 'Select All'}
+                      </button>
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+                  </div>
+                  
+                  {/* Multi-select Info */}
+                  {selectedCompanies.length > 0 && (
+                    <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs text-blue-700 font-medium">
+                        {selectedCompanies.length} {selectedCompanies.length === 1 ? 'company' : 'companies'} selected
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* All Companies Option */}
+                  <button
+                    onClick={() => handleCompanySelect('all')}
+                    className={`w-full text-left px-4 py-3 rounded-lg mb-2 transition-all ${
+                      activeCompanyTab === 'all' && selectedCompanies.length === 0
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">All Companies</span>
+                      {inventoryData && (
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                          activeCompanyTab === 'all' && selectedCompanies.length === 0
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-blue-100 text-blue-600'
+                        }`}>
+                          {Object.keys(inventoryData).length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Draggable Company List */}
+                  <div className="space-y-2">
+                    {(() => {
+                      // Get unique list of companies from both customOrder and inventoryData
+                      const companiesFromData = inventoryData ? Object.keys(inventoryData) : [];
+                      
+                      console.log('🎨 Before Rendering - customOrder:', customOrder);
+                      console.log('🎨 Before Rendering - companiesFromData:', companiesFromData);
+                      
+                      // If customOrder is empty, use default order
+                      const baseOrder = customOrder.length > 0 ? customOrder : getDefaultCompanyOrder();
+                      
+                      // Start with customOrder/default as the base
+                      const orderedCompanies = [];
+                      
+                      // Add companies from baseOrder that exist in availableCompanies or inventoryData
+                      for (const company of baseOrder) {
+                        if (availableCompanies.includes(company) || companiesFromData.includes(company)) {
+                          orderedCompanies.push(company);
+                        }
+                      }
+                      
+                      console.log('🔍 Building orderedCompanies:', {
+                        baseOrderSample: baseOrder.slice(0, 5),
+                        orderedCompaniesSample: orderedCompanies.slice(0, 5),
+                        orderedCompaniesCount: orderedCompanies.length
+                      });
+                      
+                      // Add any new companies from data that aren't in baseOrder (alphabetically)
+                      const newCompanies = companiesFromData
+                        .filter(company => !baseOrder.includes(company))
+                        .sort();
+                      
+                      const sortedCompanies = [...orderedCompanies, ...newCompanies];
+                      
+                      console.log('🎨 Rendering Company List:', {
+                        customOrderLength: customOrder.length,
+                        baseOrderLength: baseOrder.length,
+                        availableCompaniesLength: availableCompanies.length,
+                        companiesFromData: companiesFromData.length,
+                        orderedCompanies: orderedCompanies.length,
+                        newCompanies: newCompanies,
+                        sortedCompaniesLength: sortedCompanies.length,
+                        '>>> FINAL SORTED ORDER >>>': sortedCompanies
+                      });
+                      
+                      return sortedCompanies;
+                    })().map((company, index) => {
+                      const companyData = inventoryData?.[company];
+                      const totalQty = companyData ? Object.values(companyData).reduce((sum, qty) => sum + qty, 0) : 0;
+                      const skuCount = companyData ? Object.keys(companyData).length : 0;
+                      const isSelected = selectedCompanies.includes(company);
+                      const isActive = activeCompanyTab === company && selectedCompanies.length === 0;
+                      const hasData = !!companyData;
+                      
+                       return (
+                         <div
+                           key={company}
+                           draggable
+                           onDragStart={(e) => handleTabDragStart(e, company)}
+                           onDragOver={handleTabDragOver}
+                           onDrop={(e) => handleTabDrop(e, company)}
+                           className={`w-full rounded-lg transition-all cursor-move group ${
+                             isActive || isSelected
+                               ? 'bg-blue-600 text-white shadow-md'
+                               : hasData
+                               ? 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                               : 'bg-gray-50 text-gray-400 hover:bg-gray-100 border border-gray-200 opacity-60'
+                           } ${draggedTabIndex === company ? 'opacity-50 scale-95' : ''}`}
+                         >
+                          <div className="flex items-start gap-2 px-3 py-3">
+                            {/* Checkbox */}
+                            <div 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hasData) handleCompanySelect(company);
+                              }}
+                              className={`flex-shrink-0 mt-0.5 ${hasData ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                            >
+                              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                                isSelected
+                                  ? 'bg-white border-white'
+                                  : isActive
+                                  ? 'border-blue-300 bg-blue-500'
+                                  : hasData
+                                  ? 'border-gray-300 bg-white'
+                                  : 'border-gray-200 bg-gray-100'
+                              }`}>
+                                {isSelected && (
+                                  <svg className="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Drag Handle */}
+                            <svg className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                              isActive || isSelected ? 'text-blue-200' : hasData ? 'text-gray-400' : 'text-gray-300'
+                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                            </svg>
+                            
+                            {/* Company Info */}
+                            <div 
+                              className="flex-1 min-w-0"
+                              onClick={() => hasData && handleCompanyClick(company)}
+                            >
+                              <div className="text-sm font-medium truncate">{company}</div>
+                              <div className={`text-xs mt-1 flex items-center justify-between ${
+                                isActive || isSelected ? 'text-blue-100' : hasData ? 'text-gray-500' : 'text-gray-400'
+                              }`}>
+                                {hasData ? (
+                                  <>
+                                    <span>{skuCount} SKUs</span>
+                                    <span className="font-semibold">{totalQty.toLocaleString()}</span>
+                                  </>
+                                ) : (
+                                  <span className="italic">No data in selected range</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Show "no companies" message only if both availableCompanies and inventoryData are empty */}
+                  {(!availableCompanies || availableCompanies.length === 0) && 
+                   (!inventoryData || Object.keys(inventoryData).length === 0) && (
+                    <div className="text-center py-8">
+                      <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <p className="mt-2 text-xs text-gray-500">No companies yet</p>
+                      <p className="text-xs text-gray-400">Upload data to see companies</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Content - Data Table */}
+              <div className="flex-1 p-8 overflow-auto">
+                {!inventoryData ? (
+                  <div className="text-center py-16">
+                    <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                    </svg>
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">No data loaded</h3>
+                    <p className="mt-2 text-sm text-gray-500">Select date range and click Fetch to load data</p>
+                  </div>
+                ) : Object.keys(inventoryData).length === 0 ? (
+                  <div className="text-center py-16">
+                    <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">No data found</h3>
+                    <p className="mt-2 text-sm text-gray-500">Try adjusting your filters or upload new data</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-lg shadow overflow-hidden">
+                    {/* Table Header with Company Name(s) */}
+                    {(activeCompanyTab !== 'all' || selectedCompanies.length > 0) && (
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 border-b border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            {selectedCompanies.length > 0 ? (
+                              <>
+                                <h2 className="text-xl font-bold text-blue-900">
+                                  {selectedCompanies.length} {selectedCompanies.length === 1 ? 'Company' : 'Companies'} Selected
+                                </h2>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {selectedCompanies.slice(0, 5).map(company => (
+                                    <span key={company} className="px-2 py-1 bg-white text-blue-700 rounded text-xs font-medium">
+                                      {company}
+                                    </span>
+                                  ))}
+                                  {selectedCompanies.length > 5 && (
+                                    <span className="px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs font-medium">
+                                      +{selectedCompanies.length - 5} more
+                                    </span>
+                                  )}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <h2 className="text-xl font-bold text-blue-900">{activeCompanyTab}</h2>
+                                <p className="text-sm text-blue-600 mt-1">
+                                  {Object.keys(inventoryData[activeCompanyTab] || {}).length} SKUs • 
+                                  Total: {Object.values(inventoryData[activeCompanyTab] || {}).reduce((sum, qty) => sum + qty, 0).toLocaleString()} units
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => {
+                              setActiveCompanyTab('all');
+                              setSelectedCompanies([]);
+                            }}
+                            className="px-3 py-1.5 bg-white text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"
+                          >
+                            View All
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {(activeCompanyTab === 'all' && selectedCompanies.length === 0) && (
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Company
+                            </th>
+                          )}
+                          {(selectedCompanies.length > 1) && (
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Company
+                            </th>
+                          )}
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            SKU
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Quantity
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {Object.entries(inventoryData)
+                          .filter(([companyName]) => {
+                            if (selectedCompanies.length > 0) {
+                              return selectedCompanies.includes(companyName);
+                            }
+                            return activeCompanyTab === 'all' || activeCompanyTab === companyName;
+                          })
+                          .sort(([a], [b]) => {
+                            if (activeCompanyTab !== 'all' && selectedCompanies.length === 0) return 0;
+                            const indexA = customOrder.indexOf(a);
+                            const indexB = customOrder.indexOf(b);
+                            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+                            if (indexA === -1) return 1;
+                            if (indexB === -1) return -1;
+                            return indexA - indexB;
+                          })
+                          .flatMap(([companyName, skus]) =>
+                            Object.entries(skus)
+                              .filter(([sku]) => !filterSKU || sku.toLowerCase().includes(filterSKU.toLowerCase()))
+                              .sort(([a], [b]) => a.localeCompare(b))
+                              .map(([sku, qty], idx, arr) => (
+                                <tr key={`${companyName}-${sku}`} className="hover:bg-gray-50">
+                                  {(activeCompanyTab === 'all' && selectedCompanies.length === 0) && idx === 0 && (
+                                    <td rowSpan={arr.length} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
+                                      <div className="font-semibold">{companyName}</div>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {arr.length} SKUs
+                                      </div>
+                                    </td>
+                                  )}
+                                  {(selectedCompanies.length > 1) && idx === 0 && (
+                                    <td rowSpan={arr.length} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
+                                      <div className="font-semibold">{companyName}</div>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {arr.length} SKUs
+                                      </div>
+                                    </td>
+                                  )}
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                    {sku}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                                    {qty.toLocaleString()}
+                                  </td>
+                                </tr>
+                              ))
+                          )}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan={(activeCompanyTab === 'all' && selectedCompanies.length === 0) || selectedCompanies.length > 1 ? 2 : 1} className="px-6 py-4 text-sm font-bold text-gray-900">
+                            Total
+                          </td>
+                          <td className="px-6 py-4 text-sm text-right font-bold text-blue-600">
+                            {Object.entries(inventoryData)
+                              .filter(([companyName]) => {
+                                if (selectedCompanies.length > 0) {
+                                  return selectedCompanies.includes(companyName);
+                                }
+                                return activeCompanyTab === 'all' || activeCompanyTab === companyName;
+                              })
+                              .flatMap(([, skus]) => Object.entries(skus))
+                              .filter(([sku]) => !filterSKU || sku.toLowerCase().includes(filterSKU.toLowerCase()))
+                              .reduce((sum, [, qty]) => sum + qty, 0)
+                              .toLocaleString()}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Upload Modal */}
+            {showUploadModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg max-w-md w-full p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-gray-900">Upload SKU Data</h3>
+                    <button
+                      onClick={() => {
+                        if (!loading) {
+                          setShowUploadModal(false);
+                          setSelectedFile(null);
+                        }
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleInventoryUpload} data-upload-form="true" className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        required
+                        disabled={loading}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Upload PDF <span className="text-red-500">*</span>
+                      </label>
+                      <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                        selectedFile 
+                          ? 'border-green-400 bg-green-50' 
+                          : 'border-gray-300 hover:border-blue-400'
+                      }`}>
+                        <input
+                          type="file"
+                          id="pdf_inventory_modal"
+                          name="pdf_inventory"
+                          accept=".pdf"
+                          required
+                          disabled={loading}
+                          onChange={(e) => setSelectedFile(e.target.files[0])}
+                          className="hidden"
+                        />
+                        <label htmlFor="pdf_inventory_modal" className="cursor-pointer block">
+                          {selectedFile ? (
+                            <>
+                              <svg className="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="mt-2 block text-sm font-medium text-green-700">
+                                {selectedFile.name}
+                              </span>
+                              <span className="mt-1 block text-xs text-green-600">
+                                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                              </span>
+                              <span className="mt-2 block text-xs text-gray-500">
+                                Click to change file
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              <span className="mt-2 block text-sm text-gray-600">
+                                Click to upload PDF
+                              </span>
+                              <span className="mt-1 block text-xs text-gray-500">
+                                PDF files up to 25MB
+                              </span>
+                            </>
+                          )}
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    {loading && uploadProgress.message && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-700 font-medium">{uploadProgress.message}</span>
+                          <span className="text-blue-600 font-bold">{uploadProgress.percent}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-300 ease-out flex items-center justify-end pr-2"
+                            style={{ width: `${uploadProgress.percent}%` }}
+                          >
+                            {uploadProgress.percent > 10 && (
+                              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {status && !loading && (
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-blue-700">{status}</p>
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-3">
+                      <button
+                        type="submit"
+                        disabled={loading || !selectedFile}
+                        className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        {loading ? 'Processing...' : 'Upload'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUploadModal(false);
+                          setSelectedFile(null);
+                        }}
+                        disabled={loading}
+                        className="flex-1 py-2 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Delete Modal */}
+            {showDeleteModal && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg max-w-md w-full p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <h3 className="text-lg font-bold text-gray-900">Delete SKU Data</h3>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (!loading) {
+                          setShowDeleteModal(false);
+                          setDeleteDate('');
+                        }
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Warning Box */}
+                    <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
+                      <div className="flex items-start">
+                        <svg className="w-6 h-6 text-red-600 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                          <h4 className="text-sm font-bold text-red-900 mb-1">⚠️ Permanent Action</h4>
+                          <p className="text-sm text-red-800">
+                            This will <strong>permanently delete ALL SKU data</strong> for the selected date, including:
+                          </p>
+                          <ul className="text-sm text-red-800 mt-2 ml-4 space-y-1 list-disc">
+                            <li>All company data</li>
+                            <li>All SKU records</li>
+                            <li>All quantity information</li>
+                          </ul>
+                          <p className="text-sm text-red-900 font-semibold mt-2">
+                            This action CANNOT be undone!
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Date Selection */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Date to Delete <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={deleteDate}
+                        onChange={(e) => setDeleteDate(e.target.value)}
+                        disabled={loading || availableDates.length === 0}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-base"
+                      >
+                        <option value="">-- Choose a date to delete --</option>
+                        {availableDates.map(date => (
+                          <option key={date} value={date}>
+                            {formatDate(date)}
+                          </option>
+                        ))}
+                      </select>
+                      {availableDates.length === 0 && (
+                        <p className="text-sm text-gray-500 mt-2 italic">No data available to delete</p>
+                      )}
+                      {deleteDate && (
+                        <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <p className="text-sm text-yellow-800">
+                            <strong>You are about to delete:</strong> All data for {formatDate(deleteDate)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          if (deleteDate) {
+                            deleteInventoryDataByDate(deleteDate);
+                          }
+                        }}
+                        disabled={loading || !deleteDate}
+                        className="flex-1 py-3 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-bold text-sm flex items-center justify-center gap-2"
+                      >
+                        {loading ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Yes, Delete Permanently
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowDeleteModal(false);
+                          setDeleteDate('');
+                        }}
+                        disabled={loading}
+                        className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Overwrite Warning Modal */}
+            {showOverwriteWarning && existingDataInfo && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg max-w-lg w-full p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-yellow-100 rounded-lg">
+                        <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-bold text-gray-900">Data Already Exists</h3>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowOverwriteWarning(false);
+                        setExistingDataInfo(null);
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Warning Message */}
+                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                      <div className="flex">
+                        <div className="ml-3">
+                          <p className="text-sm text-yellow-800">
+                            <strong className="font-semibold">Warning:</strong> Data already exists for the selected date <strong>{formatDate(selectedDate)}</strong>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Existing Data Summary */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-3">Current Data Summary:</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-white rounded-lg p-3 text-center">
+                          <div className="text-2xl font-bold text-blue-600">{existingDataInfo.companiesCount}</div>
+                          <div className="text-xs text-gray-600 mt-1">Companies</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 text-center">
+                          <div className="text-2xl font-bold text-blue-600">{existingDataInfo.skuCount}</div>
+                          <div className="text-xs text-gray-600 mt-1">SKUs</div>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 text-center">
+                          <div className="text-2xl font-bold text-blue-600">{existingDataInfo.totalQuantity.toLocaleString()}</div>
+                          <div className="text-xs text-gray-600 mt-1">Total Qty</div>
+                        </div>
+                      </div>
+                      
+                      {/* Company List */}
+                      <div className="mt-3 max-h-40 overflow-y-auto">
+                        <p className="text-xs font-medium text-gray-700 mb-2">Existing Companies:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {existingDataInfo.companies.map(company => (
+                            <span key={company} className="px-2 py-1 bg-white text-xs text-gray-700 rounded border border-gray-200">
+                              {company}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Warning about overwrite */}
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <p className="text-sm text-red-800">
+                        <strong className="font-semibold">⚠️ Important:</strong> Uploading new data will <strong className="underline">ADD TO</strong> the existing data for this date. If you want to replace it completely, please delete the existing data first.
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        onClick={async () => {
+                          setShowOverwriteWarning(false);
+                          setExistingDataInfo(null);
+                          // Get the form from the upload modal
+                          const form = document.querySelector('form[data-upload-form="true"]');
+                          if (form) {
+                            await processAndUploadPDF({ target: form, preventDefault: () => {} });
+                          }
+                        }}
+                        className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Yes, Add to Existing Data
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowOverwriteWarning(false);
+                          setExistingDataInfo(null);
+                        }}
+                        className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        </div>
       </div>
     </div>
   );
