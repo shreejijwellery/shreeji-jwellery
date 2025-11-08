@@ -1106,10 +1106,10 @@ export default function ExtractSKU() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
       <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">SKU Management Tools</h1>
+              <h1 className="text-2xl font-bold text-gray-900">SKU Management Tools</h1>
               <p className="mt-1 text-sm text-gray-500">Process, manage, and export SKU data efficiently</p>
             </div>
             {status && (
@@ -1128,15 +1128,15 @@ export default function ExtractSKU() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-sm">
+        <div className="px-4">
           <nav className="flex space-x-8" aria-label="Tabs">
             <button
               onClick={() => setSelectedTab('sort')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'sort'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
               }`}
             >
               <div className="flex items-center space-x-2">
@@ -1148,10 +1148,10 @@ export default function ExtractSKU() {
             </button>
             <button
               onClick={() => setSelectedTab('snapdeal')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'snapdeal'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
               }`}
             >
               <div className="flex items-center space-x-2">
@@ -1164,10 +1164,10 @@ export default function ExtractSKU() {
             <button
               onClick={() => setSelectedTab('excel')}
               disabled={!featureFlags || featureFlags.isExcelFromPDF !== true}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'excel'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
               } ${(!featureFlags || featureFlags.isExcelFromPDF !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
@@ -1180,10 +1180,10 @@ export default function ExtractSKU() {
             <button
               onClick={() => setSelectedTab('inventory')}
               disabled={!featureFlags || featureFlags.isExtractSKU !== true}
-              className={`py-4 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'inventory'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
               } ${(!featureFlags || featureFlags.isExtractSKU !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
@@ -1198,10 +1198,10 @@ export default function ExtractSKU() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className={selectedTab === 'inventory' ? '' : 'px-4 py-6'}>
         {/* Alert Messages */}
         {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm">
+          <div className={`mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1216,7 +1216,7 @@ export default function ExtractSKU() {
         )}
         
         {success && (
-          <div className="mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-md shadow-sm">
+          <div className={`mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-md shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1230,7 +1230,7 @@ export default function ExtractSKU() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div className={`bg-white ${selectedTab === 'inventory' ? '' : 'rounded-lg shadow-lg'} overflow-hidden`}>
 
         {selectedTab === 'sort' && (
           <div className="p-8">
@@ -1651,10 +1651,10 @@ export default function ExtractSKU() {
             )}
             
             {/* Filters Bar */}
-            <div className="bg-white border-b border-gray-200 px-8 py-4">
+            <div className="bg-white border-b border-gray-200 px-4 py-3">
               {/* Date Range Info */}
               {dateRange.min && dateRange.max && (
-                <div className="mb-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1673,7 +1673,7 @@ export default function ExtractSKU() {
 
               {/* Currently Showing Data */}
               {inventoryData && actualDataDateRange.min && actualDataDateRange.max && (
-                <div className="mb-3 px-4 py-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+                <div className="mb-3 px-3 py-2 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1792,8 +1792,8 @@ export default function ExtractSKU() {
             {/* Main Content Area with Sidebar */}
             <div className="flex">
               {/* Left Sidebar - Company List (Draggable) */}
-              <div className="w-72 bg-gray-50 border-r border-gray-200 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 250px)' }}>
-                <div className="p-4">
+              <div className="w-64 bg-gray-50 border-r border-gray-200 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+                <div className="p-3">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Companies</h3>
                     <div className="flex items-center gap-2">
@@ -1822,7 +1822,7 @@ export default function ExtractSKU() {
                   {/* All Companies Option */}
                   <button
                     onClick={() => handleCompanySelect('all')}
-                    className={`w-full text-left px-4 py-3 rounded-lg mb-2 transition-all ${
+                    className={`w-full text-left px-3 py-2 rounded-lg mb-2 transition-all ${
                       activeCompanyTab === 'all' && selectedCompanies.length === 0
                         ? 'bg-blue-600 text-white shadow-md'
                         : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
@@ -1912,7 +1912,7 @@ export default function ExtractSKU() {
                                : 'bg-gray-50 text-gray-400 hover:bg-gray-100 border border-gray-200 opacity-60'
                            } ${draggedTabIndex === company ? 'opacity-50 scale-95' : ''}`}
                          >
-                          <div className="flex items-start gap-2 px-3 py-3">
+                          <div className="flex items-start gap-2 px-2 py-2">
                             {/* Checkbox */}
                             <div 
                               onClick={(e) => {
@@ -1985,7 +1985,7 @@ export default function ExtractSKU() {
               </div>
 
               {/* Right Content - Data Table */}
-              <div className="flex-1 p-8 overflow-auto">
+              <div className="flex-1 p-4 overflow-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
                 {!inventoryData ? (
                   <div className="text-center py-16">
                     <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2006,7 +2006,7 @@ export default function ExtractSKU() {
                   <div className="bg-white rounded-lg shadow overflow-hidden">
                     {/* Table Header with Company Name(s) */}
                     {(activeCompanyTab !== 'all' || selectedCompanies.length > 0) && (
-                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-6 py-4 border-b border-blue-200">
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-4 py-3 border-b border-blue-200">
                         <div className="flex items-center justify-between">
                           <div>
                             {selectedCompanies.length > 0 ? (
@@ -2054,19 +2054,19 @@ export default function ExtractSKU() {
                       <thead className="bg-gray-50">
                         <tr>
                           {(activeCompanyTab === 'all' && selectedCompanies.length === 0) && (
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Company
                             </th>
                           )}
                           {(selectedCompanies.length > 1) && (
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Company
                             </th>
                           )}
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             SKU
                           </th>
-                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Quantity
                           </th>
                         </tr>
@@ -2095,7 +2095,7 @@ export default function ExtractSKU() {
                               .map(([sku, qty], idx, arr) => (
                                 <tr key={`${companyName}-${sku}`} className="hover:bg-gray-50">
                                   {(activeCompanyTab === 'all' && selectedCompanies.length === 0) && idx === 0 && (
-                                    <td rowSpan={arr.length} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
+                                    <td rowSpan={arr.length} className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
                                       <div className="font-semibold">{companyName}</div>
                                       <div className="text-xs text-gray-500 mt-1">
                                         {arr.length} SKUs
@@ -2103,17 +2103,17 @@ export default function ExtractSKU() {
                                     </td>
                                   )}
                                   {(selectedCompanies.length > 1) && idx === 0 && (
-                                    <td rowSpan={arr.length} className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
+                                    <td rowSpan={arr.length} className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
                                       <div className="font-semibold">{companyName}</div>
                                       <div className="text-xs text-gray-500 mt-1">
                                         {arr.length} SKUs
                                       </div>
                                     </td>
                                   )}
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
                                     {sku}
                                   </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
+                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
                                     {qty.toLocaleString()}
                                   </td>
                                 </tr>
@@ -2122,10 +2122,10 @@ export default function ExtractSKU() {
                       </tbody>
                       <tfoot className="bg-gray-50">
                         <tr>
-                          <td colSpan={(activeCompanyTab === 'all' && selectedCompanies.length === 0) || selectedCompanies.length > 1 ? 2 : 1} className="px-6 py-4 text-sm font-bold text-gray-900">
+                          <td colSpan={(activeCompanyTab === 'all' && selectedCompanies.length === 0) || selectedCompanies.length > 1 ? 2 : 1} className="px-4 py-3 text-sm font-bold text-gray-900">
                             Total
                           </td>
-                          <td className="px-6 py-4 text-sm text-right font-bold text-blue-600">
+                          <td className="px-4 py-3 text-sm text-right font-bold text-blue-600">
                             {Object.entries(inventoryData)
                               .filter(([companyName]) => {
                                 if (selectedCompanies.length > 0) {
