@@ -71,7 +71,13 @@ const ItemsManager = (props) => {
             fetchItems(true);
             setItems([response.item, ...items]);
             setNewItem({ name: '', rate: '' });
-            toast.success(response.message, { autoClose: 500 }); // Set autoClose to 1 second
+            
+            // Show different message if item was added to multiple sections
+            if (response.itemsCreated && response.itemsCreated > 1) {
+                toast.success(`Item added to all ${response.itemsCreated} sections!`, { autoClose: 2000 });
+            } else {
+                toast.success(response.message, { autoClose: 500 });
+            }
         } catch (error) {
             toast.error('Failed to add item');
         } finally {

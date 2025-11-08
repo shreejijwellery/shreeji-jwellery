@@ -2,6 +2,7 @@ import connectToDatabase from '../../lib/mongodb';
 import OrderFile from '../../models/OrderFile';
 import moment from 'moment-timezone';
 import Item from '../../models/items';
+import Section from '../../models/section';
 import mongoose from 'mongoose';
 import { authMiddleware } from './common/common.services';
 
@@ -32,12 +33,50 @@ const handler = async (req, res) => {
     const { _id, company } = req.userData;
     const { name, rate, section } = body;
 
-    const item = new Item({ name, lastModifiedBy: _id, rate, section, company });
     try {
-      const result = await item.save();
-      res.status(200).json({ message: 'Item created successfully!', item: result });
+      // Get the section details to check if it's "Final Product"
+      const sectionDetails = await Section.findById(section).lean();
+      
+      if (!sectionDetails) {
+        return res.status(404).json({ message: 'Section not found' });
+      }
+
+      // Check if the section is "Final Product" (case-insensitive)
+      const isFinalProductSection = sectionDetails.name.toLowerCase() === 'final product';
+
+      if (isFinalProductSection) {
+        // If it's Final Product, add the item to ALL sections
+        const allSections = await Section.find({ isDeleted: false, company }).lean();
+        
+        const itemsToCreate = allSections.map(sec => ({
+          name,
+          rate,
+          section: sec._id,
+          lastModifiedBy: _id,
+          company
+        }));
+
+        // Bulk insert all items
+        const createdItems = await Item.insertMany(itemsToCreate);
+        
+        // Return the item that was created for the Final Product section
+        const finalProductItem = createdItems.find(item => 
+          item.section.toString() === section.toString()
+        );
+
+        return res.status(200).json({ 
+          message: 'Item created successfully in all sections!', 
+          item: finalProductItem || createdItems[0],
+          itemsCreated: createdItems.length
+        });
+      } else {
+        // Normal behavior: create item only in the selected section
+        const item = new Item({ name, lastModifiedBy: _id, rate, section, company });
+        const result = await item.save();
+        return res.status(200).json({ message: 'Item created successfully!', item: result });
+      }
     } catch (error) {
-      res.status(500).json({ message: 'Error creating section', error: error.message });
+      res.status(500).json({ message: 'Error creating item', error: error.message });
     }
   } else if (method === 'DELETE') {
     const { _id, company } = req.userData;
