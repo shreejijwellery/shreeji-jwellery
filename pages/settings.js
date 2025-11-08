@@ -117,7 +117,7 @@ const SettingsTabs = () => {
                 <PartyDetails user={user} />
               </div>
             )}
-            {(user?.role === 'ADMINISTRATOR' || user?.role === 'admin') && (
+            {/* {(user?.role === 'ADMINISTRATOR' || user?.role === 'admin') && (
               <div className="mt-6 p-4 border rounded">
                 <h2 className="text-lg font-semibold mb-2">Company Feature Flags</h2>
                 {flags ? (
@@ -145,7 +145,7 @@ const SettingsTabs = () => {
                   <p className="text-sm text-gray-500">Loading flags…</p>
                 )}
               </div>
-            )}
+            )} */}
           </div>
         </div>
       ) : (
