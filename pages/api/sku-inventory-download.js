@@ -145,30 +145,12 @@ async function handler(req, res) {
                 const csvArray = [];
                 csvArray.push(['SKU', 'Quantity']);
                 const sortedSKUs = Object.keys(skus).sort();
-                let totalQuantity = 0;
                 for (const sku of sortedSKUs) {
                     const quantity = skus[sku];
                     csvArray.push([sku, quantity]);
-                    totalQuantity += quantity;
                 }
-                // Add total row
-                csvArray.push(['']); // Empty row for spacing
-                csvArray.push(['TOTAL', totalQuantity]);
                 
                 const worksheet = XLSX.utils.aoa_to_sheet(csvArray);
-                
-                // Style the total row (make it bold)
-                const totalRowIndex = csvArray.length - 1;
-                const range = XLSX.utils.decode_range(worksheet['!ref']);
-                for (let col = range.s.c; col <= range.e.c; col++) {
-                    const cellAddress = XLSX.utils.encode_cell({ r: totalRowIndex, c: col });
-                    if (worksheet[cellAddress]) {
-                        worksheet[cellAddress].s = {
-                            font: { bold: true },
-                            fill: { fgColor: { rgb: "FFFF00" } }
-                        };
-                    }
-                }
                 
                 const safeName = makeSafeSheetName(companyName, idx);
                 XLSX.utils.book_append_sheet(workbook, worksheet, safeName);

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import * as XLSX from 'xlsx';
+import Calendar from 'react-calendar';
+import 'react-calendar/dist/Calendar.css';
 
 export default function ExtractSKU() {
   const [loading, setLoading] = useState(false);
@@ -37,6 +39,11 @@ export default function ExtractSKU() {
   const [showOverwriteWarning, setShowOverwriteWarning] = useState(false);
   const [existingDataInfo, setExistingDataInfo] = useState(null);
   const [actualDataDateRange, setActualDataDateRange] = useState({ min: '', max: '' });
+  const [inventoryDataByDate, setInventoryDataByDate] = useState({}); // { date: { company: totalSKUs } }
+  const [holidays, setHolidays] = useState(new Set()); // Set of date strings (YYYY-MM-DD)
+  const [markAsHoliday, setMarkAsHoliday] = useState(false); // For upload modal
+  const [uploadedDates, setUploadedDates] = useState(new Set()); // Set of uploaded date strings
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Sidebar open/close state
 
   // Date formatting utility
   const formatDate = (dateString) => {
@@ -46,6 +53,23 @@ export default function ExtractSKU() {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
+  };
+
+  // Get first and last day of current month (using local time)
+  const getCurrentMonthRange = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    
+    // First day of current month (local time)
+    const firstDay = new Date(year, month, 1);
+    const firstDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(firstDay.getDate()).padStart(2, '0')}`;
+    
+    // Last day of current month (local time)
+    const lastDay = new Date(year, month + 1, 0);
+    const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+    
+    return { firstDay: firstDayStr, lastDay: lastDayStr };
   };
 
   useEffect(() => {
@@ -66,12 +90,62 @@ export default function ExtractSKU() {
     init();
   }, []);
 
+  // Fetch holidays when date range changes
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      if (!filterStartDate || !filterEndDate || selectedTab !== 'inventory') return;
+      
+      try {
+        const token = localStorage.getItem('token');
+        // Ensure dates are in YYYY-MM-DD format (extract date part if ISO string)
+        const cleanStartDate = filterStartDate.split('T')[0];
+        const cleanEndDate = filterEndDate.split('T')[0];
+        
+        const { data } = await axios.get(
+          `/api/sku-inventory/holidays?startDate=${cleanStartDate}&endDate=${cleanEndDate}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        if (data.success && data.holidays) {
+          setHolidays(new Set(data.holidays));
+        }
+      } catch (err) {
+        console.error('Error fetching holidays:', err);
+        console.error('Error details:', err.response?.data);
+        // Fallback to empty set on error
+        setHolidays(new Set());
+      }
+    };
+
+    fetchHolidays();
+  }, [filterStartDate, filterEndDate, selectedTab]);
+
   // Initialize inventory tab data when switching to inventory tab
   useEffect(() => {
     if (selectedTab === 'inventory' && featureFlags?.isExtractSKU === true) {
       const initInventory = async () => {
+        // Set default to current month if filters are not set
+        let startDate = filterStartDate;
+        let endDate = filterEndDate;
+        
+        if (!startDate || !endDate) {
+          const { firstDay, lastDay } = getCurrentMonthRange();
+          startDate = firstDay;
+          endDate = lastDay;
+          setFilterStartDate(firstDay);
+          setFilterEndDate(lastDay);
+        }
+        
         await fetchFilterOptions();
         await fetchCustomOrder();
+        
+        // Ensure dates are still set (in case fetchFilterOptions changed them)
+        // Only override if they were reset to empty
+        if (!filterStartDate || !filterEndDate) {
+          setFilterStartDate(startDate);
+          setFilterEndDate(endDate);
+        }
+        
         // Fetch initial data after filters and order are loaded
         fetchInventoryData();
       };
@@ -523,6 +597,87 @@ export default function ExtractSKU() {
   };
 
 
+  // Helper function to generate all dates in a range (using local time)
+  const generateDateRange = (startDate, endDate) => {
+    if (!startDate || !endDate) return [];
+    const dates = [];
+    // Parse dates in local timezone
+    const startParts = startDate.split('-').map(Number);
+    const endParts = endDate.split('-').map(Number);
+    const start = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+    const end = new Date(endParts[0], endParts[1] - 1, endParts[2]);
+    const current = new Date(start);
+    
+    while (current <= end) {
+      // Format date using local time
+      const year = current.getFullYear();
+      const month = String(current.getMonth() + 1).padStart(2, '0');
+      const day = String(current.getDate()).padStart(2, '0');
+      dates.push(`${year}-${month}-${day}`);
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  };
+
+  // Toggle holiday status for a date
+  const toggleHoliday = async (dateString) => {
+    try {
+      const token = localStorage.getItem('token');
+      const isHoliday = holidays.has(dateString);
+      
+      if (isHoliday) {
+        // Remove holiday
+        const response = await axios.delete(`/api/sku-inventory/holidays?date=${dateString}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (response.data.success) {
+          const newHolidays = new Set(holidays);
+          newHolidays.delete(dateString);
+          setHolidays(newHolidays);
+          // Refresh holidays to ensure sync
+          if (filterStartDate && filterEndDate) {
+            const { data } = await axios.get(
+              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (data.success && data.holidays) {
+              setHolidays(new Set(data.holidays));
+            }
+          }
+        }
+      } else {
+        // Add holiday
+        const response = await axios.post(
+          '/api/sku-inventory/holidays',
+          { date: dateString },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        if (response.data.success) {
+          const newHolidays = new Set(holidays);
+          newHolidays.add(dateString);
+          setHolidays(newHolidays);
+          // Refresh holidays to ensure sync
+          if (filterStartDate && filterEndDate) {
+            const { data } = await axios.get(
+              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (data.success && data.holidays) {
+              setHolidays(new Set(data.holidays));
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling holiday:', err);
+      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Failed to update holiday';
+      setError(`Holiday error: ${errorMessage}`);
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
   // SKU Inventory Management Functions
   const fetchInventoryData = async () => {
     try {
@@ -549,6 +704,26 @@ export default function ExtractSKU() {
         });
       }
       
+      // Organize data by date: { date: { company: totalQuantity } }
+      const dataByDate = {};
+      if (data.rawData && data.rawData.length > 0) {
+        // Group by date and company to sum quantities
+        data.rawData.forEach(item => {
+          const dateStr = new Date(item.selectedDate).toISOString().split('T')[0];
+          const trimmedCompanyName = (item.companyName || '').trim();
+          if (!trimmedCompanyName) return;
+          
+          if (!dataByDate[dateStr]) {
+            dataByDate[dateStr] = {};
+          }
+          if (!dataByDate[dateStr][trimmedCompanyName]) {
+            dataByDate[dateStr][trimmedCompanyName] = 0;
+          }
+          // Sum quantities instead of counting SKUs
+          dataByDate[dateStr][trimmedCompanyName] += (item.quantity || 0);
+        });
+      }
+      
       // Calculate actual date range from rawData
       if (data.rawData && data.rawData.length > 0) {
         const dates = data.rawData.map(item => new Date(item.selectedDate));
@@ -567,10 +742,12 @@ export default function ExtractSKU() {
         companiesCount: Object.keys(trimmedData).length,
         companies: Object.keys(trimmedData),
         originalCompanies: data.data ? Object.keys(data.data) : [],
-        data: trimmedData
+        data: trimmedData,
+        dataByDate: dataByDate
       });
       
       setInventoryData(trimmedData);
+      setInventoryDataByDate(dataByDate);
       
       // DO NOT modify customOrder here!
       // customOrder should only be set by:
@@ -582,6 +759,7 @@ export default function ExtractSKU() {
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch inventory data');
       setInventoryData(null);
+      setInventoryDataByDate({});
     } finally {
       setLoading(false);
     }
@@ -596,26 +774,66 @@ export default function ExtractSKU() {
       const dates = data.dates || [];
       const companyNames = (data.companyNames || []).map(name => name.trim()).filter(name => name);
       
+      // Normalize dates to YYYY-MM-DD format for consistent comparison
+      const normalizedDates = dates.map(date => {
+        if (!date) return null;
+        // If date is already in YYYY-MM-DD format, use it as-is
+        if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return date;
+        }
+        // Otherwise, try to parse and format it
+        try {
+          const dateObj = new Date(date);
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        } catch (e) {
+          return date; // Fallback to original if parsing fails
+        }
+      }).filter(date => date !== null);
+      
       console.log('🏢 Filter Options Fetched:', {
-        datesCount: dates.length,
+        datesCount: normalizedDates.length,
         companiesCount: companyNames.length,
         originalCompanies: data.companyNames || [],
         companies: companyNames
       });
       
-      setAvailableDates(dates);
+      setAvailableDates(normalizedDates);
       setAvailableCompanies(companyNames);
       
+      // Track uploaded dates for calendar display (normalized to YYYY-MM-DD)
+      setUploadedDates(new Set(normalizedDates));
+      
       // Set date range info
-      if (dates.length > 0) {
-        const sortedDates = [...dates].sort();
+      if (normalizedDates.length > 0) {
+        const sortedDates = [...normalizedDates].sort();
         setDateRange({ min: sortedDates[0], max: sortedDates[sortedDates.length - 1] });
         
-        // Set default filter dates if not set
-        if (!filterStartDate && !filterEndDate) {
-          // Use last date as default
+        // Set default filter dates if not set - prefer current month
+        if (!filterStartDate || !filterEndDate) {
+          const { firstDay, lastDay } = getCurrentMonthRange();
+          // Check if current month dates are within available range
+          const currentMonthStart = firstDay >= sortedDates[0] ? firstDay : sortedDates[0];
+          const currentMonthEnd = lastDay <= sortedDates[sortedDates.length - 1] ? lastDay : sortedDates[sortedDates.length - 1];
+          
+          // Use current month range (clamped to available dates) if valid
+          if (currentMonthStart <= currentMonthEnd) {
+            setFilterStartDate(currentMonthStart);
+            setFilterEndDate(currentMonthEnd);
+          } else {
+            // Fallback to last available date if current month is completely out of range
           setFilterStartDate(sortedDates[sortedDates.length - 1]);
           setFilterEndDate(sortedDates[sortedDates.length - 1]);
+          }
+        }
+      } else {
+        // No dates available, still set current month as default
+        if (!filterStartDate || !filterEndDate) {
+          const { firstDay, lastDay } = getCurrentMonthRange();
+          setFilterStartDate(firstDay);
+          setFilterEndDate(lastDay);
         }
       }
       
@@ -860,16 +1078,50 @@ export default function ExtractSKU() {
       setSuccess(true);
       setStatus(data.message);
       
+      // Mark as holiday if checkbox was checked
+      if (markAsHoliday) {
+        try {
+          await axios.post(
+            '/api/sku-inventory/holidays',
+            { date: selectedDate },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          // Refresh holidays
+          if (filterStartDate && filterEndDate) {
+            const { data: holidayData } = await axios.get(
+              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}`,
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (holidayData.success && holidayData.holidays) {
+              setHolidays(new Set(holidayData.holidays));
+            }
+          }
+        } catch (holidayErr) {
+          console.error('Error marking as holiday:', holidayErr);
+          // Don't fail the upload if holiday marking fails
+        }
+      }
+      
       // DO NOT modify customOrder here!
       // customOrder should only be set by:
       // 1. fetchCustomOrder() on initialization
       // 2. handleTabDrop() when user explicitly reorders via drag-drop
       console.log('ℹ️ Data uploaded successfully. Not modifying customOrder.');
       
+      // Refresh filter options to update uploadedDates immediately
       await fetchFilterOptions();
       await fetchInventoryData();
+      
+      // Update uploadedDates to include the just-uploaded date
+      setUploadedDates(prev => {
+        const updated = new Set(prev);
+        updated.add(selectedDate);
+        return updated;
+      });
+      
       setShowUploadModal(false); // Close modal after successful upload
       setSelectedFile(null); // Reset selected file
+      setMarkAsHoliday(false); // Reset holiday checkbox
       setTimeout(() => { setSuccess(false); setStatus(''); }, 3000);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload data');
@@ -893,9 +1145,16 @@ export default function ExtractSKU() {
       setShowDeleteModal(false);
       setDeleteDate('');
       
-      // Refresh data
+      // Refresh data (this will update uploadedDates via fetchFilterOptions)
       await fetchFilterOptions();
       await fetchInventoryData();
+      
+      // Explicitly remove deleted date from uploadedDates
+      setUploadedDates(prev => {
+        const updated = new Set(prev);
+        updated.delete(date);
+        return updated;
+      });
       
       setTimeout(() => { setSuccess(false); setStatus(''); }, 3000);
     } catch (err) {
@@ -952,6 +1211,18 @@ export default function ExtractSKU() {
     setLoading(true);
     setError(null);
     setSuccess(false);
+    
+    // Validate: Prevent future dates
+    const today = new Date();
+    const selected = new Date(selectedDate);
+    today.setHours(0, 0, 0, 0);
+    selected.setHours(0, 0, 0, 0);
+    
+    if (selected > today) {
+      setError('Cannot upload data for future dates. Please select today or a past date.');
+      setLoading(false);
+      return;
+    }
     
     // Check if data exists for selected date
     const existingData = await checkExistingData(selectedDate);
@@ -1755,7 +2026,50 @@ export default function ExtractSKU() {
 
                 {/* Upload Button */}
                 <button
-                  onClick={() => setShowUploadModal(true)}
+                  onClick={async () => {
+                    setShowUploadModal(true);
+                    // Refresh holidays and uploaded dates when opening modal
+                    try {
+                      const token = localStorage.getItem('token');
+                      // Refresh uploaded dates from filter options
+                      const { data: filterData } = await axios.get('/api/sku-inventory-filters', {
+                        headers: { Authorization: `Bearer ${token}` }
+                      });
+                      const dates = filterData.dates || [];
+                      // Normalize dates to YYYY-MM-DD format
+                      const normalizedDates = dates.map(date => {
+                        if (!date) return null;
+                        if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                          return date;
+                        }
+                        try {
+                          const dateObj = new Date(date);
+                          const year = dateObj.getFullYear();
+                          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                          const day = String(dateObj.getDate()).padStart(2, '0');
+                          return `${year}-${month}-${day}`;
+                        } catch (e) {
+                          return date;
+                        }
+                      }).filter(date => date !== null);
+                      setUploadedDates(new Set(normalizedDates));
+                      
+                      // Refresh holidays
+                      if (filterStartDate && filterEndDate) {
+                        const cleanStartDate = filterStartDate.split('T')[0];
+                        const cleanEndDate = filterEndDate.split('T')[0];
+                        const { data } = await axios.get(
+                          `/api/sku-inventory/holidays?startDate=${cleanStartDate}&endDate=${cleanEndDate}`,
+                          { headers: { Authorization: `Bearer ${token}` } }
+                        );
+                        if (data.success && data.holidays) {
+                          setHolidays(new Set(data.holidays));
+                        }
+                      }
+                    } catch (err) {
+                      console.error('Error refreshing data:', err);
+                    }
+                  }}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1790,25 +2104,37 @@ export default function ExtractSKU() {
             </div>
 
             {/* Main Content Area with Sidebar */}
-            <div className="flex">
+            <div className="flex relative">
               {/* Left Sidebar - Company List (Draggable) */}
-              <div className="w-64 bg-gray-50 border-r border-gray-200 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
-                <div className="p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Companies</h3>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={toggleSelectAll}
-                        className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                        disabled={!inventoryData || Object.keys(inventoryData).length === 0}
-                      >
-                        {selectedCompanies.length === Object.keys(inventoryData || {}).length && selectedCompanies.length > 0 ? 'Deselect All' : 'Select All'}
-                      </button>
-                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                      </svg>
+              <div 
+                className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 ease-in-out ${
+                  sidebarOpen ? 'w-64 overflow-y-auto' : 'w-0 overflow-hidden'
+                }`}
+                style={{ maxHeight: 'calc(100vh - 180px)' }}
+              >
+                {sidebarOpen && (
+                  <div className="p-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Companies</h3>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={toggleSelectAll}
+                          className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+                          disabled={!inventoryData || Object.keys(inventoryData).length === 0}
+                        >
+                          {selectedCompanies.length === Object.keys(inventoryData || {}).length && selectedCompanies.length > 0 ? 'Deselect All' : 'Select All'}
+                        </button>
+                        <button
+                          onClick={() => setSidebarOpen(false)}
+                          className="p-1 hover:bg-gray-200 rounded transition-colors"
+                          title="Close sidebar"
+                        >
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-                  </div>
                   
                   {/* Multi-select Info */}
                   {selectedCompanies.length > 0 && (
@@ -1981,166 +2307,197 @@ export default function ExtractSKU() {
                       <p className="text-xs text-gray-400">Upload data to see companies</p>
                     </div>
                   )}
-                </div>
+                  </div>
+                )}
               </div>
 
-              {/* Right Content - Data Table */}
+              {/* Toggle Button - Show when sidebar is closed */}
+              {!sidebarOpen && (
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="absolute left-0 top-4 z-20 bg-gray-50 hover:bg-gray-100 border-r border-y border-gray-200 rounded-r-lg px-2 py-3 shadow-md transition-all duration-200 group"
+                  title="Open sidebar"
+                >
+                  <svg className="w-5 h-5 text-gray-600 group-hover:text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Right Content - Date-by-Company Table */}
               <div className="flex-1 p-4 overflow-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
-                {!inventoryData ? (
+                {!filterStartDate || !filterEndDate ? (
                   <div className="text-center py-16">
                     <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
-                    <h3 className="mt-4 text-lg font-medium text-gray-900">No data loaded</h3>
-                    <p className="mt-2 text-sm text-gray-500">Select date range and click Fetch to load data</p>
-                  </div>
-                ) : Object.keys(inventoryData).length === 0 ? (
-                  <div className="text-center py-16">
-                    <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <h3 className="mt-4 text-lg font-medium text-gray-900">No data found</h3>
-                    <p className="mt-2 text-sm text-gray-500">Try adjusting your filters or upload new data</p>
+                    <h3 className="mt-4 text-lg font-medium text-gray-900">Select Date Range</h3>
+                    <p className="mt-2 text-sm text-gray-500">Please select start and end dates to view data</p>
                   </div>
                 ) : (
                   <div className="bg-white rounded-lg shadow overflow-hidden">
-                    {/* Table Header with Company Name(s) */}
-                    {(activeCompanyTab !== 'all' || selectedCompanies.length > 0) && (
-                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-4 py-3 border-b border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            {selectedCompanies.length > 0 ? (
-                              <>
-                                <h2 className="text-xl font-bold text-blue-900">
-                                  {selectedCompanies.length} {selectedCompanies.length === 1 ? 'Company' : 'Companies'} Selected
-                                </h2>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {selectedCompanies.slice(0, 5).map(company => (
-                                    <span key={company} className="px-2 py-1 bg-white text-blue-700 rounded text-xs font-medium">
-                                      {company}
-                                    </span>
-                                  ))}
-                                  {selectedCompanies.length > 5 && (
-                                    <span className="px-2 py-1 bg-blue-200 text-blue-800 rounded text-xs font-medium">
-                                      +{selectedCompanies.length - 5} more
-                                    </span>
-                                  )}
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <h2 className="text-xl font-bold text-blue-900">{activeCompanyTab}</h2>
-                                <p className="text-sm text-blue-600 mt-1">
-                                  {Object.keys(inventoryData[activeCompanyTab] || {}).length} SKUs • 
-                                  Total: {Object.values(inventoryData[activeCompanyTab] || {}).reduce((sum, qty) => sum + qty, 0).toLocaleString()} units
-                                </p>
-                              </>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => {
-                              setActiveCompanyTab('all');
-                              setSelectedCompanies([]);
-                            }}
-                            className="px-3 py-1.5 bg-white text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-50 transition-colors"
-                          >
-                            View All
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
+                    <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 250px)', position: 'relative' }}>
+                    <table className="min-w-full divide-y divide-gray-200" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+                        <thead className="bg-gray-50" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                         <tr>
-                          {(activeCompanyTab === 'all' && selectedCompanies.length === 0) && (
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Company
+                            <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 bg-gray-50" style={{ position: 'sticky', left: 0, top: 0, zIndex: 30, boxShadow: '2px 0 4px rgba(0,0,0,0.1)', width: '120px', minWidth: '120px', maxWidth: '120px' }}>
+                              Date
                             </th>
-                          )}
-                          {(selectedCompanies.length > 1) && (
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Company
+                            {(() => {
+                              // Get ordered company list
+                              const companiesFromData = inventoryData ? Object.keys(inventoryData) : [];
+                              const baseOrder = customOrder.length > 0 ? customOrder : getDefaultCompanyOrder();
+                              const orderedCompanies = [];
+                              
+                              for (const company of baseOrder) {
+                                if (availableCompanies.includes(company) || companiesFromData.includes(company)) {
+                                  orderedCompanies.push(company);
+                                }
+                              }
+                              
+                              const newCompanies = companiesFromData
+                                .filter(company => !baseOrder.includes(company))
+                                .sort();
+                              
+                              return [...orderedCompanies, ...newCompanies];
+                            })().map(company => (
+                              <th key={company} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[100px] bg-gray-50" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                                <div className="truncate" title={company}>{company}</div>
                             </th>
-                          )}
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            SKU
-                          </th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Quantity
+                            ))}
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-blue-50 border-l-2 border-blue-300 min-w-[80px]" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                              Total
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {Object.entries(inventoryData)
-                          .filter(([companyName]) => {
-                            if (selectedCompanies.length > 0) {
-                              return selectedCompanies.includes(companyName);
+                          {generateDateRange(filterStartDate, filterEndDate).map(dateStr => {
+                            const isHoliday = holidays.has(dateStr);
+                            const dateData = inventoryDataByDate[dateStr] || {};
+                            const totalForDate = Object.values(dateData).reduce((sum, count) => sum + count, 0);
+                            
+                            // Get ordered company list
+                            const companiesFromData = inventoryData ? Object.keys(inventoryData) : [];
+                            const baseOrder = customOrder.length > 0 ? customOrder : getDefaultCompanyOrder();
+                            const orderedCompanies = [];
+                            
+                            for (const company of baseOrder) {
+                              if (availableCompanies.includes(company) || companiesFromData.includes(company)) {
+                                orderedCompanies.push(company);
+                              }
                             }
-                            return activeCompanyTab === 'all' || activeCompanyTab === companyName;
-                          })
-                          .sort(([a], [b]) => {
-                            if (activeCompanyTab !== 'all' && selectedCompanies.length === 0) return 0;
-                            const indexA = customOrder.indexOf(a);
-                            const indexB = customOrder.indexOf(b);
-                            if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-                            if (indexA === -1) return 1;
-                            if (indexB === -1) return -1;
-                            return indexA - indexB;
-                          })
-                          .flatMap(([companyName, skus]) =>
-                            Object.entries(skus)
-                              .filter(([sku]) => !filterSKU || sku.toLowerCase().includes(filterSKU.toLowerCase()))
-                              .sort(([a], [b]) => a.localeCompare(b))
-                              .map(([sku, qty], idx, arr) => (
-                                <tr key={`${companyName}-${sku}`} className="hover:bg-gray-50">
-                                  {(activeCompanyTab === 'all' && selectedCompanies.length === 0) && idx === 0 && (
-                                    <td rowSpan={arr.length} className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
-                                      <div className="font-semibold">{companyName}</div>
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        {arr.length} SKUs
-                                      </div>
+                            
+                            const newCompanies = companiesFromData
+                              .filter(company => !baseOrder.includes(company))
+                              .sort();
+                            
+                            const allCompanies = [...orderedCompanies, ...newCompanies];
+                            
+                            return (
+                              <tr 
+                                key={dateStr} 
+                                className={`group ${isHoliday ? 'bg-yellow-100 hover:bg-yellow-200' : 'hover:bg-gray-50'}`}
+                                onDoubleClick={() => toggleHoliday(dateStr)}
+                                title={isHoliday ? 'Double-click to remove holiday' : 'Double-click to mark as holiday'}
+                              >
+                                <td className={`px-3 py-3 text-sm font-medium border-r border-gray-300 ${
+                                  isHoliday 
+                                    ? 'text-yellow-900 bg-yellow-100' 
+                                    : 'text-gray-900 bg-white'
+                                }`} style={{ position: 'sticky', left: 0, zIndex: 1, boxShadow: '2px 0 4px rgba(0,0,0,0.1)', width: '120px', minWidth: '120px', maxWidth: '120px', overflow: 'hidden' }}>
+                                  <div className="flex items-center gap-1" style={{ overflow: 'hidden' }}>
+                                    <span className="truncate whitespace-nowrap" style={{ flex: '1 1 auto', minWidth: 0 }}>{formatDate(dateStr)}</span>
+                                    {isHoliday && (
+                                      <svg className="w-4 h-4 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                </td>
+                                {allCompanies.map(company => {
+                                  const quantity = dateData[company] || 0;
+                                  return (
+                                    <td 
+                                      key={`${dateStr}-${company}`} 
+                                      className={`px-3 py-3 text-center text-sm ${
+                                        isHoliday
+                                          ? 'bg-yellow-100 text-yellow-900 font-semibold'
+                                          : quantity > 0 
+                                            ? 'text-gray-900 font-semibold bg-green-50' 
+                                            : 'text-gray-400 bg-red-50'
+                                      }`}
+                                    >
+                                      {quantity > 0 ? quantity.toLocaleString() : '-'}
                                     </td>
-                                  )}
-                                  {(selectedCompanies.length > 1) && idx === 0 && (
-                                    <td rowSpan={arr.length} className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50 align-top">
-                                      <div className="font-semibold">{companyName}</div>
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        {arr.length} SKUs
-                                      </div>
-                                    </td>
-                                  )}
-                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                                    {sku}
-                                  </td>
-                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-gray-900">
-                                    {qty.toLocaleString()}
-                                  </td>
-                                </tr>
-                              ))
-                          )}
+                                  );
+                                })}
+                                <td className={`px-4 py-3 text-center text-sm font-bold border-l-2 border-blue-300 ${
+                                  isHoliday
+                                    ? 'bg-yellow-100 text-yellow-900'
+                                    : totalForDate > 0 
+                                      ? 'text-blue-600' 
+                                      : 'text-gray-400'
+                                }`}>
+                                  {totalForDate > 0 ? totalForDate.toLocaleString() : '-'}
+                                </td>
+                              </tr>
+                            );
+                          })}
                       </tbody>
-                      <tfoot className="bg-gray-50">
+                        <tfoot className="bg-gray-50" style={{ position: 'sticky', bottom: 0, zIndex: 10 }}>
                         <tr>
-                          <td colSpan={(activeCompanyTab === 'all' && selectedCompanies.length === 0) || selectedCompanies.length > 1 ? 2 : 1} className="px-4 py-3 text-sm font-bold text-gray-900">
+                            <td className="px-3 py-3 text-sm font-bold text-gray-900 border-r border-gray-300 bg-gray-50" style={{ position: 'sticky', left: 0, bottom: 0, zIndex: 40, boxShadow: '2px 0 4px rgba(0,0,0,0.1)', width: '120px', minWidth: '120px', maxWidth: '120px' }}>
                             Total
                           </td>
-                          <td className="px-4 py-3 text-sm text-right font-bold text-blue-600">
-                            {Object.entries(inventoryData)
-                              .filter(([companyName]) => {
-                                if (selectedCompanies.length > 0) {
-                                  return selectedCompanies.includes(companyName);
+                            {(() => {
+                              // Get ordered company list
+                              const companiesFromData = inventoryData ? Object.keys(inventoryData) : [];
+                              const baseOrder = customOrder.length > 0 ? customOrder : getDefaultCompanyOrder();
+                              const orderedCompanies = [];
+                              
+                              for (const company of baseOrder) {
+                                if (availableCompanies.includes(company) || companiesFromData.includes(company)) {
+                                  orderedCompanies.push(company);
                                 }
-                                return activeCompanyTab === 'all' || activeCompanyTab === companyName;
-                              })
-                              .flatMap(([, skus]) => Object.entries(skus))
-                              .filter(([sku]) => !filterSKU || sku.toLowerCase().includes(filterSKU.toLowerCase()))
-                              .reduce((sum, [, qty]) => sum + qty, 0)
-                              .toLocaleString()}
-                          </td>
+                              }
+                              
+                              const newCompanies = companiesFromData
+                                .filter(company => !baseOrder.includes(company))
+                                .sort();
+                              
+                              return [...orderedCompanies, ...newCompanies];
+                            })().map(company => {
+                              const totalForCompany = generateDateRange(filterStartDate, filterEndDate).reduce((sum, dateStr) => {
+                                const dateData = inventoryDataByDate[dateStr] || {};
+                                return sum + (dateData[company] || 0);
+                              }, 0);
+                              
+                              return (
+                                <td 
+                                  key={company} 
+                                  className={`px-3 py-3 text-center text-sm font-bold ${
+                                    totalForCompany > 0 
+                                      ? 'text-blue-600 bg-green-50' 
+                                      : 'text-gray-400 bg-red-50'
+                                  }`}
+                                >
+                                  {totalForCompany > 0 ? totalForCompany.toLocaleString() : '-'}
+                                </td>
+                              );
+                            })}
+                            <td className="px-4 py-3 text-center text-sm font-bold text-blue-700 bg-blue-50 border-l-2 border-blue-300">
+                              {generateDateRange(filterStartDate, filterEndDate).reduce((sum, dateStr) => {
+                                const dateData = inventoryDataByDate[dateStr] || {};
+                                return sum + Object.values(dateData).reduce((s, quantity) => s + quantity, 0);
+                              }, 0).toLocaleString()}
+                            </td>
                         </tr>
                       </tfoot>
                     </table>
+                    </div>
+                    <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-xs text-gray-500">
+                      💡 Double-click on a date row to mark/unmark it as a holiday
+                    </div>
                   </div>
                 )}
               </div>
@@ -2149,7 +2506,174 @@ export default function ExtractSKU() {
             {/* Upload Modal */}
             {showUploadModal && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                <div className="bg-white rounded-lg max-w-md w-full p-6">
+                <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+                  <style dangerouslySetInnerHTML={{__html: `
+                    .react-calendar {
+                      width: 100%;
+                      border: none;
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                      background: transparent;
+                    }
+                    .react-calendar__navigation {
+                      display: flex;
+                      height: 50px;
+                      margin-bottom: 1.5em;
+                      align-items: center;
+                      justify-content: space-between;
+                      background: #ffffff;
+                      border: 1px solid #e5e7eb;
+                      border-radius: 8px;
+                      padding: 0 16px;
+                    }
+                    .react-calendar__navigation button {
+                      min-width: 36px;
+                      height: 36px;
+                      background: #f9fafb;
+                      color: #374151;
+                      border: 1px solid #e5e7eb;
+                      border-radius: 6px;
+                      font-size: 14px;
+                      font-weight: 500;
+                      transition: all 0.15s ease;
+                      padding: 0;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                    }
+                    .react-calendar__navigation button:hover:not(:disabled) {
+                      background: #f3f4f6;
+                      border-color: #d1d5db;
+                      color: #111827;
+                    }
+                    .react-calendar__navigation button:disabled {
+                      opacity: 0.3;
+                      cursor: not-allowed;
+                    }
+                    .react-calendar__navigation__label {
+                      font-size: 15px;
+                      font-weight: 600;
+                      color: #111827;
+                      text-transform: capitalize;
+                      pointer-events: none;
+                    }
+                    .react-calendar__month-view__weekdays {
+                      display: flex;
+                      margin-bottom: 8px;
+                    }
+                    .react-calendar__month-view__weekdays__weekday {
+                      flex: 1;
+                      text-align: center;
+                      font-size: 11px;
+                      font-weight: 600;
+                      color: #6b7280;
+                      text-transform: uppercase;
+                      letter-spacing: 0.5px;
+                      padding: 8px 4px;
+                      background: transparent;
+                    }
+                    .react-calendar__month-view__days {
+                      display: grid !important;
+                      grid-template-columns: repeat(7, 1fr);
+                      gap: 4px;
+                    }
+                    .react-calendar__tile {
+                      padding: 10px 4px;
+                      border-radius: 6px;
+                      transition: all 0.15s ease;
+                      font-size: 14px;
+                      font-weight: 500;
+                      border: 1px solid transparent;
+                      position: relative;
+                      min-height: 40px;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      background: #ffffff;
+                      color: #374151;
+                    }
+                    .react-calendar__tile--disabled {
+                      opacity: 0.25;
+                      cursor: not-allowed;
+                      background: #f9fafb !important;
+                      color: #d1d5db !important;
+                    }
+                    .react-calendar__tile--active:not(.bg-green-200):not(.bg-yellow-200):not(.bg-red-100) {
+                      background: #3b82f6 !important;
+                      color: white !important;
+                      font-weight: 600;
+                      border-color: #2563eb;
+                    }
+                    .react-calendar__tile--now:not(.bg-green-200):not(.bg-yellow-200):not(.bg-red-100) {
+                      background: #eff6ff;
+                      font-weight: 600;
+                      color: #1e40af;
+                      border: 1px solid #93c5fd;
+                    }
+                    .react-calendar__tile:hover:not(.react-calendar__tile--disabled):not(.selected-date) {
+                      background: #f3f4f6;
+                      border-color: #d1d5db;
+                    }
+                    /* Uploaded dates - Green */
+                    .react-calendar__tile.bg-green-200 {
+                      background: #dcfce7 !important;
+                      color: #166534 !important;
+                      border: 1px solid #86efac !important;
+                      font-weight: 600;
+                    }
+                    .react-calendar__tile.bg-green-200:hover {
+                      background: #bbf7d0 !important;
+                      border-color: #4ade80 !important;
+                    }
+                    /* Holiday dates - Yellow */
+                    .react-calendar__tile.bg-yellow-200 {
+                      background: #fef9c3 !important;
+                      color: #854d0e !important;
+                      border: 1px solid #fde047 !important;
+                      font-weight: 600;
+                    }
+                    .react-calendar__tile.bg-yellow-200:hover {
+                      background: #fef08a !important;
+                      border-color: #facc15 !important;
+                    }
+                    /* Pending dates - Red */
+                    .react-calendar__tile.bg-red-100 {
+                      background: #fee2e2 !important;
+                      color: #991b1b !important;
+                      border: 1px solid #fca5a5 !important;
+                      font-weight: 500;
+                    }
+                    .react-calendar__tile.bg-red-100:hover {
+                      background: #fecaca !important;
+                      border-color: #f87171 !important;
+                    }
+                    /* Disabled/Future dates */
+                    .react-calendar__tile.bg-gray-100 {
+                      background: #f9fafb !important;
+                      color: #9ca3af !important;
+                      border: 1px solid #e5e7eb !important;
+                    }
+                    /* Selected date styling - clean dark border */
+                    .react-calendar__tile.selected-date {
+                      box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1) !important;
+                      outline: 2px solid #111827 !important;
+                      outline-offset: 2px !important;
+                      z-index: 10 !important;
+                      position: relative !important;
+                      font-weight: 700 !important;
+                    }
+                    /* Ensure selected date border is visible on all background colors */
+                    .react-calendar__tile.selected-date.bg-green-200,
+                    .react-calendar__tile.selected-date.bg-yellow-200,
+                    .react-calendar__tile.selected-date.bg-red-100 {
+                      box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1) !important;
+                      outline: 2px solid #111827 !important;
+                      outline-offset: 2px !important;
+                    }
+                    /* Neighboring month dates */
+                    .react-calendar__month-view__days__day--neighboringMonth {
+                      opacity: 0.3;
+                    }
+                  `}} />
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-bold text-gray-900">Upload SKU Data</h3>
                     <button
@@ -2157,6 +2681,7 @@ export default function ExtractSKU() {
                         if (!loading) {
                           setShowUploadModal(false);
                           setSelectedFile(null);
+                          setMarkAsHoliday(false);
                         }
                       }}
                       className="text-gray-400 hover:text-gray-600"
@@ -2172,14 +2697,138 @@ export default function ExtractSKU() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Select Date <span className="text-red-500">*</span>
                       </label>
+                      <div className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+                        <Calendar
+                          onChange={(date) => {
+                            // Convert to local date string (YYYY-MM-DD)
+                            const year = date.getFullYear();
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const dateStr = `${year}-${month}-${day}`;
+                            setSelectedDate(dateStr);
+                          }}
+                          value={selectedDate ? (() => {
+                            const parts = selectedDate.split('-').map(Number);
+                            return new Date(parts[0], parts[1] - 1, parts[2]);
+                          })() : new Date()}
+                          maxDate={new Date()}
+                          tileDisabled={({ date, view }) => {
+                            if (view === 'month') {
+                              const year = date.getFullYear();
+                              const month = String(date.getMonth() + 1).padStart(2, '0');
+                              const day = String(date.getDate()).padStart(2, '0');
+                              const dateStr = `${year}-${month}-${day}`;
+                              const today = new Date();
+                              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                              return dateStr > todayStr;
+                            }
+                            return false;
+                          }}
+                          tileClassName={({ date, view }) => {
+                            if (view === 'month') {
+                              const year = date.getFullYear();
+                              const month = String(date.getMonth() + 1).padStart(2, '0');
+                              const day = String(date.getDate()).padStart(2, '0');
+                              const dateStr = `${year}-${month}-${day}`;
+                              const today = new Date();
+                              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                              
+                              // Check if this is the selected date
+                              const isSelected = selectedDate === dateStr;
+                              
+                              // Disable future dates
+                              if (dateStr > todayStr) {
+                                return 'opacity-50 cursor-not-allowed bg-gray-100';
+                              }
+                              
+                              const isUploaded = uploadedDates.has(dateStr);
+                              const isHoliday = holidays.has(dateStr);
+                              
+                              // Build base classes
+                              let classes = '';
+                              
+                              // Priority 1: Green for uploaded dates (even if it's also a holiday)
+                              if (isUploaded) {
+                                classes = 'bg-green-200 hover:bg-green-300 text-green-900 font-bold border-2 border-green-400';
+                              }
+                              // Priority 2: Yellow for holidays (only if not uploaded)
+                              else if (isHoliday) {
+                                classes = 'bg-yellow-200 hover:bg-yellow-300 text-yellow-900 font-bold border-2 border-yellow-400';
+                              }
+                              // Priority 3: Red for pending (not uploaded, not holiday, not future)
+                              else if (dateStr <= todayStr) {
+                                classes = 'bg-red-100 hover:bg-red-200 text-red-800 font-medium border border-red-300';
+                              }
+                              
+                              // Add dark border for selected date (highest priority visual indicator)
+                              if (isSelected) {
+                                classes += ' selected-date';
+                              }
+                              
+                              return classes;
+                            }
+                            return '';
+                          }}
+                          className="w-full border-0"
+                        />
+                      </div>
+                      {/* Legend */}
+                      <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-xs font-semibold text-gray-700 mb-2">Legend:</p>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 bg-green-100 border border-green-400 rounded"></span>
+                            <span className="text-gray-600">Uploaded</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 bg-yellow-100 border border-yellow-400 rounded"></span>
+                            <span className="text-gray-600">Holiday</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 bg-red-100 border border-red-400 rounded"></span>
+                            <span className="text-gray-600">Pending</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-4 h-4 bg-gray-100 border border-gray-300 rounded opacity-50"></span>
+                            <span className="text-gray-600">Future</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Selected date status */}
+                      {selectedDate && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {uploadedDates.has(selectedDate) && (
+                            <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium border border-green-300">
+                              ✓ Data Uploaded
+                            </span>
+                          )}
+                          {holidays.has(selectedDate) && (
+                            <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium border border-yellow-300">
+                              Holiday
+                            </span>
+                          )}
+                          {!uploadedDates.has(selectedDate) && !holidays.has(selectedDate) && (
+                            <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded text-xs font-medium border border-red-300">
+                              Pending Upload
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Holiday checkbox */}
+                    <div className="flex items-center">
                       <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        required
+                        type="checkbox"
+                        id="markAsHoliday"
+                        checked={markAsHoliday}
+                        onChange={(e) => setMarkAsHoliday(e.target.checked)}
                         disabled={loading}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
                       />
+                      <label htmlFor="markAsHoliday" className="ml-2 block text-sm text-gray-700">
+                        Mark this date as holiday
+                      </label>
                     </div>
                     
                     <div>
@@ -2273,6 +2922,7 @@ export default function ExtractSKU() {
                         onClick={() => {
                           setShowUploadModal(false);
                           setSelectedFile(null);
+                          setMarkAsHoliday(false);
                         }}
                         disabled={loading}
                         className="flex-1 py-2 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
@@ -2483,6 +3133,21 @@ export default function ExtractSKU() {
                       <p className="text-sm text-red-800">
                         <strong className="font-semibold">⚠️ Important:</strong> Uploading new data will <strong className="underline">ADD TO</strong> the existing data for this date. If you want to replace it completely, please delete the existing data first.
                       </p>
+                    </div>
+
+                    {/* Holiday checkbox in overwrite modal */}
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="markAsHolidayOverwrite"
+                        checked={markAsHoliday}
+                        onChange={(e) => setMarkAsHoliday(e.target.checked)}
+                        disabled={loading}
+                        className="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="markAsHolidayOverwrite" className="ml-2 block text-sm text-gray-700">
+                        Mark this date as holiday
+                      </label>
                     </div>
 
                     {/* Action Buttons */}
