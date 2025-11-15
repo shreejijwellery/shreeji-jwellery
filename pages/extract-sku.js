@@ -14,6 +14,8 @@ export default function ExtractSKU() {
   const [featureFlags, setFeatureFlags] = useState(null);
   const [allowed, setAllowed] = useState(null);
   const [hasCsvFile, setHasCsvFile] = useState(false);
+  const [selectedPdfFile, setSelectedPdfFile] = useState(null); // For Meesho Sort
+  const [selectedCsvFile, setSelectedCsvFile] = useState(null); // For Meesho Sort
   
   // SKU Inventory Management states
   const [inventoryData, setInventoryData] = useState(null);
@@ -530,6 +532,18 @@ export default function ExtractSKU() {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const lines = reconstructLinesFromTextItems(textContent.items || []);
+        
+        // Check if page contains "Customer Address"
+        const hasCustomerAddress = lines.some(line => 
+          line.toLowerCase().includes('customer address')
+        );
+        
+        // Skip pages without Customer Address
+        if (!hasCustomerAddress) {
+          console.log(`Skipping page ${i} - no Customer Address found`);
+          continue;
+        }
+        
         const sku = extractSKU(lines);
         const qty = extractQuantity(lines);
         let originName = 'Unknown Origin';
@@ -541,6 +555,11 @@ export default function ExtractSKU() {
         pageData.push({ pageNumber: i, sku, qty, originName, company });
       }
 
+      // Check if any pages with Customer Address were found
+      if (pageData.length === 0) {
+        throw new Error('No pages with Customer Address found in the PDF. Please check your PDF file.');
+      }
+
       pageData.sort((a, b) => {
         const qtyA = a.qty || 0; const qtyB = b.qty || 0;
         if (qtyA !== qtyB) return qtyA - qtyB;
@@ -550,13 +569,64 @@ export default function ExtractSKU() {
         return companyA.localeCompare(companyB);
       });
 
+      // Count occurrences of each origin (excluding "Unknown Origin")
+      const originCounts = {};
+      const firstOriginIndex = {}; // Track first occurrence index of each origin
+      pageData.forEach((page, index) => {
+        if (page.originName && page.originName !== 'Unknown Origin') {
+          if (!originCounts[page.originName]) {
+            originCounts[page.originName] = 0;
+            firstOriginIndex[page.originName] = index;
+          }
+          originCounts[page.originName]++;
+        }
+      });
+
       setStatus('Building output PDF...');
       const sourcePdfDoc = await PDFDocument.load(pdfArrayBuffer);
       const outPdf = await PDFDocument.create();
       const helveticaBoldFont = await outPdf.embedFont(StandardFonts.HelveticaBold);
-      for (const page of pageData) {
+      
+      for (let i = 0; i < pageData.length; i++) {
+        const page = pageData[i];
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
-        copied.drawText(`Origin : ${page.originName}`, { x: 50, y: 25, size: 14, font: helveticaBoldFont });
+        
+        // Check if this is the first page of this origin and origin is not "Unknown Origin"
+        const isFirstOfOrigin = firstOriginIndex[page.originName] === i;
+        const hasMultiplePages = originCounts[page.originName] > 1;
+        const showCount = isFirstOfOrigin && hasMultiplePages && page.originName !== 'Unknown Origin';
+        
+        // Draw origin name on the left
+        copied.drawText(`Origin : ${page.originName}`, { 
+          x: 50, 
+          y: 25, 
+          size: 14, 
+          font: helveticaBoldFont,
+          color: rgb(0, 0, 0)
+        });
+        
+        // Draw count on the right bottom corner if applicable
+        if (showCount) {
+          const count = originCounts[page.originName];
+          const countText = `(${count})`;
+          const countFontSize = 24; // Bigger font for count
+          
+          // Get page dimensions
+          const { width } = copied.getSize();
+          
+          // Calculate width of count text to position it from right
+          const countWidth = helveticaBoldFont.widthOfTextAtSize(countText, countFontSize);
+          
+          // Position at right bottom corner (same y level as origin name)
+          copied.drawText(countText, { 
+            x: width - countWidth - 50, // 50px margin from right
+            y: 25, // Same y level as origin name
+            size: countFontSize, 
+            font: helveticaBoldFont,
+            color: rgb(0, 0, 0)
+          });
+        }
+        
         outPdf.addPage(copied);
       }
       const outBytes = await outPdf.save();
@@ -567,6 +637,12 @@ export default function ExtractSKU() {
 
       setSuccess(true);
       setStatus('Done. File downloaded.');
+      // Reset file selections after successful processing
+      setSelectedPdfFile(null);
+      setSelectedCsvFile(null);
+      // Reset form inputs
+      if (event.target.pdf) event.target.pdf.value = '';
+      if (event.target.csv) event.target.csv.value = '';
     } catch (err) {
       console.error(err);
       setError(err.message || 'Processing failed');
@@ -587,6 +663,12 @@ export default function ExtractSKU() {
         setError(null);
         setSuccess(true);
         setStatus('Done via server fallback.');
+        // Reset file selections after successful processing
+        setSelectedPdfFile(null);
+        setSelectedCsvFile(null);
+        // Reset form inputs
+        if (event.target.pdf) event.target.pdf.value = '';
+        if (event.target.csv) event.target.csv.value = '';
       } catch (fallbackErr) {
         console.error(fallbackErr);
         setStatus('');
@@ -1275,7 +1357,8 @@ export default function ExtractSKU() {
     setUploadProgress({ percent: 5, message: 'Reading PDF file...' });
     
     try {
-      const pdfFile = event.target.pdf_inventory.files[0];
+      // Get file from state or event target
+      const pdfFile = selectedFile || (event?.target?.pdf_inventory?.files?.[0]);
       if (!pdfFile) throw new Error('Please select a PDF file');
 
       setUploadProgress({ percent: 10, message: 'Loading PDF library...' });
@@ -1515,59 +1598,154 @@ export default function ExtractSKU() {
                 <label htmlFor="pdf" className="block text-sm font-medium text-gray-700 mb-2">
                   Upload PDF File
                 </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <div className="flex text-sm text-gray-600">
-                      <label htmlFor="pdf" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
-                        <span>Upload a file</span>
-                        <input
-                          type="file"
-                          id="pdf"
-                          name="pdf"
-                          accept=".pdf"
-                          required
-                          className="sr-only"
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">PDF up to 25MB</p>
+                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
+                  selectedPdfFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400'
+                }`}>
+                  <div className="space-y-1 text-center w-full">
+                    {selectedPdfFile ? (
+                      <>
+                        <svg className="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="mt-3 px-4 py-2 bg-green-100 rounded-lg border border-green-300">
+                          <div className="flex items-center justify-start gap-2">
+                            <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-green-800 truncate" title={selectedPdfFile.name}>
+                                {selectedPdfFile.name}
+                              </div>
+                              <div className="text-xs text-green-700 font-medium mt-0.5">
+                                File size: {(selectedPdfFile.size / 1024 / 1024).toFixed(2)} MB
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <label htmlFor="pdf" className="mt-2 block text-xs text-gray-500 cursor-pointer hover:text-blue-600">
+                          Click to change file
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <div className="flex text-sm text-gray-600">
+                          <label htmlFor="pdf" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                            <span>Upload a file</span>
+                          </label>
+                          <p className="pl-1">or drag and drop</p>
+                        </div>
+                        <p className="text-xs text-gray-500">PDF up to 25MB</p>
+                      </>
+                    )}
                   </div>
                 </div>
+                <input
+                  type="file"
+                  id="pdf"
+                  name="pdf"
+                  accept=".pdf"
+                  required
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    setSelectedPdfFile(file || null);
+                  }}
+                  className="sr-only"
+                />
               </div>
               <div>
                 <label htmlFor="csv" className="block text-sm font-medium text-gray-700 mb-2">
                   Upload CSV File
                 </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <div className="flex text-sm text-gray-600">
-                      <label htmlFor="csv" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
-                        <span>Upload a file</span>
-                        <input
-                          type="file"
-                          id="csv"
-                          name="csv"
-                          accept=".csv"
-                          required
-                          className="sr-only"
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">CSV file</p>
+                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
+                  selectedCsvFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400'
+                }`}>
+                  <div className="space-y-1 text-center w-full">
+                    {selectedCsvFile ? (
+                      <>
+                        <svg className="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="mt-3 px-4 py-2 bg-green-100 rounded-lg border border-green-300">
+                          <div className="flex items-center justify-start gap-2">
+                            <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-green-800 truncate" title={selectedCsvFile.name}>
+                                {selectedCsvFile.name}
+                              </div>
+                              <div className="text-xs text-green-700 font-medium mt-0.5">
+                                File size: {(selectedCsvFile.size / 1024).toFixed(2)} KB
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <label htmlFor="csv" className="mt-2 block text-xs text-gray-500 cursor-pointer hover:text-blue-600">
+                          Click to change file
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <div className="flex text-sm text-gray-600">
+                          <label htmlFor="csv" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                            <span>Upload a file</span>
+                          </label>
+                          <p className="pl-1">or drag and drop</p>
+                        </div>
+                        <p className="text-xs text-gray-500">CSV file</p>
+                      </>
+                    )}
                   </div>
                 </div>
+                <input
+                  type="file"
+                  id="csv"
+                  name="csv"
+                  accept=".csv"
+                  required
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    setSelectedCsvFile(file || null);
+                  }}
+                  className="sr-only"
+                />
               </div>
+              {/* Selected Files Summary */}
+              {(selectedPdfFile || selectedCsvFile) && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-xs font-medium text-blue-700 mb-2">Ready to process:</p>
+                  <div className="space-y-1 text-xs">
+                    {selectedPdfFile && (
+                      <div className="flex items-center gap-2 text-blue-900">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <span className="font-medium">PDF:</span>
+                        <span className="truncate">{selectedPdfFile.name}</span>
+                      </div>
+                    )}
+                    {selectedCsvFile && (
+                      <div className="flex items-center gap-2 text-blue-900">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <span className="font-medium">CSV:</span>
+                        <span className="truncate">{selectedCsvFile.name}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={loading || allowed === false || allowed === null}
+                disabled={loading || allowed === false || allowed === null || !selectedPdfFile || !selectedCsvFile}
                 className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? (
@@ -2847,21 +3025,39 @@ export default function ExtractSKU() {
                           accept=".pdf"
                           required
                           disabled={loading}
-                          onChange={(e) => setSelectedFile(e.target.files[0])}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              console.log('File selected:', file.name, file.size);
+                              setSelectedFile(file);
+                            } else {
+                              console.log('No file selected');
+                              setSelectedFile(null);
+                            }
+                          }}
                           className="hidden"
                         />
                         <label htmlFor="pdf_inventory_modal" className="cursor-pointer block">
-                          {selectedFile ? (
+                          {selectedFile && selectedFile.name ? (
                             <>
                               <svg className="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              <span className="mt-2 block text-sm font-medium text-green-700">
-                                {selectedFile.name}
-                              </span>
-                              <span className="mt-1 block text-xs text-green-600">
-                                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                              </span>
+                              <div className="mt-3 px-4 py-2 bg-green-100 rounded-lg border border-green-300">
+                                <div className="flex items-center justify-start gap-2">
+                                  <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-semibold text-green-800 truncate" title={selectedFile.name}>
+                                      {selectedFile.name}
+                                    </div>
+                                    <div className="text-xs text-green-700 font-medium mt-0.5">
+                                      File size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
                               <span className="mt-2 block text-xs text-gray-500">
                                 Click to change file
                               </span>
@@ -2908,6 +3104,26 @@ export default function ExtractSKU() {
                         <p className="text-sm text-blue-700">{status}</p>
                       </div>
                     )}
+
+                    {/* Selected File Display */}
+                    {selectedFile && selectedFile.name && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-green-700 mb-0.5">Selected File:</p>
+                            <p className="text-sm font-semibold text-green-900 truncate" title={selectedFile.name}>
+                              {selectedFile.name}
+                            </p>
+                            <p className="text-xs text-green-700 mt-0.5">
+                              Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="flex gap-3">
                       <button
@@ -2915,7 +3131,7 @@ export default function ExtractSKU() {
                         disabled={loading || !selectedFile}
                         className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
                       >
-                        {loading ? 'Processing...' : 'Upload'}
+                        {loading ? 'Processing...' : selectedFile && selectedFile.name ? `Upload ${selectedFile.name.length > 20 ? selectedFile.name.substring(0, 20) + '...' : selectedFile.name}` : 'Upload'}
                       </button>
                       <button
                         type="button"
@@ -3156,11 +3372,8 @@ export default function ExtractSKU() {
                         onClick={async () => {
                           setShowOverwriteWarning(false);
                           setExistingDataInfo(null);
-                          // Get the form from the upload modal
-                          const form = document.querySelector('form[data-upload-form="true"]');
-                          if (form) {
-                            await processAndUploadPDF({ target: form, preventDefault: () => {} });
-                          }
+                          // Process upload using selectedFile state
+                          await processAndUploadPDF();
                         }}
                         className="flex-1 py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-sm flex items-center justify-center gap-2"
                       >
