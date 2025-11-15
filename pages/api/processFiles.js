@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import pdfParse from 'pdf-parse';
 import csv from 'csv-parser';
 import { IncomingForm } from 'formidable';
@@ -116,6 +116,17 @@ const processPDF = async (pdfPath, csvData) => {
         const lines = pages[i].split('\n');
         const cleanedText = lines;
 
+        // Check if page contains "Customer Address"
+        const hasCustomerAddress = cleanedText.some(line => 
+          line.toLowerCase().includes('customer address')
+        );
+        
+        // Skip pages without Customer Address
+        if (!hasCustomerAddress) {
+          console.log(`Skipping page ${i + 1} - no Customer Address found`);
+          continue;
+        }
+
         const sku = extractSKU(cleanedText);
         const qty = extractQuantity(cleanedText);
 
@@ -142,9 +153,9 @@ const processPDF = async (pdfPath, csvData) => {
       }
     }
 
-    // Check if we have any valid pages
+    // Check if we have any valid pages with Customer Address
     if (pageData.length === 0) {
-      throw new Error('No valid pages could be processed from the PDF.');
+      throw new Error('No pages with Customer Address found in the PDF. Please check your PDF file.');
     }
 
     pageData.sort((a, b) => {
@@ -166,25 +177,70 @@ const processPDF = async (pdfPath, csvData) => {
       return companyA.localeCompare(companyB);
     });
 
+    // Count occurrences of each origin (excluding "Unknown Origin")
+    const originCounts = {};
+    const firstOriginIndex = {}; // Track first occurrence index of each origin
+    pageData.forEach((page, index) => {
+      if (page.originName && page.originName !== 'Unknown Origin') {
+        if (!originCounts[page.originName]) {
+          originCounts[page.originName] = 0;
+          firstOriginIndex[page.originName] = index;
+        }
+        originCounts[page.originName]++;
+      }
+    });
+
     const pdfDoc = await PDFDocument.create();
     const sourcePdfDoc = await PDFDocument.load(dataBuffer);
+    const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     // Process pages in batches to prevent memory issues
     const batchSize = 50;
     for (let i = 0; i < pageData.length; i += batchSize) {
       const batch = pageData.slice(i, i + batchSize);
       
-      for (const page of batch) {
+      for (let j = 0; j < batch.length; j++) {
+        const page = batch[j];
+        const globalIndex = i + j; // Global index in pageData array
+        
         try {
           const [pageCopy] = await pdfDoc.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
 
-          const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+          // Check if this is the first page of this origin and origin is not "Unknown Origin"
+          const isFirstOfOrigin = firstOriginIndex[page.originName] === globalIndex;
+          const hasMultiplePages = originCounts[page.originName] > 1;
+          const showCount = isFirstOfOrigin && hasMultiplePages && page.originName !== 'Unknown Origin';
+          
+          // Draw origin name on the left
           pageCopy.drawText(`Origin : ${page.originName}`, {
             x: 50,
             y: 25,
             size: 14,
-            font: helveticaBoldFont
+            font: helveticaBoldFont,
+            color: rgb(0, 0, 0)
           });
+          
+          // Draw count on the right bottom corner if applicable
+          if (showCount) {
+            const count = originCounts[page.originName];
+            const countText = `${count}`;
+            const countFontSize = 24; // Bigger font for count
+            
+            // Get page dimensions
+            const { width } = pageCopy.getSize();
+            
+            // Calculate width of count text to position it from right
+            const countWidth = helveticaBoldFont.widthOfTextAtSize(countText, countFontSize);
+            
+            // Position at right bottom corner (same y level as origin name)
+            pageCopy.drawText(countText, {
+              x: width - countWidth - 50, // 50px margin from right
+              y: 25, // Same y level as origin name
+              size: countFontSize,
+              font: helveticaBoldFont,
+              color: rgb(0, 0, 0)
+            });
+          }
 
           pdfDoc.addPage(pageCopy);
         } catch (pageError) {
