@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import * as XLSX from 'xlsx';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import CancelOrder from '../components/CancelOrder';
 
 export default function ExtractSKU() {
   const [loading, setLoading] = useState(false);
@@ -1547,6 +1548,21 @@ export default function ExtractSKU() {
                 <span>SKU Inventory</span>
               </div>
             </button>
+            <button
+              onClick={() => setSelectedTab('cancelled-orders')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'cancelled-orders'
+                  ? 'border-red-400 text-red-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>Cancelled Orders</span>
+              </div>
+            </button>
           </nav>
         </div>
       </div>
@@ -2089,6 +2105,10 @@ export default function ExtractSKU() {
               </button>
             </form>
           </>
+        )}
+
+        {selectedTab === 'cancelled-orders' && (
+          <CancelOrder />
         )}
 
         {selectedTab === 'inventory' && (

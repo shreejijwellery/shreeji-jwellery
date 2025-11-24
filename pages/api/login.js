@@ -34,7 +34,14 @@ export default async function handler(req, res) {
         { expiresIn: '1d' }
       );
 
-      res.status(200).json({ token });
+      res.status(200).json({ 
+        token,
+        user: {
+          username: user.username,
+          role: user.role,
+          _id: user._id
+        }
+      });
     } catch (error) {
       res.status(500).json({ message: 'Error logging in', error });
     }

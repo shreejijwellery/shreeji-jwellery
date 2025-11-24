@@ -23,6 +23,9 @@ const Login = () => {
       const response = await HTTP('POST','/login', formData);
       if (response?.token) {
         localStorage.setItem('token', response.token);
+        if (response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user));
+        }
         setTimeout(() => {
           router.push('/');
         }, 1000);
