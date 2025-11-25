@@ -25,7 +25,7 @@ export default function CancelOrder() {
   const [dateRange, setDateRange] = useState({ min: '', max: '' });
   
   // UI States
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(true);
   const [selectedCompanies, setSelectedCompanies] = useState([]);
   const [activeCompanyTab, setActiveCompanyTab] = useState('all');
   const [customOrder, setCustomOrder] = useState([]);
@@ -747,18 +747,18 @@ export default function CancelOrder() {
       </div>
 
       {/* Main Content */}
-      <div className="flex relative">
-        {/* Sidebar */}
-        <div className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-64 overflow-y-auto' : 'w-0 overflow-hidden'}`} style={{ maxHeight: 'calc(100vh - 180px)' }}>
-          {sidebarOpen && (
-            <div className="p-3">
+      <div className="flex relative h-[calc(100vh-12rem)]">
+        {/* Filter Panel */}
+        <div className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col ${filterPanelOpen ? 'w-64' : 'w-0 overflow-hidden'}`}>
+          {filterPanelOpen && (
+            <div className="p-3 flex-1 overflow-y-auto">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Companies</h3>
                 <div className="flex items-center gap-2">
                   <button onClick={toggleSelectAll} className="text-xs text-blue-600 hover:text-blue-700 font-medium" disabled={!viewData || Object.keys(viewData).length === 0}>
                     {selectedCompanies.length === Object.keys(viewData || {}).length && selectedCompanies.length > 0 ? 'Deselect All' : 'Select All'}
                   </button>
-                  <button onClick={() => setSidebarOpen(false)} className="p-1 hover:bg-gray-200 rounded transition-colors"><svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                  <button onClick={() => setFilterPanelOpen(false)} className="p-1 hover:bg-gray-200 rounded transition-colors" title="Close filters"><svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                 </div>
               </div>
 
@@ -808,14 +808,14 @@ export default function CancelOrder() {
           )}
         </div>
 
-        {!sidebarOpen && (
-          <button onClick={() => setSidebarOpen(true)} className="absolute left-0 top-4 z-20 bg-gray-50 hover:bg-gray-100 border-r border-y border-gray-200 rounded-r-lg px-2 py-3 shadow-md transition-all duration-200 group" title="Open sidebar">
-            <svg className="w-5 h-5 text-gray-600 group-hover:text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        {!filterPanelOpen && (
+          <button onClick={() => setFilterPanelOpen(true)} className="absolute left-0 top-4 z-20 bg-white hover:bg-gray-50 border border-gray-200 rounded-r-lg px-2 py-2 shadow-sm transition-all duration-200 group flex items-center gap-1" title="Open filters">
+            <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
           </button>
         )}
 
         {/* Table Content */}
-        <div className="flex-1 p-4 overflow-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+        <div className="flex-1 p-4 overflow-hidden flex flex-col">
           {!filterStartDate || !filterEndDate ? (
             <div className="text-center py-16">
               <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -823,8 +823,8 @@ export default function CancelOrder() {
               <p className="mt-2 text-sm text-gray-500">Please select start and end dates to view data</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 250px)', position: 'relative' }}>
+            <div className="bg-white rounded-lg shadow overflow-hidden flex-1 flex flex-col">
+              <div className="overflow-auto flex-1 relative">
                 <table className="min-w-full divide-y divide-gray-200" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
                   <thead className="bg-gray-50" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                     <tr>
