@@ -3,34 +3,69 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
-import { CgProfile  } from 'react-icons/cg';
-import { FaUsersCog } from "react-icons/fa";
+import { CgProfile } from 'react-icons/cg';
+import { 
+  FaUsersCog, 
+  FaHome, 
+  FaSignInAlt, 
+  FaUserPlus, 
+  FaMoneyBillWave, 
+  FaHardHat, 
+  FaCog, 
+  FaBoxOpen, 
+  FaIndustry, 
+  FaLayerGroup, 
+  FaProjectDiagram, 
+  FaFileExcel,
+  FaBars,
+  FaTimes,
+  FaChevronDown,
+  FaChevronRight,
+  FaTimesCircle,
+  FaUpload,
+  FaSortAmountDown,
+  FaFolder,
+  FaFileAlt,
+  FaBoxes,
+  FaWarehouse,
+  FaTruck
+} from "react-icons/fa";
+
 const Layout = ({ children }) => {
   const router = useRouter();
   const [user, setUser] = useState(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState({});
 
   useEffect(() => {
-
-  const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
     if (token) {
       axios
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
         .then(response => {
           delete response.data?.user?.password;
           setUser(response.data.user);
-          localStorage.setItem('user', JSON.stringify(response.data.user)); // Store user data after fetching
-          
+          localStorage.setItem('user', JSON.stringify(response.data.user));
         })
         .catch(error => {
-          console.error('Token validation failed:', error); // Log error for debugging
-          localStorage.removeItem('token'); // Remove token on error
+          console.error('Token validation failed:', error);
+          localStorage.removeItem('token');
         });
-    }else {
+    } else {
       if (router.pathname !== '/login' && router.pathname !== '/signup') {
         router.push('/login');
       }
     }
-  }, [router]); // Only depend on router
+  }, [router]);
+
+  // Load sidebar state from localStorage
+  useEffect(() => {
+    const savedState = localStorage.getItem('sidebarCollapsed');
+    if (savedState !== null) {
+      setSidebarCollapsed(JSON.parse(savedState));
+    }
+  }, []);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -38,195 +73,277 @@ const Layout = ({ children }) => {
     router.push('/login');
   };
 
-  return (
-    <div>
-      <nav className="bg-gray-800 p-4 flex flex-col md:flex-row overflow-x-scroll justify-between items-center">
-        <ul className="flex space-x-2 text-white">
-          <li>
-            <Link href="/">
-              <div className={`px-3 py-2 rounded transition ${
-                router.pathname === '/' 
-                  ? 'bg-blue-600 font-semibold' 
-                  : 'hover:bg-gray-700'
-              }`}>
-                Home
-              </div>
-            </Link>
-          </li>
-          {!user && (
-            <>
-              <li>
-                <Link href="/signup">
-                  <div className={`px-3 py-2 rounded transition ${
-                    router.pathname === '/signup' 
-                      ? 'bg-blue-600 font-semibold' 
-                      : 'hover:bg-gray-700'
-                  }`}>
-                    Signup
-                  </div>
-                </Link>
-              </li>
-              <li>
-                <Link href="/login">
-                  <div className={`px-3 py-2 rounded transition ${
-                    router.pathname === '/login' 
-                      ? 'bg-blue-600 font-semibold' 
-                      : 'hover:bg-gray-700'
-                  }`}>
-                    Login
-                  </div>
-                </Link>
-              </li>
-            </>
-          )}
-          {user && checkPermission(user, PERMISSIONS.PARTY_BILLS) && (
-            <li>
-              <Link href="/party_dashboard">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/party_dashboard' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  Vendor Pay
-                </div>
-              </Link>
-            </li>
-          )}
-          {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
-            <li>
-              <Link href="/billing">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/billing' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  Worker Pay
-                </div>
-              </Link>
-            </li>
-          )}
-          {user && user.role !== USER_ROLES.ADMINISTRATOR && (
-            <li>
-              <Link href="/settings">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/settings' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  Settings
-                </div>
-              </Link>
-            </li>
-          )}
-          {user && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
-            <li>
-              <Link href="/final-product">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/final-product' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  Final Product
-                </div>
-              </Link>
-            </li>
-          )}
-          {user && checkPermission(user, PERMISSIONS.IN_PROCESS_PRODUCT) && (
-            <li>
-              <Link href="/in-process-product">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/in-process-product' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  In-Process
-                </div>
-              </Link>
-            </li>
-          )}
-          {user && checkPermission(user, PERMISSIONS.PLATTING) && (
-            <li>
-              <Link href="/platting">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/platting' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  Platting
-                </div>
-              </Link>
-            </li>
-          )}
-                    {user && checkPermission(user, PERMISSIONS.PRODUCTION_FLOW) && (
-            <li>
-              <Link href="/production-flow">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/production-flow' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  Production Flow
-                </div>
-              </Link>
-            </li>
-          )}
-          {user && user.role !== USER_ROLES.ADMINISTRATOR && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && (
-            <li>
-              <Link href="/extract-sku">
-                <div className={`px-3 py-2 rounded transition ${
-                  router.pathname === '/extract-sku' 
-                    ? 'bg-blue-600 font-semibold' 
-                    : 'hover:bg-gray-700'
-                }`}>
-                  Extract SKU
-                </div>
-              </Link>
-            </li>
-          )}
+  const toggleSidebar = () => {
+    const newState = !sidebarCollapsed;
+    setSidebarCollapsed(newState);
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(newState));
+  };
 
-          {/* Uncomment if needed
-          {user && router.pathname !== '/dashboard' && (
-            <li>
-              <Link href="/dashboard">
-                <div className="hover:underline">Dashboard</div>
-              </Link>
-            </li>
-          )}
-          {user && router.pathname !== '/calendar' && (
-            <li>
-              <Link href="/calendar">
-                <div className="hover:underline">Calendar</div>
-              </Link>
-            </li>
-          )} */}
-        </ul>
-        {user && (
-          <div className="flex items-center space-x-4">
-            <span className="text-white">{user.name}</span>
-            <span className="text-white cursor-pointer" onClick={() => router.push('/profile')}> <CgProfile /> </span>
-            {user.role === USER_ROLES.ADMIN && (
-              <span
-                onClick={() => router.push('/user-permissions')}
-                className="text-white cursor-pointer">
-                  <FaUsersCog />
+  const toggleSubmenu = (menuKey) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuKey]: !prev[menuKey]
+    }));
+  };
+
+  const NavItem = ({ href, icon: Icon, label, submenu, menuKey }) => {
+    const isActive = router.pathname === href || (submenu && submenu.some(item => router.pathname === item.href));
+    const hasSubmenu = submenu && submenu.length > 0;
+
+    if (hasSubmenu) {
+      return (
+        <li className="sidebar-menu-item">
+          <Link href={href}>
+            <div className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors duration-200 cursor-pointer ${
+              isActive 
+                ? 'bg-blue-600 text-white shadow-md' 
+                : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+            }`}>
+              <div className="flex items-center gap-3">
+                <Icon className="text-lg flex-shrink-0" />
+                <span className={`font-medium ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>{label}</span>
+              </div>
+              <span className={`sidebar-chevron text-sm ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>
+                <FaChevronRight />
               </span>
-            )}
-            {user.role === USER_ROLES.ADMINISTRATOR && (
-              <span
-                onClick={() => router.push('/admin')}
-                className="text-white cursor-pointer">
-                  <FaUsersCog />
-              </span>
-            )}
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
-              Logout
-            </button>
+            </div>
+          </Link>
+          <div className={`sidebar-submenu ${sidebarCollapsed ? 'hidden group-hover:block' : 'block'}`}>
+            <ul className="ml-4 space-y-1 border-l-2 border-gray-700 pl-2">
+              {submenu.map((item, idx) => (
+                <li key={idx}>
+                  <Link href={item.href}>
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-200 ${
+                      router.pathname === item.href
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                    }`}>
+                      {item.icon && <item.icon className="text-sm" />}
+                      <span>{item.label}</span>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           </div>
-        )}
-      </nav>
-      <main className="p-4">{children}</main>
+        </li>
+      );
+    }
+
+    return (
+      <li>
+        <Link href={href}>
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
+            isActive 
+              ? 'bg-blue-600 text-white shadow-md' 
+              : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+          }`}>
+            <Icon className="text-lg flex-shrink-0" />
+            <span className={`font-medium ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>{label}</span>
+          </div>
+        </Link>
+      </li>
+    );
+  };
+
+  const isAuthPage = router.pathname === '/login' || router.pathname === '/signup';
+
+  if (isAuthPage) {
+    return (
+      <div className="min-h-screen bg-gray-100 font-sans">
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 bg-black bg-opacity-50 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>
+      )}
+
+      {/* Sidebar */}
+      <aside className={`group fixed inset-y-0 left-0 z-50 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-700 bg-opacity-80 backdrop-blur-lg transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      } ${sidebarCollapsed ? 'md:w-20 md:hover:w-64' : 'md:w-64'}`}>
+        {/* Decorative floating icons */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <FaBoxes className="absolute top-8 left-4 text-purple-300 opacity-20 text-5xl animate-float" />
+          <FaWarehouse className="absolute bottom-12 right-6 text-indigo-300 opacity-20 text-6xl animate-float-delayed" />
+          <FaTruck className="absolute top-1/2 left-1/2 text-pink-300 opacity-20 text-7xl animate-float" />
+        </div>
+        <div className="flex flex-col h-full relative z-10">
+            {/* Logo / Brand */}
+            <div className="h-16 flex items-center justify-center px-4 bg-gradient-to-r from-indigo-600 to-purple-600 border-b border-gray-800">
+              {/* Expanded view */}
+              {!sidebarCollapsed && (
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center animate-bounce-slow">
+                    <FaWarehouse className="text-white text-2xl" />
+                  </div>
+                  <span className="text-xl font-bold text-white">OMS Portal</span>
+                </div>
+              )}
+              {/* Collapsed view */}
+              {sidebarCollapsed && (
+                <FaWarehouse className="text-white text-2xl mx-auto" />
+              )}
+
+            </div>
+
+          {/* Navigation */}
+          <div className="flex-1 overflow-y-auto py-4 px-3">
+            <ul className="space-y-1">
+              <NavItem href="/" icon={FaHome} label="Home" />
+              
+              {!user && (
+                <>
+                  <NavItem href="/signup" icon={FaUserPlus} label="Signup" />
+                  <NavItem href="/login" icon={FaSignInAlt} label="Login" />
+                </>
+              )}
+
+              {user && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && (
+                <NavItem 
+                  href="/extract-sku" 
+                  icon={FaFileExcel} 
+                  label="SKU Management"
+                  menuKey="sku"
+                  submenu={[
+                    { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaSortAmountDown },
+                    { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaFolder },
+                    { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt },
+                    { href: '/extract-sku?tab=inventory', label: 'SKU Inventory', icon: FaBoxes },
+                    { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle },
+                  ]}
+                />
+              )}
+
+              {user && checkPermission(user, PERMISSIONS.PARTY_BILLS) && (
+                <NavItem href="/party_dashboard" icon={FaMoneyBillWave} label="Vendor Pay" />
+              )}
+              
+              {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
+                <NavItem href="/billing" icon={FaHardHat} label="Worker Pay" />
+              )}
+              
+              {user && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
+                <NavItem 
+                  href="/final-product" 
+                  icon={FaBoxOpen} 
+                  label="Products"
+                  menuKey="products"
+                  submenu={[
+                    { href: '/final-product', label: 'Final Product', icon: FaBoxOpen },
+                    { href: '/in-process-product', label: 'In-Process', icon: FaIndustry },
+                  ]}
+                />
+              )}
+              
+              {user && checkPermission(user, PERMISSIONS.PLATTING) && (
+                <NavItem href="/platting" icon={FaLayerGroup} label="Platting" />
+              )}
+              
+              {user && checkPermission(user, PERMISSIONS.PRODUCTION_FLOW) && (
+                <NavItem href="/production-flow" icon={FaProjectDiagram} label="Production Flow" />
+              )}
+              
+              {user && user.role !== USER_ROLES.ADMINISTRATOR && (
+                <NavItem href="/settings" icon={FaCog} label="Settings" />
+              )}
+            </ul>
+          </div>
+
+          {/* User Info Footer */}
+          {user && (
+            <div className={`p-4 border-t border-gray-800 ${sidebarCollapsed ? 'hidden group-hover:block' : 'block'}`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                  {user.name?.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                  <p className="text-xs text-gray-400 truncate">{user.role}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header */}
+        <header className="h-16 bg-white shadow-sm flex items-center justify-between px-4 md:px-6 z-10 flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none"
+            >
+              {mobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
+            </button>
+            <h2 className="text-xl font-semibold text-gray-800">
+              {/* Dynamic Title could go here */}
+            </h2>
+          </div>
+
+          {user && (
+            <div className="flex items-center gap-4">
+              <div className="hidden sm:flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                  <CgProfile size={20} />
+                </div>
+                <span className="text-sm font-medium text-gray-700">{user.name}</span>
+              </div>
+              
+              <div className="h-6 w-px bg-gray-300 mx-1 hidden sm:block"></div>
+
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => router.push('/profile')}
+                  className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                  title="Profile"
+                >
+                  <CgProfile size={20} />
+                </button>
+                
+                {user.role === USER_ROLES.ADMIN && (
+                  <button 
+                    onClick={() => router.push('/user-permissions')}
+                    className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                    title="User Permissions"
+                  >
+                    <FaUsersCog size={20} />
+                  </button>
+                )}
+                
+                {user.role === USER_ROLES.ADMINISTRATOR && (
+                  <button 
+                    onClick={() => router.push('/admin')}
+                    className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                    title="Admin"
+                  >
+                    <FaUsersCog size={20} />
+                  </button>
+                )}
+                
+                <button
+                  onClick={handleLogout}
+                  className="ml-2 px-4 py-2 bg-red-50 text-red-600 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          )}
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-auto bg-gray-50">
+          {children}
+        </main>
+      </div>
     </div>
   );
 };

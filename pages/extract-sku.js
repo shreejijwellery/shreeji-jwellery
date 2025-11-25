@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import axios from 'axios';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import * as XLSX from 'xlsx';
@@ -6,7 +7,9 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CancelOrder from '../components/CancelOrder';
 
+
 export default function ExtractSKU() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -46,7 +49,14 @@ export default function ExtractSKU() {
   const [holidays, setHolidays] = useState(new Set()); // Set of date strings (YYYY-MM-DD)
   const [markAsHoliday, setMarkAsHoliday] = useState(false); // For upload modal
   const [uploadedDates, setUploadedDates] = useState(new Set()); // Set of uploaded date strings
-  const [sidebarOpen, setSidebarOpen] = useState(true); // Sidebar open/close state
+  const [filterPanelOpen, setFilterPanelOpen] = useState(true); // Filter panel open/close state
+
+  // Handle tab query parameter from URL
+  useEffect(() => {
+    if (router.isReady && router.query.tab) {
+      setSelectedTab(router.query.tab);
+    }
+  }, [router.isReady, router.query.tab]);
 
   // Date formatting utility
   const formatDate = (dateString) => {
@@ -1458,34 +1468,35 @@ export default function ExtractSKU() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">SKU Management Tools</h1>
-              <p className="mt-1 text-sm text-gray-500">Process, manage, and export SKU data efficiently</p>
-            </div>
-            {status && (
-              <div className="flex items-center space-x-2 text-sm">
-                {loading && (
-                  <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                )}
-                <span className="text-gray-600">{status}</span>
+    <div className="p-4 md:p-6 w-full">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm">
+        {/* Header */}
+        <div className="bg-white shadow-sm border-b border-gray-200">
+          <div className="px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">SKU Management Tools</h1>
+                <p className="mt-1 text-sm text-gray-500">Process, manage, and export SKU data efficiently</p>
               </div>
-            )}
+              {status && (
+                <div className="flex items-center space-x-2 text-sm">
+                  {loading && (
+                    <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  <span className="text-gray-600">{status}</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Tabs Navigation */}
-      <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-sm">
-        <div className="px-4">
-          <nav className="flex space-x-8" aria-label="Tabs">
+        {/* Tabs Navigation */}
+        <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-sm">
+          <div className="px-4">
+            <nav className="flex space-x-8" aria-label="Tabs">
             <button
               onClick={() => setSelectedTab('sort')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
@@ -1563,12 +1574,12 @@ export default function ExtractSKU() {
                 <span>Cancelled Orders</span>
               </div>
             </button>
-          </nav>
+            </nav>
+          </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className={selectedTab === 'inventory' ? '' : 'px-4 py-6'}>
+        {/* Main Content */}
+        <div className={selectedTab === 'inventory' ? '' : 'px-4 py-6'}>
         {/* Alert Messages */}
         {error && (
           <div className={`mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
@@ -2301,17 +2312,16 @@ export default function ExtractSKU() {
               </div>
             </div>
 
-            {/* Main Content Area with Sidebar */}
-            <div className="flex relative">
-              {/* Left Sidebar - Company List (Draggable) */}
+            {/* Main Content Area with Filter Panel */}
+            <div className="flex relative h-[calc(100vh-12rem)]">
+              {/* Left Filter Panel - Company List (Draggable) */}
               <div 
-                className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 ease-in-out ${
-                  sidebarOpen ? 'w-64 overflow-y-auto' : 'w-0 overflow-hidden'
+                className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col ${
+                  filterPanelOpen ? 'w-64' : 'w-0 overflow-hidden'
                 }`}
-                style={{ maxHeight: 'calc(100vh - 180px)' }}
               >
-                {sidebarOpen && (
-                  <div className="p-3">
+                {filterPanelOpen && (
+                  <div className="p-3 flex-1 overflow-y-auto">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Companies</h3>
                       <div className="flex items-center gap-2">
@@ -2323,9 +2333,9 @@ export default function ExtractSKU() {
                           {selectedCompanies.length === Object.keys(inventoryData || {}).length && selectedCompanies.length > 0 ? 'Deselect All' : 'Select All'}
                         </button>
                         <button
-                          onClick={() => setSidebarOpen(false)}
+                          onClick={() => setFilterPanelOpen(false)}
                           className="p-1 hover:bg-gray-200 rounded transition-colors"
-                          title="Close sidebar"
+                          title="Close filters"
                         >
                           <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2509,21 +2519,21 @@ export default function ExtractSKU() {
                 )}
               </div>
 
-              {/* Toggle Button - Show when sidebar is closed */}
-              {!sidebarOpen && (
+              {/* Toggle Button - Show when filter panel is closed */}
+              {!filterPanelOpen && (
                 <button
-                  onClick={() => setSidebarOpen(true)}
-                  className="absolute left-0 top-4 z-20 bg-gray-50 hover:bg-gray-100 border-r border-y border-gray-200 rounded-r-lg px-2 py-3 shadow-md transition-all duration-200 group"
-                  title="Open sidebar"
+                  onClick={() => setFilterPanelOpen(true)}
+                  className="absolute left-0 top-4 z-20 bg-white hover:bg-gray-50 border border-gray-200 rounded-r-lg px-2 py-2 shadow-sm transition-all duration-200 group flex items-center gap-1"
+                  title="Open filters"
                 >
-                  <svg className="w-5 h-5 text-gray-600 group-hover:text-gray-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  <svg className="w-4 h-4 text-gray-500 group-hover:text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                   </svg>
                 </button>
               )}
 
               {/* Right Content - Date-by-Company Table */}
-              <div className="flex-1 p-4 overflow-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+              <div className="flex-1 p-4 overflow-hidden flex flex-col">
                 {!filterStartDate || !filterEndDate ? (
                   <div className="text-center py-16">
                     <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2533,8 +2543,8 @@ export default function ExtractSKU() {
                     <p className="mt-2 text-sm text-gray-500">Please select start and end dates to view data</p>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-lg shadow overflow-hidden">
-                    <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 250px)', position: 'relative' }}>
+                  <div className="bg-white rounded-lg shadow overflow-hidden flex-1 flex flex-col">
+                    <div className="overflow-auto flex-1 relative">
                     <table className="min-w-full divide-y divide-gray-200" style={{ borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
                         <thead className="bg-gray-50" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                         <tr>
@@ -3418,6 +3428,7 @@ export default function ExtractSKU() {
             )}
           </div>
         )}
+        </div>
         </div>
       </div>
     </div>

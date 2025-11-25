@@ -16,8 +16,10 @@ const Home = () => {
     }
   }, []);
   return (
-    <div className="flex justify-center w-full">
-      {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && <PayableDashboard />}
+    <div className="p-4 md:p-6 w-full">
+      <div className="max-w-7xl mx-auto">
+        {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && <PayableDashboard />}
+      </div>
     </div>
   );
 };
