@@ -39,7 +39,10 @@ export default function CancelOrder() {
   
   // Upload/Mapping States
   const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadDate, setUploadDate] = useState('');
+  const [uploadDate, setUploadDate] = useState(() => {
+    const date = new Date();
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  });
   const [markAsHoliday, setMarkAsHoliday] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ percent: 0, message: '' });
   const [extractedData, setExtractedData] = useState([]);
@@ -386,9 +389,9 @@ export default function CancelOrder() {
       // Validate date
       if (!uploadDate) throw new Error('Please select a date');
       const today = new Date();
-      today.setHours(0,0,0,0);
-      const selected = new Date(uploadDate);
-      if (selected > today) throw new Error('Cannot upload for future dates');
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      
+      if (uploadDate > todayStr) throw new Error('Cannot upload for future dates');
 
       setUploadProgress({ percent: 30, message: 'Parsing Excel...' });
       const arrayBuffer = await readFileAsArrayBuffer(file);
@@ -910,26 +913,105 @@ export default function CancelOrder() {
                 <div className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
                   <Calendar
                     onChange={(date) => setUploadDate(formatDateToISO(date))}
-                    value={uploadDate ? new Date(uploadDate) : new Date()}
+                    value={uploadDate ? (() => {
+                      const [y, m, d] = uploadDate.split('-').map(Number);
+                      return new Date(y, m - 1, d);
+                    })() : new Date()}
                     maxDate={new Date()}
+                    tileDisabled={({ date, view }) => {
+                      if (view === 'month') {
+                        const dateStr = formatDateToISO(date);
+                        const todayStr = formatDateToISO(new Date());
+                        return dateStr > todayStr;
+                      }
+                      return false;
+                    }}
                     tileClassName={({ date, view }) => {
                       if (view === 'month') {
                         const dateStr = formatDateToISO(date);
                         const todayStr = formatDateToISO(new Date());
-                        if (dateStr > todayStr) return 'opacity-50 cursor-not-allowed bg-gray-100';
                         
+                        // Check if this is the selected date
+                        const isSelected = uploadDate === dateStr;
+                        
+                        // Disable future dates
+                        if (dateStr > todayStr) {
+                          return 'opacity-50 cursor-not-allowed bg-gray-100';
+                        }
+                        
+                        const isUploaded = uploadedDates.has(dateStr);
+                        const isHoliday = holidays.has(dateStr);
+                        
+                        // Build base classes
                         let classes = '';
-                        if (uploadedDates.has(dateStr)) classes = 'bg-green-200 hover:bg-green-300 text-green-900 font-bold border-2 border-green-400';
-                        else if (holidays.has(dateStr)) classes = 'bg-yellow-200 hover:bg-yellow-300 text-yellow-900 font-bold border-2 border-yellow-400';
-                        else if (dateStr <= todayStr) classes = 'bg-red-100 hover:bg-red-200 text-red-800 font-medium border border-red-300';
                         
-                        if (uploadDate === dateStr) classes += ' selected-date'; // Add custom class for selection
+                        // Priority 1: Green for uploaded dates (even if it's also a holiday)
+                        if (isUploaded) {
+                          classes = 'bg-green-200 hover:bg-green-300 text-green-900 font-bold border-2 border-green-400';
+                        }
+                        // Priority 2: Yellow for holidays (only if not uploaded)
+                        else if (isHoliday) {
+                          classes = 'bg-yellow-200 hover:bg-yellow-300 text-yellow-900 font-bold border-2 border-yellow-400';
+                        }
+                        // Priority 3: Red for pending (not uploaded, not holiday, not future)
+                        else if (dateStr <= todayStr) {
+                          classes = 'bg-red-100 hover:bg-red-200 text-red-800 font-medium border border-red-300';
+                        }
+                        
+                        // Add dark border for selected date (highest priority visual indicator)
+                        if (isSelected) {
+                          classes += ' selected-date';
+                        }
+                        
                         return classes;
                       }
+                      return '';
                     }}
                     className="w-full border-0"
                   />
                 </div>
+                {/* Legend */}
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs font-semibold text-gray-700 mb-2">Legend:</p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-4 bg-green-100 border border-green-400 rounded"></span>
+                      <span className="text-gray-600">Uploaded</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-4 bg-yellow-100 border border-yellow-400 rounded"></span>
+                      <span className="text-gray-600">Holiday</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-4 bg-red-100 border border-red-400 rounded"></span>
+                      <span className="text-gray-600">Pending</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-4 h-4 bg-gray-100 border border-gray-300 rounded opacity-50"></span>
+                      <span className="text-gray-600">Future</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Selected date status */}
+                {uploadDate && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {uploadedDates.has(uploadDate) && (
+                      <span className="px-2.5 py-1 bg-green-100 text-green-700 rounded text-xs font-medium border border-green-300">
+                        ✓ Data Uploaded
+                      </span>
+                    )}
+                    {holidays.has(uploadDate) && (
+                      <span className="px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-medium border border-yellow-300">
+                        Holiday
+                      </span>
+                    )}
+                    {!uploadedDates.has(uploadDate) && !holidays.has(uploadDate) && (
+                      <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded text-xs font-medium border border-red-300">
+                        Pending Upload
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center">
@@ -1039,13 +1121,170 @@ export default function CancelOrder() {
       )}
       
       <style jsx global>{`
-        .selected-date {
+        .react-calendar {
+          width: 100%;
+          border: none;
+          font-family: inherit;
+        }
+        .react-calendar__navigation {
+          display: flex;
+          height: 44px;
+          margin-bottom: 12px;
+          align-items: center;
+        }
+        .react-calendar__navigation button {
+          min-width: 36px;
+          height: 36px;
+          background: #f3f4f6;
+          border-radius: 8px;
+          font-size: 18px;
+          margin: 0 4px;
+          color: #374151;
+          border: none;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .react-calendar__navigation button:hover {
+          background: #e5e7eb;
+          color: #111827;
+        }
+        .react-calendar__navigation button:disabled {
+          background: #f9fafb;
+          color: #d1d5db;
+        }
+        .react-calendar__navigation__label {
+          flex-grow: 1;
+          background: transparent !important;
+          font-size: 15px;
+          font-weight: 600;
+          color: #111827;
+          text-transform: capitalize;
+          pointer-events: none;
+        }
+        .react-calendar__month-view__weekdays {
+          display: flex;
+          margin-bottom: 8px;
+          text-decoration: none !important;
+        }
+        .react-calendar__month-view__weekdays__weekday {
+          flex: 1;
+          text-align: center;
+          font-size: 11px;
+          font-weight: 600;
+          color: #6b7280;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          padding: 8px 4px;
+          background: transparent;
+          text-decoration: none !important;
+        }
+        .react-calendar__month-view__weekdays__weekday abbr {
+          text-decoration: none !important;
+          cursor: default;
+        }
+        .react-calendar__month-view__days {
+          display: grid !important;
+          grid-template-columns: repeat(7, 1fr);
+          gap: 4px;
+        }
+        .react-calendar__tile {
+          padding: 10px 4px;
+          border-radius: 6px;
+          transition: all 0.15s ease;
+          font-size: 14px;
+          font-weight: 500;
+          border: 1px solid transparent;
+          position: relative;
+          min-height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #ffffff;
+          color: #374151;
+        }
+        .react-calendar__tile--disabled {
+          opacity: 0.25;
+          cursor: not-allowed;
+          background: #f9fafb !important;
+          color: #d1d5db !important;
+        }
+        .react-calendar__tile--active:not(.bg-green-200):not(.bg-yellow-200):not(.bg-red-100) {
+          background: #3b82f6 !important;
+          color: white !important;
+          font-weight: 600;
+          border-color: #2563eb;
+        }
+        .react-calendar__tile--now:not(.bg-green-200):not(.bg-yellow-200):not(.bg-red-100) {
+          background: #eff6ff;
+          font-weight: 600;
+          color: #1e40af;
+          border: 1px solid #93c5fd;
+        }
+        .react-calendar__tile:hover:not(.react-calendar__tile--disabled):not(.selected-date) {
+          background: #f3f4f6;
+          border-color: #d1d5db;
+        }
+        /* Uploaded dates - Green */
+        .react-calendar__tile.bg-green-200 {
+          background: #dcfce7 !important;
+          color: #166534 !important;
+          border: 1px solid #86efac !important;
+          font-weight: 600;
+        }
+        .react-calendar__tile.bg-green-200:hover {
+          background: #bbf7d0 !important;
+          border-color: #4ade80 !important;
+        }
+        /* Holiday dates - Yellow */
+        .react-calendar__tile.bg-yellow-200 {
+          background: #fef9c3 !important;
+          color: #854d0e !important;
+          border: 1px solid #fde047 !important;
+          font-weight: 600;
+        }
+        .react-calendar__tile.bg-yellow-200:hover {
+          background: #fef08a !important;
+          border-color: #facc15 !important;
+        }
+        /* Pending dates - Red */
+        .react-calendar__tile.bg-red-100 {
+          background: #fee2e2 !important;
+          color: #991b1b !important;
+          border: 1px solid #fca5a5 !important;
+          font-weight: 500;
+        }
+        .react-calendar__tile.bg-red-100:hover {
+          background: #fecaca !important;
+          border-color: #f87171 !important;
+        }
+        /* Disabled/Future dates */
+        .react-calendar__tile.bg-gray-100 {
+          background: #f9fafb !important;
+          color: #9ca3af !important;
+          border: 1px solid #e5e7eb !important;
+        }
+        /* Selected date styling - clean dark border */
+        .react-calendar__tile.selected-date {
           box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1) !important;
           outline: 2px solid #111827 !important;
           outline-offset: 2px !important;
           z-index: 10 !important;
           position: relative !important;
           font-weight: 700 !important;
+        }
+        /* Ensure selected date border is visible on all background colors */
+        .react-calendar__tile.selected-date.bg-green-200,
+        .react-calendar__tile.selected-date.bg-yellow-200,
+        .react-calendar__tile.selected-date.bg-red-100 {
+          box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1) !important;
+          outline: 2px solid #111827 !important;
+          outline-offset: 2px !important;
+        }
+        /* Neighboring month dates */
+        .react-calendar__month-view__days__day--neighboringMonth {
+          opacity: 0.3;
         }
       `}</style>
     </div>
