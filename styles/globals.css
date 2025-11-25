@@ -268,7 +268,15 @@ textarea {
 }
 
 
-/* Sidebar Floating Icon Animations */
+/* Ensure submenus are hidden by default and only shown on hover */
+.sidebar-submenu {
+  display: none;
+}
+
+.sidebar-menu-item.group:hover .sidebar-submenu {
+  display: block;
+}
+
 @keyframes float {
 
   0%,
@@ -280,6 +288,7 @@ textarea {
     transform: translateY(-20px);
   }
 }
+
 
 @keyframes float-delayed {
 

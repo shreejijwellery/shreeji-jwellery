@@ -35,7 +35,7 @@ const Layout = ({ children }) => {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [expandedMenus, setExpandedMenus] = useState({});
 
   useEffect(() => {
@@ -92,32 +92,32 @@ const Layout = ({ children }) => {
 
     if (hasSubmenu) {
       return (
-        <li className="sidebar-menu-item">
-          <Link href={href}>
-            <div className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors duration-200 cursor-pointer ${
-              isActive 
-                ? 'bg-blue-600 text-white shadow-md' 
-                : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-            }`}>
-              <div className="flex items-center gap-3">
-                <Icon className="text-lg flex-shrink-0" />
-                <span className={`font-medium ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>{label}</span>
-              </div>
-              <span className={`sidebar-chevron text-sm ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>
-                <FaChevronRight />
-              </span>
+        <li className="sidebar-menu-item group">
+          <div
+            className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors duration-200 ${
+              isActive ? 'bg-blue-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Icon className="text-lg flex-shrink-0" />
+              <span className={`font-medium ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>{label}</span>
             </div>
-          </Link>
-          <div className={`sidebar-submenu ${sidebarCollapsed ? 'hidden group-hover:block' : 'block'}`}>
+            {/* Chevron is decorative; no click needed */}
+            <span className={`sidebar-chevron text-sm ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>
+              <FaChevronRight />
+            </span>
+          </div>
+          {/* Submenu appears on hover when sidebar is collapsed */}
+          <div className="sidebar-submenu">
             <ul className="ml-4 space-y-1 border-l-2 border-gray-700 pl-2">
               {submenu.map((item, idx) => (
                 <li key={idx}>
                   <Link href={item.href}>
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-200 ${
-                      router.pathname === item.href
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-                    }`}>
+                    <div
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-200 ${
+                        router.pathname === item.href ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                      }`}
+                    >
                       {item.icon && <item.icon className="text-sm" />}
                       <span>{item.label}</span>
                     </div>
@@ -130,16 +130,17 @@ const Layout = ({ children }) => {
       );
     }
 
+    // No submenu
     return (
-      <li>
+      <li className="sidebar-menu-item">
         <Link href={href}>
-          <div className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${
-            isActive 
-              ? 'bg-blue-600 text-white shadow-md' 
-              : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-          }`}>
+          <div
+            className={`flex items-center px-4 py-3 rounded-lg transition-colors duration-200 ${
+              isActive ? 'bg-blue-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+            }`}
+          >
             <Icon className="text-lg flex-shrink-0" />
-            <span className={`font-medium ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>{label}</span>
+            <span className={`ml-3 font-medium ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>{label}</span>
           </div>
         </Link>
       </li>
@@ -166,7 +167,7 @@ const Layout = ({ children }) => {
       {/* Sidebar */}
       <aside className={`group fixed inset-y-0 left-0 z-50 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-700 bg-opacity-80 backdrop-blur-lg transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${
         mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-      } ${sidebarCollapsed ? 'md:w-20 md:hover:w-64' : 'md:w-64'}`}>
+      } ${sidebarCollapsed ? 'w-20 hover:w-64 md:w-20 md:hover:w-64' : 'w-64 md:w-64'}`}>
         {/* Decorative floating icons */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <FaBoxes className="absolute top-8 left-4 text-purple-300 opacity-20 text-5xl animate-float" />
@@ -175,7 +176,7 @@ const Layout = ({ children }) => {
         </div>
         <div className="flex flex-col h-full relative z-10">
             {/* Logo / Brand */}
-            <div className="h-16 flex items-center justify-center px-4 bg-gradient-to-r from-indigo-600 to-purple-600 border-b border-gray-800">
+            <div className="h-16 flex items-center justify-center px-4 bg-gradient-to-r from-indigo-600 to-purple-600 border-b border-gray-800 cursor-pointer" onClick={toggleSidebar}>
               {/* Expanded view */}
               {!sidebarCollapsed && (
                 <div className="flex items-center space-x-3">
