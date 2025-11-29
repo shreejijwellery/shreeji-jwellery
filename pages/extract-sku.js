@@ -650,7 +650,8 @@ export default function ExtractSKU() {
       const outBytes = await outPdf.save();
       const url = window.URL.createObjectURL(new Blob([outBytes], { type: 'application/pdf' }));
       const link = document.createElement('a');
-      link.href = url; link.setAttribute('download', 'sorted_output.pdf');
+      const originalName = pdfFile.name.replace(/\.pdf$/i, '');
+      link.href = url; link.setAttribute('download', `${originalName}_sorted.pdf`);
       document.body.appendChild(link); link.click(); link.parentNode.removeChild(link);
 
       setSuccess(true);
