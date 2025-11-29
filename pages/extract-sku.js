@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CancelOrder from '../components/CancelOrder';
+import SkuManagement from '../components/SkuManagement';
+
 
 
 export default function ExtractSKU() {
@@ -19,7 +21,7 @@ export default function ExtractSKU() {
   const [allowed, setAllowed] = useState(null);
   const [hasCsvFile, setHasCsvFile] = useState(false);
   const [selectedPdfFile, setSelectedPdfFile] = useState(null); // For Meesho Sort
-  const [selectedCsvFile, setSelectedCsvFile] = useState(null); // For Meesho Sort
+
   
   // SKU Inventory Management states
   const [inventoryData, setInventoryData] = useState(null);
@@ -517,21 +519,23 @@ export default function ExtractSKU() {
     setError(null);
     setSuccess(false);
     setStatus('Preparing files...');
+    
     try {
       const pdfFile = event.target.pdf.files[0];
-      const csvFile = event.target.csv.files[0];
-      if (!pdfFile || !csvFile) throw new Error('Please select both PDF and CSV files');
+      if (!pdfFile) throw new Error('Please select a PDF file');
 
-      const [pdfjsLib, pdfArrayBuffer, csvText] = await Promise.all([
+      // Fetch SKU mappings from database
+      setStatus('Fetching SKU mappings...');
+      const token = localStorage.getItem('token');
+      const { data: skuResponse } = await axios.get('/api/sku-mapping?limit=10000', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const skuMappings = skuResponse.data || [];
+
+      const [pdfjsLib, pdfArrayBuffer] = await Promise.all([
         loadPdfJs(),
-        readFileAsArrayBuffer(pdfFile),
-        readFileAsText(csvFile)
+        readFileAsArrayBuffer(pdfFile)
       ]);
-
-      setStatus('Parsing CSV...');
-      const csvData = parseCSV(csvText);
-      const skuKey = csvData.length ? findHeaderKeyInsensitive(csvData[0], 'SKU') : null;
-      const originKey = csvData.length ? findHeaderKeyInsensitive(csvData[0], 'Origin') || findHeaderKeyInsensitive(csvData[0], 'origin') : null;
 
       setStatus('Reading PDF...');
       const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
@@ -557,11 +561,14 @@ export default function ExtractSKU() {
         
         const sku = extractSKU(lines);
         const qty = extractQuantity(lines);
+        
+        // Find origin from database mappings
         let originName = 'Unknown Origin';
-        if (skuKey) {
-          const originRow = csvData.find(row => String(row[skuKey]).trim() === String(sku).trim());
-          if (originRow && originKey) originName = originRow[originKey] || 'Unknown Origin';
+        const mapping = skuMappings.find(m => String(m.sku).trim() === String(sku).trim());
+        if (mapping) {
+          originName = mapping.origin || 'Unknown Origin';
         }
+        
         const company = extractCompany(lines) || 'Zzzzz';
         pageData.push({ pageNumber: i, sku, qty, originName, company });
       }
@@ -650,40 +657,12 @@ export default function ExtractSKU() {
       setStatus('Done. File downloaded.');
       // Reset file selections after successful processing
       setSelectedPdfFile(null);
-      setSelectedCsvFile(null);
       // Reset form inputs
       if (event.target.pdf) event.target.pdf.value = '';
-      if (event.target.csv) event.target.csv.value = '';
     } catch (err) {
       console.error(err);
       setError(err.message || 'Processing failed');
-      setStatus('Attempting server fallback...');
-      try {
-        const formData = new FormData();
-        const pdf = event.target.pdf.files[0];
-        const csv = event.target.csv.files[0];
-        formData.append('pdf', pdf);
-        formData.append('csv', csv);
-        const response = await fetch('/api/processFiles', { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('Server fallback failed');
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(new Blob([blob]));
-        const link = document.createElement('a');
-        link.href = url; link.setAttribute('download', 'sorted_output.pdf');
-        document.body.appendChild(link); link.click(); link.parentNode.removeChild(link);
-        setError(null);
-        setSuccess(true);
-        setStatus('Done via server fallback.');
-        // Reset file selections after successful processing
-        setSelectedPdfFile(null);
-        setSelectedCsvFile(null);
-        // Reset form inputs
-        if (event.target.pdf) event.target.pdf.value = '';
-        if (event.target.csv) event.target.csv.value = '';
-      } catch (fallbackErr) {
-        console.error(fallbackErr);
-        setStatus('');
-      }
+      setStatus('');
     } finally {
       setLoading(false);
     }
@@ -1574,6 +1553,21 @@ export default function ExtractSKU() {
                 <span>Cancelled Orders</span>
               </div>
             </button>
+            <button
+              onClick={() => setSelectedTab('sku-management')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'sku-management'
+                  ? 'border-purple-400 text-purple-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                <span>SKU Management</span>
+              </div>
+            </button>
             </nav>
           </div>
         </div>
@@ -1682,69 +1676,8 @@ export default function ExtractSKU() {
                   className="sr-only"
                 />
               </div>
-              <div>
-                <label htmlFor="csv" className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload CSV File
-                </label>
-                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
-                  selectedCsvFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400'
-                }`}>
-                  <div className="space-y-1 text-center w-full">
-                    {selectedCsvFile ? (
-                      <>
-                        <svg className="mx-auto h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <div className="mt-3 px-4 py-2 bg-green-100 rounded-lg border border-green-300">
-                          <div className="flex items-center justify-start gap-2">
-                            <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-green-800 truncate" title={selectedCsvFile.name}>
-                                {selectedCsvFile.name}
-                              </div>
-                              <div className="text-xs text-green-700 font-medium mt-0.5">
-                                File size: {(selectedCsvFile.size / 1024).toFixed(2)} KB
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <label htmlFor="csv" className="mt-2 block text-xs text-gray-500 cursor-pointer hover:text-blue-600">
-                          Click to change file
-                        </label>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                          <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <div className="flex text-sm text-gray-600">
-                          <label htmlFor="csv" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
-                            <span>Upload a file</span>
-                          </label>
-                          <p className="pl-1">or drag and drop</p>
-                        </div>
-                        <p className="text-xs text-gray-500">CSV file</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <input
-                  type="file"
-                  id="csv"
-                  name="csv"
-                  accept=".csv"
-                  required
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    setSelectedCsvFile(file || null);
-                  }}
-                  className="sr-only"
-                />
-              </div>
               {/* Selected Files Summary */}
-              {(selectedPdfFile || selectedCsvFile) && (
+              {selectedPdfFile && (
                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-xs font-medium text-blue-700 mb-2">Ready to process:</p>
                   <div className="space-y-1 text-xs">
@@ -1757,22 +1690,14 @@ export default function ExtractSKU() {
                         <span className="truncate">{selectedPdfFile.name}</span>
                       </div>
                     )}
-                    {selectedCsvFile && (
-                      <div className="flex items-center gap-2 text-blue-900">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <span className="font-medium">CSV:</span>
-                        <span className="truncate">{selectedCsvFile.name}</span>
-                      </div>
-                    )}
+
                   </div>
                 </div>
               )}
 
               <button
                 type="submit"
-                disabled={loading || allowed === false || allowed === null || !selectedPdfFile || !selectedCsvFile}
+                disabled={loading || allowed === false || allowed === null || !selectedPdfFile}
                 className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? (
@@ -2120,6 +2045,10 @@ export default function ExtractSKU() {
 
         {selectedTab === 'cancelled-orders' && (
           <CancelOrder />
+        )}
+
+        {selectedTab === 'sku-management' && (
+          <SkuManagement />
         )}
 
         {selectedTab === 'inventory' && (
