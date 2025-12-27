@@ -1,13 +1,20 @@
 import connectToDatabase from '../../lib/mongodb';
 import OrderFile from '../../models/OrderFile';
 import moment from 'moment-timezone';
-export default async function handler(req, res) {
+import { authMiddleware } from './common/common.services';
+
+async function handler(req, res) {
   const { method } = req;
 
   await connectToDatabase();
 
+  const user = req.userData;
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
   if (method === 'GET') {
-    const {user, data, date} = req.query;
+    const {date} = req.query;
     let dateToFilter = new Date();
     if(date){
       dateToFilter = new Date(date);
@@ -16,6 +23,7 @@ export default async function handler(req, res) {
     const query = [
     {$match: {
       reason: 'PENDING',
+      company: user.company, // Filter by user's company
       createdAt: {
         $gte: new Date(moment(dateToFilter).tz('IST' ).startOf('day')) ,
         $lte: new Date(moment(dateToFilter).tz('IST' ).endOf('day'))
@@ -27,8 +35,19 @@ export default async function handler(req, res) {
     }},
     {$lookup: {
         from: "masterfiles",
-        localField: "_id.sku",
-        foreignField: "sku",
+        let: { sku: "$_id.sku", companyId: user.company },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $eq: ["$sku", "$$sku"] },
+                  { $eq: ["$company", "$$companyId"] } // Filter masterfiles by company too
+                ]
+              }
+            }
+          }
+        ],
         as: "price"
     }},
     {
@@ -56,3 +75,5 @@ export default async function handler(req, res) {
     res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+
+export default authMiddleware(handler);

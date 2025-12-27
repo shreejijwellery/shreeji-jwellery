@@ -7,6 +7,12 @@ const CancelledOrderSchema = new mongoose.Schema({
   email: { type: String, required: false }, // Original email from Excel
   startDate: { type: Date, required: true }, // Start date of the range
   endDate: { type: Date, required: true }, // End date of the range
+  selectedDate: { type: Date, required: false }, // Selected date for consistency with SKU Inventory
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: false // Optional for backward compatibility with existing records
+  },
   uploadedDate: { type: Date, default: Date.now }, // When the data was uploaded
   uploadedBy: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -21,11 +27,14 @@ const CancelledOrderSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Index for efficient queries
+CancelledOrderSchema.index({ company: 1 });
 CancelledOrderSchema.index({ companyName: 1, sku: 1 });
 CancelledOrderSchema.index({ startDate: -1 });
 CancelledOrderSchema.index({ endDate: -1 });
+CancelledOrderSchema.index({ selectedDate: -1 });
 CancelledOrderSchema.index({ uploadedDate: -1 });
 CancelledOrderSchema.index({ startDate: 1, endDate: 1 });
+CancelledOrderSchema.index({ company: 1, isDeleted: 1 });
 
 // Clear model cache to ensure latest schema is used
 if (mongoose.models.CancelledOrder) {

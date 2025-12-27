@@ -1,17 +1,27 @@
 import connectToDatabase from '../../lib/mongodb';
 import OrderFile from '../../models/OrderFile';
 import moment from 'moment-timezone';
-export default async function handler(req, res) {
+import { authMiddleware } from './common/common.services';
+
+async function handler(req, res) {
   const { method } = req;
 
   await connectToDatabase();
 
+  const user = req.userData;
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
   if (method === 'POST') {
-    const {user, uploadId, sku} = req.body;
-    let query = {}
+    const {uploadId, sku} = req.body;
+    let query = {
+      company: user.company // Filter by user's company
+    }
     if(uploadId) {
       let dateToFilter = new Date(uploadId);
       query = {
+        ...query,
         uploadId,
         createdAt: {
           $gte: moment(dateToFilter).startOf('day').toDate(),
@@ -37,7 +47,9 @@ export default async function handler(req, res) {
     res.status(500).json({ error: 'Error deleted data from the database' });
   }
   } else {
-    res.setHeader('Allow', ['GET']);
+    res.setHeader('Allow', ['POST']);
     res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+
+export default authMiddleware(handler);

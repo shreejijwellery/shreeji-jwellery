@@ -1,15 +1,23 @@
 import connectToDatabase from '../../lib/mongodb';
 import OrderFile from '../../models/OrderFile';
+import { authMiddleware } from './common/common.services';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const { method } = req;
 
   await connectToDatabase();
 
+  const user = req.userData;
+  if (!user) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
   if (method === 'GET') {
-    const {user, data} = req.query;
     const query = [
-    {$match: {reason: 'PENDING'}},
+    {$match: {
+      reason: 'PENDING',
+      company: user.company // Filter by user's company
+    }},
     {$group : {
         _id: "$uploadId",
         quantity: {$sum: "$quantity"}
@@ -37,3 +45,5 @@ export default async function handler(req, res) {
     res.status(405).end(`Method ${method} Not Allowed`);
   }
 }
+
+export default authMiddleware(handler);
