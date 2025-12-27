@@ -7,8 +7,10 @@ import moment from 'moment';
 import { FINAL_PRODUCT_SECTION } from '../lib/constants';
 import Select from 'react-select';
 import { toast } from 'react-toastify';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 export default function ProductionFlowDashboard() {
+  const { checkFeature, loading: flagsLoading } = useFeatureFlags();
   const [items, setItems] = useState([]);
   const [allSections, setAllSections] = useState([]);
   const [finalProductSection, setFinalProductSection] = useState(null);
@@ -42,51 +44,6 @@ export default function ProductionFlowDashboard() {
   ]);
   
   const [loading, setLoading] = useState(false);
-
-  // Fetch initial data
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      try {
-        const [itemsResponse, sectionsResponse] = await Promise.all([
-          fetchAllItems(),
-          fetchAllSections()
-        ]);
-        setItems(itemsResponse);
-        
-        // Find and store Final Product section
-        const finalProdSection = sectionsResponse.find(s => s.name === FINAL_PRODUCT_SECTION);
-        setFinalProductSection(finalProdSection);
-        
-        // Set all sections excluding Final Product for middle columns
-        setAllSections(sectionsResponse.filter(s => s.name !== FINAL_PRODUCT_SECTION));
-      } catch (error) {
-        console.error('Error fetching initial data:', error);
-        toast.error('Failed to fetch initial data');
-      }
-    };
-    fetchInitialData();
-  }, []);
-
-  // Fetch data for Column 1 (In-Process)
-  useEffect(() => {
-    if (finalProductSection) {
-      fetchInProcessData();
-    }
-  }, [col1Filters.startDate, col1Filters.endDate, col1Filters.selectedItems, finalProductSection]);
-
-  // Fetch data for Column 5 (Final Products)
-  useEffect(() => {
-    if (finalProductSection) {
-      fetchFinalProductData();
-    }
-  }, [col5Filters.startDate, col5Filters.endDate, col5Filters.selectedItems, finalProductSection]);
-
-  // Fetch data for middle columns when they change
-  useEffect(() => {
-    middleColumns.forEach((col, index) => {
-      fetchSectionDataForColumn(index);
-    });
-  }, [middleColumns.map(c => `${c.startDate}-${c.endDate}-${c.selectedItems.join(',')}-${c.selectedSection?.value}`).join('|')]);
 
   const fetchInProcessData = async () => {
     try {

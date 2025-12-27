@@ -4,7 +4,7 @@ import ItemsManager from '../components/items';
 import WorkerDetails from '../components/WorkerDetails';
 import PartyDashboard from './party_dashboard';
 import PartyDetails from '../components/partyDetails';
-import { checkPermission, PERMISSIONS } from '../lib/constants';
+import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
 import axios from 'axios';
 
 const SettingsTabs = () => {
@@ -16,14 +16,32 @@ const SettingsTabs = () => {
     const userData = JSON.parse(localStorage.getItem('user'));
     if (userData) {
       setUser(userData);
-      switch (true) {
-        case checkPermission(userData, PERMISSIONS.WORKERS): setSelectedTab('workers'); break;
-        case checkPermission(userData, PERMISSIONS.PARTY_BILLS): setSelectedTab('party'); break;
-        case checkPermission(userData, PERMISSIONS.SECTIONS): setSelectedTab('sections'); break;
-        case checkPermission(userData, PERMISSIONS.ITEMS): setSelectedTab('items'); break;
-      }
     }
   }, []);
+
+  // Set default tab based on permissions and feature flags
+  useEffect(() => {
+    if (user && flags) {
+      // Only set tab if user has permission AND feature flag is enabled
+      switch (true) {
+        case checkPermission(user, PERMISSIONS.WORKERS) && flags?.isWorkers: 
+          setSelectedTab('workers'); 
+          break;
+        case checkPermission(user, PERMISSIONS.PARTY_BILLS) && flags?.isVendors: 
+          setSelectedTab('party'); 
+          break;
+        case checkPermission(user, PERMISSIONS.SECTIONS) && flags?.isSections: 
+          setSelectedTab('sections'); 
+          break;
+        case checkPermission(user, PERMISSIONS.ITEMS) && flags?.isItems: 
+          setSelectedTab('items'); 
+          break;
+        case user?.role === USER_ROLES.ADMINISTRATOR:
+          setSelectedTab('featureFlags');
+          break;
+      }
+    }
+  }, [user, flags]);
 
   useEffect(() => {
     const fetchFlags = async () => {
@@ -61,7 +79,7 @@ const SettingsTabs = () => {
       {user ? (
         <div className="p-4">
           <div className="flex space-x-4">
-            {checkPermission(user, PERMISSIONS.WORKERS) && (
+            {checkPermission(user, PERMISSIONS.WORKERS) && flags?.isWorkers && (
               <button
                 onClick={() => setSelectedTab('workers')}
                 className={`px-4 py-2 rounded ${
@@ -70,7 +88,7 @@ const SettingsTabs = () => {
                 Workers
               </button>
             )}
-            {checkPermission(user, PERMISSIONS.PARTY_BILLS) && (
+            {checkPermission(user, PERMISSIONS.PARTY_BILLS) && flags?.isVendors && (
               <button
                 onClick={() => setSelectedTab('party')}
                 className={`px-4 py-2 rounded ${
@@ -79,18 +97,16 @@ const SettingsTabs = () => {
                 Vendor
               </button>
             )}
-            {checkPermission(user, PERMISSIONS.SECTIONS) && (
-              <>
-                <button
-                  onClick={() => setSelectedTab('sections')}
-                  className={`px-4 py-2 rounded ${
-                    selectedTab === 'sections' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
-                  }`}>
-                  Sections
-                </button>
-              </>
+            {checkPermission(user, PERMISSIONS.SECTIONS) && flags?.isSections && (
+              <button
+                onClick={() => setSelectedTab('sections')}
+                className={`px-4 py-2 rounded ${
+                  selectedTab === 'sections' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+                }`}>
+                Sections
+              </button>
             )}
-            {checkPermission(user, PERMISSIONS.ITEMS) && (
+            {checkPermission(user, PERMISSIONS.ITEMS) && flags?.isItems && (
               <button
                 onClick={() => setSelectedTab('items')}
                 className={`px-4 py-2 rounded ${
@@ -99,53 +115,143 @@ const SettingsTabs = () => {
                 Items
               </button>
             )}
+            {user?.role === USER_ROLES.ADMINISTRATOR && (
+              <button
+                onClick={() => setSelectedTab('featureFlags')}
+                className={`px-4 py-2 rounded ${
+                  selectedTab === 'featureFlags' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+                }`}>
+                Feature Flags
+              </button>
+            )}
           </div>
           <div className="mt-4">
-            {selectedTab === 'sections' && <SectionManager user={user} />}
+            {selectedTab === 'sections' && (
+              flags?.isSections ? (
+                <SectionManager user={user} />
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                  <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+                  <p className="text-yellow-700">Sections feature is not enabled for your company. Please contact your administrator.</p>
+                </div>
+              )
+            )}
             {selectedTab === 'items' && (
-              <div>
-                <ItemsManager user={user} />
-              </div>
+              flags?.isItems ? (
+                <div>
+                  <ItemsManager user={user} />
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                  <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+                  <p className="text-yellow-700">Items feature is not enabled for your company. Please contact your administrator.</p>
+                </div>
+              )
             )}
             {selectedTab === 'workers' && (
-              <div>
-                <WorkerDetails user={user} />
-              </div>
+              flags?.isWorkers ? (
+                <div>
+                  <WorkerDetails user={user} />
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                  <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+                  <p className="text-yellow-700">Workers feature is not enabled for your company. Please contact your administrator.</p>
+                </div>
+              )
             )}
             {selectedTab === 'party' && (
-              <div>
-                <PartyDetails user={user} />
-              </div>
+              flags?.isVendors ? (
+                <div>
+                  <PartyDetails user={user} />
+                </div>
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                  <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+                  <p className="text-yellow-700">Vendors feature is not enabled for your company. Please contact your administrator.</p>
+                </div>
+              )
             )}
-            {/* {(user?.role === 'ADMINISTRATOR' || user?.role === 'admin') && (
-              <div className="mt-6 p-4 border rounded">
-                <h2 className="text-lg font-semibold mb-2">Company Feature Flags</h2>
+            {selectedTab === 'featureFlags' && user?.role === USER_ROLES.ADMINISTRATOR && (
+              <div className="mt-6 p-6 border border-gray-300 rounded-lg bg-white shadow-sm">
+                <h2 className="text-xl font-semibold mb-4">Company Feature Flags</h2>
                 {flags ? (
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={!!flags.isExtractSKU}
-                        onChange={(e) => saveFlags({ ...flags, isExtractSKU: e.target.checked })}
-                        disabled={saving}
-                      />
-                      <span>Enable Extract SKU</span>
-                    </label>
-                    <label className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        checked={!!flags.isExcelFromPDF}
-                        onChange={(e) => saveFlags({ ...flags, isExcelFromPDF: e.target.checked })}
-                        disabled={saving}
-                      />
-                      <span>Enable Excel from PDF (UI-only)</span>
-                    </label>
+                  <div className="space-y-6">
+                    {[
+                      {
+                        title: 'SKU Management Features',
+                        flags: [
+                          { key: 'isExtractSKU', label: 'Extract SKU' },
+                          { key: 'isExcelFromPDF', label: 'Excel from PDF' },
+                          { key: 'isSKUInventory', label: 'SKU Inventory' },
+                          { key: 'isCancelledOrders', label: 'Cancelled Orders' },
+                        ]
+                      },
+                      {
+                        title: 'Billing & Payment Features',
+                        flags: [
+                          { key: 'isPartyBills', label: 'Party Bills' },
+                          { key: 'isVendorBills', label: 'Vendor Bills' },
+                          { key: 'isWorkerBills', label: 'Worker Bills' },
+                          { key: 'isVendorPayments', label: 'Vendor Payments' },
+                          { key: 'isWorkerPayments', label: 'Worker Payments' },
+                        ]
+                      },
+                      {
+                        title: 'Production Management Features',
+                        flags: [
+                          { key: 'isProductionFlow', label: 'Production Flow' },
+                          { key: 'isFinalProduct', label: 'Final Product' },
+                          { key: 'isInProcessProduct', label: 'In-Process Product' },
+                          { key: 'isPlatting', label: 'Platting' },
+                        ]
+                      },
+                      {
+                        title: 'Master Data Management Features',
+                        flags: [
+                          { key: 'isSections', label: 'Sections' },
+                          { key: 'isItems', label: 'Items' },
+                          { key: 'isWorkers', label: 'Workers' },
+                          { key: 'isVendors', label: 'Vendors' },
+                        ]
+                      },
+                      {
+                        title: 'Additional Features',
+                        flags: [
+                          { key: 'isCalendar', label: 'Calendar' },
+                          { key: 'isDashboard', label: 'Dashboard' },
+                          { key: 'isCompanyOrderPreference', label: 'Company Order Preference' },
+                          { key: 'isCompanyEmailMapping', label: 'Company Email Mapping' },
+                          { key: 'isFileUpload', label: 'File Upload' },
+                          { key: 'isMasterFileUpload', label: 'Master File Upload' },
+                          { key: 'isOrderFileUpload', label: 'Order File Upload' },
+                        ]
+                      }
+                    ].map((group, groupIdx) => (
+                      <div key={groupIdx} className="border-l-4 border-blue-500 pl-4">
+                        <h3 className="font-semibold text-gray-700 mb-2">{group.title}</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                          {group.flags.map(flag => (
+                            <label key={flag.key} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                              <input
+                                type="checkbox"
+                                checked={!!flags[flag.key]}
+                                onChange={(e) => saveFlags({ ...flags, [flag.key]: e.target.checked })}
+                                disabled={saving}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm">{flag.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-500">Loading flags…</p>
                 )}
               </div>
-            )} */}
+            )}
           </div>
         </div>
       ) : (

@@ -10,15 +10,41 @@ import { MdDeleteForever } from "react-icons/md";
 import 'tailwindcss/tailwind.css';
 import OrderData from '../components/OrderData';
 import { USER_ROLES } from '../lib/constants';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 const Dashboard = () => {
+  const { checkFeature, loading: flagsLoading } = useFeatureFlags();
   const [user, setUser] = useState(null);
   const [fileType, setFileType] = useState(null);
   const [tableData, setTableData] = useState([]);
   const [orderData, setOrderData] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState({ isModalOpen: false });
-  
   const router = useRouter();
+
+  const fetchGetOrderFiles = async () => {
+    try {
+      const response = await axios.get('/api/getOrderFiles');
+      if (response.status === 200) {
+        const result = response?.data?.data?.map(item => ({
+          sku: item.sku,
+          quantity: item.quantity,
+          price: item.price || 'Price not found',
+          finalPrice: (item.quantity || 0) + (item.price || 0),
+          uploadedBy: item?.uploadedBy?.name,
+          uploadId: item.uploadId
+        }));
+        setOrderData(result);
+        if (result.length === 0) {
+          toast.warn('No order files are uploaded today!');
+        }
+        if (result.length > 0)
+          toast.success('Order files are already uploaded today!');
+      }
+    } catch (error) {
+      console.error('Error fetching order files:', error);
+      toast.error('Error fetching order files. Please try again.');
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -36,6 +62,21 @@ const Dashboard = () => {
         });
     }
   }, [router]);
+
+  if (flagsLoading) {
+    return <div className="p-4">Loading...</div>;
+  }
+
+  if (!checkFeature('isDashboard')) {
+    return (
+      <div className="p-4">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+          <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+          <p className="text-yellow-700">This feature is not enabled for your company. Please contact your administrator.</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleFileUpload = (files) => {
     const file = files[0];
@@ -78,31 +119,6 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error uploading data:', error);
       toast.error('Error uploading data. Please try again.');
-    }
-  };
-
-  const fetchGetOrderFiles = async () => {
-    try {
-      const response = await axios.get('/api/getOrderFiles');
-      if (response.status === 200) {
-        const result = response?.data?.data?.map(item => ({
-          sku: item.sku,
-          quantity: item.quantity,
-          price: item.price || 'Price not found',
-          finalPrice: (item.quantity || 0) + (item.price || 0),
-          uploadedBy: item?.uploadedBy?.name,
-          uploadId: item.uploadId
-        }));
-        setOrderData(result);
-        if (result.length === 0) {
-          toast.warn('No order files are uploaded today!');
-        }
-        if (result.length > 0)
-          toast.success('Order files are already uploaded today!');
-      }
-    } catch (error) {
-      console.error('Error fetching order files:', error);
-      toast.error('Error fetching order files. Please try again.');
     }
   };
 
