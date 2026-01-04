@@ -4,6 +4,14 @@
       "memory": 1024,
       "maxDuration": 10
     },
+    "pages/api/sku-inventory.js": {
+      "memory": 2048,
+      "maxDuration": 10
+    },
+    "pages/api/sku-inventory-download.js": {
+      "memory": 2048,
+      "maxDuration": 10
+    },
     "pages/api/**/*.js": {
       "memory": 1024,
       "maxDuration": 10

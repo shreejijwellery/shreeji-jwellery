@@ -3,6 +3,10 @@ import SkuInventory from '../../models/SkuInventory';
 import Company from '../../models/company';
 import { USER_ROLES } from '../../lib/constants';
 import connectToDatabase from '../../lib/mongodb';
+import zlib from 'zlib';
+import { promisify } from 'util';
+
+const gzip = promisify(zlib.gzip);
 
 async function handler(req, res) {
     await connectToDatabase();
@@ -88,7 +92,7 @@ async function handler(req, res) {
 
             // Aggregation pipeline 2: Aggregate by date and company (for calendar view)
             // This creates records similar to rawData but pre-aggregated
-            // Add a reasonable limit to prevent timeout on very large datasets
+            // Reduced limit to prevent exceeding Vercel's 4.5MB response limit
             const dateCompanyAggregation = [
                 { $match: matchStage },
                 {
@@ -110,7 +114,7 @@ async function handler(req, res) {
                     }
                 },
                 { $sort: { selectedDate: -1, companyName: 1 } },
-                { $limit: 50000 } // Safety limit: max 50k date-company combinations
+                { $limit: 10000 } // Reduced from 50k to 10k to prevent payload size issues
             ];
 
             // Run both aggregations in parallel
@@ -140,11 +144,27 @@ async function handler(req, res) {
                 sku: result.sku || ''
             }));
 
-            return res.status(200).json({
+            const responseData = {
                 success: true,
                 data: aggregated,
                 rawData: rawData
-            });
+            };
+
+            // Check if client accepts gzip
+            const acceptEncoding = req.headers['accept-encoding'] || '';
+            
+            if (acceptEncoding.includes('gzip')) {
+                // Compress response with gzip
+                const jsonString = JSON.stringify(responseData);
+                const compressed = await gzip(jsonString);
+                
+                res.setHeader('Content-Encoding', 'gzip');
+                res.setHeader('Content-Type', 'application/json');
+                res.status(200).send(compressed);
+            } else {
+                // Send uncompressed if client doesn't support gzip
+                return res.status(200).json(responseData);
+            }
         } catch (error) {
             console.error('Error fetching SKU inventory:', error);
             return res.status(500).json({ message: 'Error fetching data', error: error.message });
