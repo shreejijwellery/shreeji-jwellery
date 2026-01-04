@@ -48,6 +48,7 @@ const SkuInventorySchema = new mongoose.Schema({
 SkuInventorySchema.index({ company: 1, selectedDate: 1 });
 SkuInventorySchema.index({ company: 1, companyName: 1, selectedDate: 1 });
 SkuInventorySchema.index({ company: 1, isDeleted: 1, selectedDate: 1 });
+SkuInventorySchema.index({ company: 1, isDeleted: 1, companyName: 1, sku: 1 });
 
 export default mongoose.models.SkuInventory || mongoose.model('SkuInventory', SkuInventorySchema);
 
