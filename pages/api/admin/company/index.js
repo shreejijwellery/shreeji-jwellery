@@ -18,14 +18,17 @@ async function handler(req, res) {
 
     if (method === 'GET') {
       const companies = await Company.find({}, { companyName: 1, featureFlags: 1 }).lean();
-      // Ensure both flags are present in the response object even if undefined in DB
-      const normalized = companies.map(c => ({
-        ...c,
-        featureFlags: {
-          isExtractSKU: Boolean(c?.featureFlags?.isExtractSKU),
-          isExcelFromPDF: Boolean(c?.featureFlags?.isExcelFromPDF),
-        }
-      }));
+      // Normalize all feature flags to boolean
+      const normalized = companies.map(c => {
+        const normalizedFlags = {};
+        Object.keys(c?.featureFlags || {}).forEach(key => {
+          normalizedFlags[key] = Boolean(c.featureFlags[key]);
+        });
+        return {
+          ...c,
+          featureFlags: normalizedFlags
+        };
+      });
       return res.status(200).json({ companies: normalized });
     }
 

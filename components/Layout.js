@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 import { CgProfile } from 'react-icons/cg';
 import { 
   FaUsersCog, 
@@ -37,6 +38,7 @@ const Layout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [expandedMenus, setExpandedMenus] = useState({});
+  const { checkFeature } = useFeatureFlags();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -110,7 +112,7 @@ const Layout = ({ children }) => {
           {/* Submenu appears on hover when sidebar is collapsed */}
           <div className="sidebar-submenu">
             <ul className="ml-4 space-y-1 border-l-2 border-gray-700 pl-2">
-              {submenu.map((item, idx) => (
+              {submenu.filter(item => !item.flag || checkFeature(item.flag)).map((item, idx) => (
                 <li key={idx}>
                   <Link href={item.href}>
                     <div
@@ -205,7 +207,7 @@ const Layout = ({ children }) => {
                 </>
               )}
 
-              {user && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && (
+              {user && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && checkFeature('isExtractSKU') && (
                 <NavItem 
                   href="/extract-sku" 
                   icon={FaFileExcel} 
@@ -214,39 +216,39 @@ const Layout = ({ children }) => {
                   submenu={[
                     { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaSortAmountDown },
                     { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaFolder },
-                    { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt },
-                    { href: '/extract-sku?tab=inventory', label: 'SKU Inventory', icon: FaBoxes },
-                    { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle },
-                  ]}
+                    { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt, flag: 'isExcelFromPDF' },
+                    { href: '/extract-sku?tab=inventory', label: 'SKU Inventory', icon: FaBoxes, flag: 'isSKUInventory' },
+                    { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle, flag: 'isCancelledOrders' },
+                  ].filter(item => !item.flag || checkFeature(item.flag))}
                 />
               )}
 
-              {user && checkPermission(user, PERMISSIONS.PARTY_BILLS) && (
+              {user && checkPermission(user, PERMISSIONS.PARTY_BILLS) && (checkFeature('isPartyBills') || checkFeature('isVendorBills')) && (
                 <NavItem href="/party_dashboard" icon={FaMoneyBillWave} label="Vendor Pay" />
               )}
               
-              {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
+              {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (checkFeature('isWorkerBills') || checkFeature('isWorkerPayments')) && (
                 <NavItem href="/billing" icon={FaHardHat} label="Worker Pay" />
               )}
               
-              {user && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (
+              {user && checkPermission(user, PERMISSIONS.FINAL_PRODUCT) && (checkFeature('isFinalProduct') || checkFeature('isInProcessProduct')) && (
                 <NavItem 
                   href="/final-product" 
                   icon={FaBoxOpen} 
                   label="Products"
                   menuKey="products"
                   submenu={[
-                    { href: '/final-product', label: 'Final Product', icon: FaBoxOpen },
-                    { href: '/in-process-product', label: 'In-Process', icon: FaIndustry },
-                  ]}
+                    { href: '/final-product', label: 'Final Product', icon: FaBoxOpen, flag: 'isFinalProduct' },
+                    { href: '/in-process-product', label: 'In-Process', icon: FaIndustry, flag: 'isInProcessProduct' },
+                  ].filter(item => !item.flag || checkFeature(item.flag))}
                 />
               )}
               
-              {user && checkPermission(user, PERMISSIONS.PLATTING) && (
+              {user && checkPermission(user, PERMISSIONS.PLATTING) && checkFeature('isPlatting') && (
                 <NavItem href="/platting" icon={FaLayerGroup} label="Platting" />
               )}
               
-              {user && checkPermission(user, PERMISSIONS.PRODUCTION_FLOW) && (
+              {user && checkPermission(user, PERMISSIONS.PRODUCTION_FLOW) && checkFeature('isProductionFlow') && (
                 <NavItem href="/production-flow" icon={FaProjectDiagram} label="Production Flow" />
               )}
               

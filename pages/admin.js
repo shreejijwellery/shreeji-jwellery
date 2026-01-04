@@ -51,34 +51,89 @@ const AdminPortal = () => {
     return <div className="p-4">Unauthorized</div>;
   }
 
+  const featureFlagGroups = [
+    {
+      title: 'SKU Management Features',
+      flags: [
+        { key: 'isExtractSKU', label: 'Extract SKU' },
+        { key: 'isExcelFromPDF', label: 'Excel from PDF' },
+        { key: 'isSKUInventory', label: 'SKU Inventory' },
+        { key: 'isCancelledOrders', label: 'Cancelled Orders' },
+      ]
+    },
+    {
+      title: 'Billing & Payment Features',
+      flags: [
+        { key: 'isPartyBills', label: 'Party Bills' },
+        { key: 'isVendorBills', label: 'Vendor Bills' },
+        { key: 'isWorkerBills', label: 'Worker Bills' },
+        { key: 'isVendorPayments', label: 'Vendor Payments' },
+        { key: 'isWorkerPayments', label: 'Worker Payments' },
+      ]
+    },
+    {
+      title: 'Production Management Features',
+      flags: [
+        { key: 'isProductionFlow', label: 'Production Flow' },
+        { key: 'isFinalProduct', label: 'Final Product' },
+        { key: 'isInProcessProduct', label: 'In-Process Product' },
+        { key: 'isPlatting', label: 'Platting' },
+      ]
+    },
+    {
+      title: 'Master Data Management Features',
+      flags: [
+        { key: 'isSections', label: 'Sections' },
+        { key: 'isItems', label: 'Items' },
+        { key: 'isWorkers', label: 'Workers' },
+        { key: 'isVendors', label: 'Vendors' },
+      ]
+    },
+    {
+      title: 'Additional Features',
+      flags: [
+        { key: 'isCalendar', label: 'Calendar' },
+        { key: 'isDashboard', label: 'Dashboard' },
+        { key: 'isCompanyOrderPreference', label: 'Company Order Preference' },
+        { key: 'isCompanyEmailMapping', label: 'Company Email Mapping' },
+        { key: 'isFileUpload', label: 'File Upload' },
+        { key: 'isMasterFileUpload', label: 'Master File Upload' },
+        { key: 'isOrderFileUpload', label: 'Order File Upload' },
+      ]
+    }
+  ];
+
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Administrator Portal</h1>
+      <h1 className="text-2xl font-bold mb-4">Administrator Portal - Company Feature Flags</h1>
       {loading ? (
         <div>Loading companies…</div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {companies.map(company => (
-            <div key={company._id} className="border p-4 rounded">
-              <div className="font-semibold mb-2">{company.companyName}</div>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={!!company.featureFlags?.isExtractSKU}
-                  onChange={(e) => toggleFlag(company._id, { ...(company.featureFlags || {}), isExtractSKU: e.target.checked })}
-                  disabled={savingId === company._id}
-                />
-                <span>Enable Extract SKU</span>
-              </label>
-              <label className="flex items-center space-x-2"> 
-                <input
-                  type="checkbox"
-                  checked={!!company.featureFlags?.isExcelFromPDF}
-                  onChange={(e) => toggleFlag(company._id, { ...(company.featureFlags || {}), isExcelFromPDF: e.target.checked })}
-                  disabled={savingId === company._id}
-                />
-                <span>Enable Excel from PDF</span>
-              </label>
+            <div key={company._id} className="border border-gray-300 rounded-lg p-6 bg-white shadow-sm">
+              <div className="font-semibold text-xl mb-4 pb-2 border-b border-gray-200">{company.companyName}</div>
+              <div className="space-y-4">
+                {featureFlagGroups.map((group, groupIdx) => (
+                  <div key={groupIdx} className="border-l-4 border-blue-500 pl-4">
+                    <h3 className="font-semibold text-gray-700 mb-2">{group.title}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {group.flags.map(flag => (
+                        <label key={flag.key} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={!!company.featureFlags?.[flag.key]}
+                            onChange={(e) => toggleFlag(company._id, { ...(company.featureFlags || {}), [flag.key]: e.target.checked })}
+                            disabled={savingId === company._id}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm">{flag.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>

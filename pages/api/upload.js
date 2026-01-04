@@ -2,8 +2,10 @@ import multer from 'multer';
 import fs from 'fs';
 import nextConnect from 'next-connect';
 import xlsx from 'xlsx';
+import jwt from 'jsonwebtoken';
 import connectToDatabase from '../../lib/mongodb';
 import OrderFile from '../../models/OrderFile';
+import User from '../../models/users';
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -32,10 +34,26 @@ apiRoute.post(async (req, res) => {
   const worksheet = workbook.Sheets[sheetName];
   const rows = xlsx.utils.sheet_to_json(worksheet);
 
+  // Get user from token if available
+  let companyId = null;
+  const token = req.headers.authorization?.split(' ')[1];
+  if (token) {
+    try {
+      const userData = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(userData.userId).lean();
+      if (user) {
+        companyId = user.company;
+      }
+    } catch (error) {
+      // If token is invalid, continue without company filter
+    }
+  }
+
   const orderData = rows.map((row) => ({
     reason: row['Reason'],
     sku: row['SKU'],
     quantity: row['Quantity'],
+    company: companyId, // Add company if available
   }));
 
   try {

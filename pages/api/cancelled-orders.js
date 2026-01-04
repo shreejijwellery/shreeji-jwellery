@@ -14,7 +14,11 @@ async function handler(req, res) {
     if (method === 'GET') {
       const { startDate, endDate, companyName, sku } = req.query;
 
-      const query = { isDeleted: false };
+      // Base query - filter by user's company
+      const query = { 
+        isDeleted: false,
+        company: user.company // Filter by user's company
+      };
 
       // Date filter - Aligning with SKU Inventory logic but supporting legacy selectedDate
       if (startDate || endDate) {
@@ -101,6 +105,7 @@ async function handler(req, res) {
         startDate: dateObj,
         endDate: dateObj, // Single date
         selectedDate: dateObj, // Save selectedDate as well for consistency
+        company: user.company, // Add company reference
         uploadedDate: new Date(),
         uploadedBy: user._id,
         uploadedByName: user.name || user.username,
@@ -130,13 +135,14 @@ async function handler(req, res) {
       const endOfDay = new Date(targetDate);
       endOfDay.setHours(23, 59, 59, 999);
 
-      // Soft delete records for this date (check both startDate and selectedDate)
+      // Soft delete records for this date (check both startDate and selectedDate) and company
       const result = await CancelledOrder.updateMany(
         {
           $or: [
             { startDate: { $gte: startOfDay, $lte: endOfDay } },
             { selectedDate: { $gte: startOfDay, $lte: endOfDay } }
           ],
+          company: user.company, // Only delete records for user's company
           isDeleted: false
         },
         { isDeleted: true }

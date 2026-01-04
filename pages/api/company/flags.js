@@ -33,11 +33,18 @@ async function handler(req, res) {
       }
       
       const coerceBool = (v) => (typeof v === 'string' ? v === 'true' : Boolean(v));
+      
+      // Merge all provided flags with existing flags
       const mergedFlags = {
         ...(company.featureFlags || {}),
-        ...(featureFlags.hasOwnProperty('isExtractSKU') ? { isExtractSKU: coerceBool(featureFlags.isExtractSKU) } : {}),
-        ...(featureFlags.hasOwnProperty('isExcelFromPDF') ? { isExcelFromPDF: coerceBool(featureFlags.isExcelFromPDF) } : {}),
       };
+      
+      // Update only the flags that are provided in the request
+      Object.keys(featureFlags).forEach(key => {
+        if (featureFlags.hasOwnProperty(key)) {
+          mergedFlags[key] = coerceBool(featureFlags[key]);
+        }
+      });
       
       try {
         const updateResult = await Company.updateOne(
@@ -51,10 +58,12 @@ async function handler(req, res) {
         
         const updated = await Company.findById(company._id).lean();
         
-        const normalized = {
-          isExtractSKU: Boolean(updated?.featureFlags?.isExtractSKU),
-          isExcelFromPDF: Boolean(updated?.featureFlags?.isExcelFromPDF),
-        };
+        // Normalize all flags to boolean
+        const normalized = {};
+        Object.keys(updated?.featureFlags || {}).forEach(key => {
+          normalized[key] = Boolean(updated.featureFlags[key]);
+        });
+        
         return res.status(200).json({ featureFlags: normalized });
       } catch (dbError) {
         return res.status(500).json({ message: 'Database update failed', error: String(dbError) });

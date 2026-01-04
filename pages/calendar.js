@@ -7,6 +7,7 @@ import moment from 'moment-timezone';
 import { toast } from 'react-toastify';
 import OrderData from '../components/OrderData';
 import { useRouter } from 'next/router';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 const CustomTileContent = ({ date, skuData }) => {
   const skuCount = skuData?.quantity || 0;
@@ -31,35 +32,7 @@ const CalendarPage = () => {
   const [date, setDate] = useState(new Date());
   const [orderData, setorderData] = useState([]);
   const router = useRouter();
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-    } else {
-      axios
-        .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
-        .then((response) => {
-          setUser(response.data.user);
-          fetchGetOrderFiles();
-        })
-        .catch(() => {
-          router.push('/login');
-        });
-    }
-  }, [router]);
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get('/api/skuCounts');
-        setSkuData(response.data?.data);
-      } catch (error) {
-        console.error('Error fetching SKU data:', error);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const { checkFeature, loading: flagsLoading } = useFeatureFlags();
 
   const fetchGetOrderFiles = async () => {
     try {
@@ -84,6 +57,51 @@ const CalendarPage = () => {
       toast.error('Error fetching order files. Please try again.');
     }
   };
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    } else {
+      axios
+        .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
+        .then((response) => {
+          setUser(response.data.user);
+          fetchGetOrderFiles();
+        })
+        .catch(() => {
+          router.push('/login');
+        });
+    }
+  }, [router]);
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get('/api/skuCounts');
+        setSkuData(response.data?.data);
+      } catch (error) {
+        console.error('Error fetching SKU data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (flagsLoading) {
+    return <div className="p-4">Loading...</div>;
+  }
+
+  if (!checkFeature('isCalendar')) {
+    return (
+      <div className="p-4">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+          <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+          <p className="text-yellow-700">This feature is not enabled for your company. Please contact your administrator.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 min-h-screen bg-gray-100">

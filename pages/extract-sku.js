@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CancelOrder from '../components/CancelOrder';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 
 export default function ExtractSKU() {
@@ -15,7 +16,7 @@ export default function ExtractSKU() {
   const [success, setSuccess] = useState(false);
   const [status, setStatus] = useState('');
   const [selectedTab, setSelectedTab] = useState('sort');
-  const [featureFlags, setFeatureFlags] = useState(null);
+  const { featureFlags, checkFeature, loading: flagsLoading } = useFeatureFlags();
   const [allowed, setAllowed] = useState(null);
   const [hasCsvFile, setHasCsvFile] = useState(false);
   const [selectedPdfFile, setSelectedPdfFile] = useState(null); // For Meesho Sort
@@ -85,6 +86,227 @@ export default function ExtractSKU() {
     return { firstDay: firstDayStr, lastDay: lastDayStr };
   };
 
+  // SKU Inventory Management Functions - moved before useEffect hooks
+  const fetchInventoryData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      const params = new URLSearchParams();
+      if (filterStartDate) params.append('startDate', filterStartDate);
+      if (filterEndDate) params.append('endDate', filterEndDate);
+      if (filterCompany) params.append('companyName', filterCompany);
+      if (filterSKU) params.append('sku', filterSKU);
+
+      const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Trim all company names in the data
+      const trimmedData = {};
+      if (data.data) {
+        Object.keys(data.data).forEach(companyName => {
+          const trimmedName = companyName.trim();
+          if (trimmedName) {
+            trimmedData[trimmedName] = data.data[companyName];
+          }
+        });
+      }
+      
+      // Organize data by date: { date: { company: totalQuantity } }
+      const dataByDate = {};
+      if (data.rawData && data.rawData.length > 0) {
+        // Group by date and company to sum quantities
+        data.rawData.forEach(item => {
+          const dateStr = new Date(item.selectedDate).toISOString().split('T')[0];
+          const trimmedCompanyName = (item.companyName || '').trim();
+          if (!trimmedCompanyName) return;
+          
+          if (!dataByDate[dateStr]) {
+            dataByDate[dateStr] = {};
+          }
+          if (!dataByDate[dateStr][trimmedCompanyName]) {
+            dataByDate[dateStr][trimmedCompanyName] = 0;
+          }
+          // Sum quantities instead of counting SKUs
+          dataByDate[dateStr][trimmedCompanyName] += (item.quantity || 0);
+        });
+      }
+      
+      // Calculate actual date range from rawData
+      if (data.rawData && data.rawData.length > 0) {
+        const dates = data.rawData.map(item => new Date(item.selectedDate));
+        const minDate = new Date(Math.min(...dates));
+        const maxDate = new Date(Math.max(...dates));
+        setActualDataDateRange({
+          min: minDate.toISOString().split('T')[0],
+          max: maxDate.toISOString().split('T')[0]
+        });
+      } else {
+        // No data, reset actual date range
+        setActualDataDateRange({ min: '', max: '' });
+      }
+      
+      console.log('📊 Inventory Data Fetched:', {
+        companiesCount: Object.keys(trimmedData).length,
+        companies: Object.keys(trimmedData),
+        originalCompanies: data.data ? Object.keys(data.data) : [],
+        data: trimmedData,
+        dataByDate: dataByDate
+      });
+      
+      setInventoryData(trimmedData);
+      setInventoryDataByDate(dataByDate);
+      
+      // DO NOT modify customOrder here!
+      // customOrder should only be set by:
+      // 1. fetchCustomOrder() on initialization
+      // 2. handleTabDrop() when user explicitly reorders via drag-drop
+      console.log('ℹ️ Inventory data loaded. Not modifying customOrder.');
+      
+      setError(null);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to fetch inventory data');
+      setInventoryData(null);
+      setInventoryDataByDate({});
+    } finally {
+      setLoading(false);
+    }
+  }, [filterStartDate, filterEndDate, filterCompany, filterSKU]);
+
+  const fetchFilterOptions = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get('/api/sku-inventory-filters', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const dates = data.dates || [];
+      const companyNames = (data.companyNames || []).map(name => name.trim()).filter(name => name);
+      
+      // Normalize dates to YYYY-MM-DD format for consistent comparison
+      const normalizedDates = dates.map(date => {
+        if (!date) return null;
+        // If date is already in YYYY-MM-DD format, use it as-is
+        if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return date;
+        }
+        // Otherwise, try to parse and format it
+        try {
+          const dateObj = new Date(date);
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        } catch (e) {
+          return date; // Fallback to original if parsing fails
+        }
+      }).filter(date => date !== null);
+      
+      console.log('🏢 Filter Options Fetched:', {
+        datesCount: normalizedDates.length,
+        companiesCount: companyNames.length,
+        originalCompanies: data.companyNames || [],
+        companies: companyNames
+      });
+      
+      setAvailableDates(normalizedDates);
+      setAvailableCompanies(companyNames);
+      
+      // Track uploaded dates for calendar display (normalized to YYYY-MM-DD)
+      setUploadedDates(new Set(normalizedDates));
+      
+      // Set date range info
+      if (normalizedDates.length > 0) {
+        const sortedDates = [...normalizedDates].sort();
+        setDateRange({ min: sortedDates[0], max: sortedDates[sortedDates.length - 1] });
+        
+        // Set default filter dates if not set - prefer current month
+        if (!filterStartDate || !filterEndDate) {
+          const { firstDay, lastDay } = getCurrentMonthRange();
+          // Check if current month dates are within available range
+          const currentMonthStart = firstDay >= sortedDates[0] ? firstDay : sortedDates[0];
+          const currentMonthEnd = lastDay <= sortedDates[sortedDates.length - 1] ? lastDay : sortedDates[sortedDates.length - 1];
+          
+          // Use current month range (clamped to available dates) if valid
+          if (currentMonthStart <= currentMonthEnd) {
+            setFilterStartDate(currentMonthStart);
+            setFilterEndDate(currentMonthEnd);
+          } else {
+            // Fallback to last available date if current month is completely out of range
+          setFilterStartDate(sortedDates[sortedDates.length - 1]);
+          setFilterEndDate(sortedDates[sortedDates.length - 1]);
+          }
+        }
+      } else {
+        // No dates available, still set current month as default
+        if (!filterStartDate || !filterEndDate) {
+          const { firstDay, lastDay } = getCurrentMonthRange();
+          setFilterStartDate(firstDay);
+          setFilterEndDate(lastDay);
+        }
+      }
+      
+      // DO NOT set customOrder here - let fetchCustomOrder() handle it!
+      // fetchCustomOrder() will be called after this in initInventory()
+      console.log('ℹ️ fetchFilterOptions completed, available companies:', companyNames.length);
+    } catch (err) {
+      console.error('Failed to fetch filter options:', err);
+    }
+  };
+
+  const fetchCustomOrder = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const { data } = await axios.get('/api/company-order-preference', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Trim all company names in the order
+      const trimmedOrder = data.customOrder 
+        ? data.customOrder.map(name => name.trim()).filter(name => name)
+        : [];
+      
+      console.log('📋 Custom Order Fetched from API:', {
+        hasOrder: trimmedOrder.length > 0,
+        orderLength: trimmedOrder.length,
+        isDefault: data.isDefault,
+        originalOrder: data.customOrder,
+        order: trimmedOrder
+      });
+      
+      // Always use default order as the base, then merge with saved order or API returned order
+      const defaultOrder = getDefaultCompanyOrder();
+      
+      // If we have a saved order (and it's not the default from API), use it
+      // Otherwise, use the default order
+      if (trimmedOrder.length > 0 && !data.isDefault) {
+        console.log('📋 Using Saved Order from database');
+        setCustomOrder(trimmedOrder);
+        setTempCustomOrder(trimmedOrder);
+      } else {
+        console.log('📋 Using Default Order (no saved order or API returned default)');
+        setCustomOrder(defaultOrder);
+        setTempCustomOrder(defaultOrder);
+      }
+    } catch (err) {
+      console.error('Failed to fetch custom order:', err);
+      // Use default order if API fails
+      const defaultOrder = getDefaultCompanyOrder();
+      console.log('📋 Using Default Order (API error):', defaultOrder);
+      setCustomOrder(defaultOrder);
+      setTempCustomOrder(defaultOrder);
+    }
+  };
+
+  const getDefaultCompanyOrder = () => {
+    return [
+      'SHREEJI#', 'SHREEJI NEW', 'Cosmetic King', 'AKIRA_FASHION', 'Gajanand_Enterprise',
+      'ZXRIZ', 'JEWELL SWERA CREATION', 'BHAKTI CREATION', "LA'KAILASHA", 'ghanshyam_enterprise',
+      'FOREIGN FALCON', 'HAYAAT ENTERPRISE', 'SERENA JEWELLERY', 'SAHJANAND ENTERPRISSE',
+      'NORDIC CREATION', 'KARMA_ENTERPRISE', 'SUVRAT ENTERPRISE', 'SAHAJ JEWELLERY', 
+      'JAY KHODAL CREATION', 'SUNSHINECREATION', 'Ornexa Enterprise'
+    ];
+  };
+
   useEffect(() => {
     const init = async () => {
       try {
@@ -93,15 +315,15 @@ export default function ExtractSKU() {
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         if (!user || !user.role) { setAllowed(false); return; }
         if (!['admin', 'manager'].includes(user.role)) { setAllowed(false); return; }
-        const { data } = await axios.get('/api/company/flags', { headers: { Authorization: `Bearer ${token}` } });
-        setFeatureFlags(data?.featureFlags || {});
-        setAllowed(Boolean(data?.featureFlags?.isExtractSKU));
+        setAllowed(checkFeature('isExtractSKU'));
       } catch (e) {
         setAllowed(false);
       }
     };
-    init();
-  }, []);
+    if (!flagsLoading) {
+      init();
+    }
+  }, [flagsLoading, checkFeature]);
 
   // Fetch holidays when date range changes
   useEffect(() => {
@@ -135,7 +357,7 @@ export default function ExtractSKU() {
 
   // Initialize inventory tab data when switching to inventory tab
   useEffect(() => {
-    if (selectedTab === 'inventory' && featureFlags?.isExtractSKU === true) {
+    if (selectedTab === 'inventory' && checkFeature('isSKUInventory')) {
       const initInventory = async () => {
         // Set default to current month if filters are not set
         let startDate = filterStartDate;
@@ -168,13 +390,14 @@ export default function ExtractSKU() {
 
   // Auto-fetch data when filters change
   useEffect(() => {
-    if (selectedTab === 'inventory' && (filterStartDate || filterEndDate)) {
+    if (selectedTab === 'inventory' && checkFeature('isSKUInventory') && (filterStartDate || filterEndDate)) {
       const timer = setTimeout(() => {
         fetchInventoryData();
       }, 300); // Debounce for 300ms
       return () => clearTimeout(timer);
     }
-  }, [filterStartDate, filterEndDate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterStartDate, filterEndDate, selectedTab, fetchInventoryData]);
 
   useEffect(() => {
     const refreshFlagsIfNeeded = async () => {
@@ -771,227 +994,6 @@ export default function ExtractSKU() {
     }
   };
 
-  // SKU Inventory Management Functions
-  const fetchInventoryData = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
-      if (filterStartDate) params.append('startDate', filterStartDate);
-      if (filterEndDate) params.append('endDate', filterEndDate);
-      if (filterCompany) params.append('companyName', filterCompany);
-      if (filterSKU) params.append('sku', filterSKU);
-
-      const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      // Trim all company names in the data
-      const trimmedData = {};
-      if (data.data) {
-        Object.keys(data.data).forEach(companyName => {
-          const trimmedName = companyName.trim();
-          if (trimmedName) {
-            trimmedData[trimmedName] = data.data[companyName];
-          }
-        });
-      }
-      
-      // Organize data by date: { date: { company: totalQuantity } }
-      const dataByDate = {};
-      if (data.rawData && data.rawData.length > 0) {
-        // Group by date and company to sum quantities
-        data.rawData.forEach(item => {
-          const dateStr = new Date(item.selectedDate).toISOString().split('T')[0];
-          const trimmedCompanyName = (item.companyName || '').trim();
-          if (!trimmedCompanyName) return;
-          
-          if (!dataByDate[dateStr]) {
-            dataByDate[dateStr] = {};
-          }
-          if (!dataByDate[dateStr][trimmedCompanyName]) {
-            dataByDate[dateStr][trimmedCompanyName] = 0;
-          }
-          // Sum quantities instead of counting SKUs
-          dataByDate[dateStr][trimmedCompanyName] += (item.quantity || 0);
-        });
-      }
-      
-      // Calculate actual date range from rawData
-      if (data.rawData && data.rawData.length > 0) {
-        const dates = data.rawData.map(item => new Date(item.selectedDate));
-        const minDate = new Date(Math.min(...dates));
-        const maxDate = new Date(Math.max(...dates));
-        setActualDataDateRange({
-          min: minDate.toISOString().split('T')[0],
-          max: maxDate.toISOString().split('T')[0]
-        });
-      } else {
-        // No data, reset actual date range
-        setActualDataDateRange({ min: '', max: '' });
-      }
-      
-      console.log('📊 Inventory Data Fetched:', {
-        companiesCount: Object.keys(trimmedData).length,
-        companies: Object.keys(trimmedData),
-        originalCompanies: data.data ? Object.keys(data.data) : [],
-        data: trimmedData,
-        dataByDate: dataByDate
-      });
-      
-      setInventoryData(trimmedData);
-      setInventoryDataByDate(dataByDate);
-      
-      // DO NOT modify customOrder here!
-      // customOrder should only be set by:
-      // 1. fetchCustomOrder() on initialization
-      // 2. handleTabDrop() when user explicitly reorders via drag-drop
-      console.log('ℹ️ Inventory data loaded. Not modifying customOrder.');
-      
-      setError(null);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch inventory data');
-      setInventoryData(null);
-      setInventoryDataByDate({});
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchFilterOptions = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const { data } = await axios.get('/api/sku-inventory-filters', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const dates = data.dates || [];
-      const companyNames = (data.companyNames || []).map(name => name.trim()).filter(name => name);
-      
-      // Normalize dates to YYYY-MM-DD format for consistent comparison
-      const normalizedDates = dates.map(date => {
-        if (!date) return null;
-        // If date is already in YYYY-MM-DD format, use it as-is
-        if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-          return date;
-        }
-        // Otherwise, try to parse and format it
-        try {
-          const dateObj = new Date(date);
-          const year = dateObj.getFullYear();
-          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-          const day = String(dateObj.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        } catch (e) {
-          return date; // Fallback to original if parsing fails
-        }
-      }).filter(date => date !== null);
-      
-      console.log('🏢 Filter Options Fetched:', {
-        datesCount: normalizedDates.length,
-        companiesCount: companyNames.length,
-        originalCompanies: data.companyNames || [],
-        companies: companyNames
-      });
-      
-      setAvailableDates(normalizedDates);
-      setAvailableCompanies(companyNames);
-      
-      // Track uploaded dates for calendar display (normalized to YYYY-MM-DD)
-      setUploadedDates(new Set(normalizedDates));
-      
-      // Set date range info
-      if (normalizedDates.length > 0) {
-        const sortedDates = [...normalizedDates].sort();
-        setDateRange({ min: sortedDates[0], max: sortedDates[sortedDates.length - 1] });
-        
-        // Set default filter dates if not set - prefer current month
-        if (!filterStartDate || !filterEndDate) {
-          const { firstDay, lastDay } = getCurrentMonthRange();
-          // Check if current month dates are within available range
-          const currentMonthStart = firstDay >= sortedDates[0] ? firstDay : sortedDates[0];
-          const currentMonthEnd = lastDay <= sortedDates[sortedDates.length - 1] ? lastDay : sortedDates[sortedDates.length - 1];
-          
-          // Use current month range (clamped to available dates) if valid
-          if (currentMonthStart <= currentMonthEnd) {
-            setFilterStartDate(currentMonthStart);
-            setFilterEndDate(currentMonthEnd);
-          } else {
-            // Fallback to last available date if current month is completely out of range
-          setFilterStartDate(sortedDates[sortedDates.length - 1]);
-          setFilterEndDate(sortedDates[sortedDates.length - 1]);
-          }
-        }
-      } else {
-        // No dates available, still set current month as default
-        if (!filterStartDate || !filterEndDate) {
-          const { firstDay, lastDay } = getCurrentMonthRange();
-          setFilterStartDate(firstDay);
-          setFilterEndDate(lastDay);
-        }
-      }
-      
-      // DO NOT set customOrder here - let fetchCustomOrder() handle it!
-      // fetchCustomOrder() will be called after this in initInventory()
-      console.log('ℹ️ fetchFilterOptions completed, available companies:', companyNames.length);
-    } catch (err) {
-      console.error('Failed to fetch filter options:', err);
-    }
-  };
-
-  const fetchCustomOrder = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const { data } = await axios.get('/api/company-order-preference', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      // Trim all company names in the order
-      const trimmedOrder = data.customOrder 
-        ? data.customOrder.map(name => name.trim()).filter(name => name)
-        : [];
-      
-      console.log('📋 Custom Order Fetched from API:', {
-        hasOrder: trimmedOrder.length > 0,
-        orderLength: trimmedOrder.length,
-        isDefault: data.isDefault,
-        originalOrder: data.customOrder,
-        order: trimmedOrder
-      });
-      
-      // Always use default order as the base, then merge with saved order or API returned order
-      const defaultOrder = getDefaultCompanyOrder();
-      
-      // If we have a saved order (and it's not the default from API), use it
-      // Otherwise, use the default order
-      if (trimmedOrder.length > 0 && !data.isDefault) {
-        console.log('📋 Using Saved Order from database');
-        setCustomOrder(trimmedOrder);
-        setTempCustomOrder(trimmedOrder);
-      } else {
-        console.log('📋 Using Default Order (no saved order or API returned default)');
-        setCustomOrder(defaultOrder);
-        setTempCustomOrder(defaultOrder);
-      }
-    } catch (err) {
-      console.error('Failed to fetch custom order:', err);
-      // Use default order if API fails
-      const defaultOrder = getDefaultCompanyOrder();
-      console.log('📋 Using Default Order (API error):', defaultOrder);
-      setCustomOrder(defaultOrder);
-      setTempCustomOrder(defaultOrder);
-    }
-  };
-
-  const getDefaultCompanyOrder = () => {
-    return [
-      'SHREEJI#', 'SHREEJI NEW', 'Cosmetic King', 'AKIRA_FASHION', 'Gajanand_Enterprise',
-      'ZXRIZ', 'JEWELL SWERA CREATION', 'BHAKTI CREATION', "LA'KAILASHA", 'ghanshyam_enterprise',
-      'FOREIGN FALCON', 'HAYAAT ENTERPRISE', 'SERENA JEWELLERY', 'SAHJANAND ENTERPRISSE',
-      'NORDIC CREATION', 'KARMA_ENTERPRISE', 'SUVRAT ENTERPRISE', 'SAHAJ JEWELLERY', 
-      'JAY KHODAL CREATION', 'SUNSHINECREATION', 'Ornexa Enterprise'
-    ];
-  };
-
   const mergeNewCompanies = (existingOrder, foundCompanies) => {
     // Trim all company names
     const trimmedExisting = existingOrder.map(name => name.trim()).filter(name => name);
@@ -1545,12 +1547,12 @@ export default function ExtractSKU() {
             </button>
             <button
               onClick={() => setSelectedTab('inventory')}
-              disabled={!featureFlags || featureFlags.isExtractSKU !== true}
+              disabled={!checkFeature('isSKUInventory')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'inventory'
                   ? 'border-blue-400 text-blue-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${(!featureFlags || featureFlags.isExtractSKU !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${!checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1561,11 +1563,12 @@ export default function ExtractSKU() {
             </button>
             <button
               onClick={() => setSelectedTab('cancelled-orders')}
+              disabled={!checkFeature('isCancelledOrders')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'cancelled-orders'
                   ? 'border-red-400 text-red-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              }`}
+              } ${!checkFeature('isCancelledOrders') ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2065,7 +2068,7 @@ export default function ExtractSKU() {
                 setLoading(false);
               }
             }} encType="multipart/form-data" className="p-8 space-y-6">
-              {(featureFlags?.isExcelFromPDF !== true) && (
+              {!checkFeature('isExcelFromPDF') && (
                 <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
                   <p className="text-sm text-yellow-700">Excel generation is disabled for your company. Please contact your admin.</p>
                 </div>
@@ -2099,7 +2102,7 @@ export default function ExtractSKU() {
               </div>
               <button
                 type="submit"
-                disabled={loading || (featureFlags?.isExcelFromPDF !== true)}
+                disabled={loading || !checkFeature('isExcelFromPDF')}
                 className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? (
@@ -2119,16 +2122,28 @@ export default function ExtractSKU() {
         )}
 
         {selectedTab === 'cancelled-orders' && (
-          <CancelOrder />
+          !checkFeature('isCancelledOrders') ? (
+            <div className="p-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+                <p className="text-yellow-700">Cancelled Orders feature is not enabled for your company. Please contact your administrator.</p>
+              </div>
+            </div>
+          ) : (
+            <CancelOrder />
+          )
         )}
 
         {selectedTab === 'inventory' && (
-          <div className="p-0">
-            {(featureFlags?.isExtractSKU !== true) && (
-              <div className="m-8 mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                <p className="text-sm text-yellow-700">SKU Inventory is disabled for your company. Please contact your admin.</p>
+          !checkFeature('isSKUInventory') ? (
+            <div className="p-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+                <p className="text-yellow-700">SKU Inventory feature is not enabled for your company. Please contact your administrator.</p>
               </div>
-            )}
+            </div>
+          ) : (
+          <div className="p-0">
             
             {/* Filters Bar */}
             <div className="bg-white border-b border-gray-200 px-4 py-3">
@@ -3427,6 +3442,7 @@ export default function ExtractSKU() {
               </div>
             )}
           </div>
+          )
         )}
         </div>
         </div>

@@ -1,6 +1,6 @@
 // pages/UpdateUser.js
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { Formik, Form, Field, FieldArray } from 'formik';
 import Modal from 'react-modal';
@@ -8,13 +8,53 @@ import { FaEdit, FaTrash, FaPlus, FaSpinner } from 'react-icons/fa'; // Importin
 import { PERMISSIONS, USER_ROLES } from '../lib/constants';
 import { HTTP } from '../actions/actions_creators';
 
+// Component for checkbox with indeterminate state support
+const SectionCheckbox = ({ checked, indeterminate, onChange }) => {
+  const checkboxRef = useRef(null);
+
+  useEffect(() => {
+    if (checkboxRef.current) {
+      checkboxRef.current.indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={checkboxRef}
+      type="checkbox"
+      checked={checked}
+      onChange={onChange}
+      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+    />
+  );
+};
+
+// Group permissions by sections
+const PERMISSION_SECTIONS = [
+  {
+    title: 'Billing & Payments',
+    permissions: [PERMISSIONS.PARTY_BILLS, PERMISSIONS.WORKER_BILLS]
+  },
+  {
+    title: 'Master Data Management',
+    permissions: [PERMISSIONS.SECTIONS, PERMISSIONS.ITEMS, PERMISSIONS.VENDORS, PERMISSIONS.WORKERS]
+  },
+  {
+    title: 'Production Management',
+    permissions: [PERMISSIONS.FINAL_PRODUCT, PERMISSIONS.IN_PROCESS_PRODUCT, PERMISSIONS.PLATTING, PERMISSIONS.PRODUCTION_FLOW]
+  },
+  {
+    title: 'SKU Management',
+    permissions: [PERMISSIONS.EXTRACT_SKU]
+  }
+];
+
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [editingUser, setEditingUser] = useState(null);
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [loading, setLoading] = useState(false); // Loading state
   const roles = Object.values(USER_ROLES)?.filter(role => ![USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR].includes(role)); // Example roles
-  const permissions = Object.values(PERMISSIONS); // Example permissions
 
   const fetchUsers = async () => {
     setLoading(true); // Start loading
@@ -171,16 +211,94 @@ const UserManagement = () => {
                 </Field>
               </div> */}
               <div className="mb-4">
-                <label className="block text-sm font-medium mb-1 text-gray-700">Permissions</label>
+                <label className="block text-sm font-medium mb-3 text-gray-700">Permissions</label>
                 <FieldArray name="permissions">
                   {({ push, remove }) => (
-                    <div className="grid grid-cols-2 gap-4">
-                      {permissions.map((permission) => (
-                        <div key={permission} className="flex items-center text-sm">
-                          <Field type="checkbox" name="permissions" value={permission} className="mr-2  text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                          <label className="text-gray-700">{permission}</label>
-                        </div>
-                      ))}
+                    <div className="space-y-4">
+                      {PERMISSION_SECTIONS.map((section, sectionIdx) => {
+                        const sectionPermissions = section.permissions;
+                        const selectedPermissions = values.permissions || [];
+                        const allSectionSelected = sectionPermissions.every(perm => selectedPermissions.includes(perm));
+                        const someSectionSelected = sectionPermissions.some(perm => selectedPermissions.includes(perm));
+
+                        const handleSectionToggle = (checked) => {
+                          const currentPermissions = [...selectedPermissions];
+                          
+                          if (checked) {
+                            // Add all section permissions
+                            sectionPermissions.forEach(perm => {
+                              if (!currentPermissions.includes(perm)) {
+                                currentPermissions.push(perm);
+                              }
+                            });
+                          } else {
+                            // Remove all section permissions
+                            sectionPermissions.forEach(perm => {
+                              const index = currentPermissions.indexOf(perm);
+                              if (index > -1) {
+                                currentPermissions.splice(index, 1);
+                              }
+                            });
+                          }
+                          
+                          setFieldValue('permissions', currentPermissions);
+                        };
+
+                        return (
+                          <div key={sectionIdx} className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center mb-3 pb-2 border-b border-gray-200">
+                              <SectionCheckbox
+                                checked={allSectionSelected}
+                                indeterminate={someSectionSelected && !allSectionSelected}
+                                onChange={(e) => handleSectionToggle(e.target.checked)}
+                              />
+                              <label className="text-base font-semibold text-gray-800 cursor-pointer ml-2" onClick={() => handleSectionToggle(!allSectionSelected)}>
+                                {section.title}
+                              </label>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 ml-6">
+                              {sectionPermissions.map((permission) => {
+                                const isChecked = selectedPermissions.includes(permission);
+                                return (
+                                  <div key={permission} className="flex items-center text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        const currentPerms = [...selectedPermissions];
+                                        if (e.target.checked) {
+                                          if (!currentPerms.includes(permission)) {
+                                            currentPerms.push(permission);
+                                          }
+                                        } else {
+                                          const index = currentPerms.indexOf(permission);
+                                          if (index > -1) {
+                                            currentPerms.splice(index, 1);
+                                          }
+                                        }
+                                        setFieldValue('permissions', currentPerms);
+                                      }}
+                                      className="mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <label className="text-gray-700 cursor-pointer" onClick={() => {
+                                      const currentPerms = [...selectedPermissions];
+                                      const index = currentPerms.indexOf(permission);
+                                      if (index > -1) {
+                                        currentPerms.splice(index, 1);
+                                      } else {
+                                        currentPerms.push(permission);
+                                      }
+                                      setFieldValue('permissions', currentPerms);
+                                    }}>
+                                      {permission.replace(/_/g, ' ')}
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </FieldArray>

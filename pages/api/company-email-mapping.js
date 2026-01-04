@@ -11,7 +11,10 @@ async function handler(req, res) {
     }
 
     if (method === 'GET') {
-      const mappings = await CompanyEmailMapping.find({ isDeleted: false })
+      const mappings = await CompanyEmailMapping.find({ 
+        isDeleted: false,
+        company: user.company // Filter by user's company
+      })
         .sort({ companyName: 1 })
         .lean();
       return res.status(200).json({ success: true, mappings });
@@ -24,9 +27,10 @@ async function handler(req, res) {
         return res.status(400).json({ message: 'Company name and email are required' });
       }
 
-      // Check if email already exists
+      // Check if email already exists for this company
       const existing = await CompanyEmailMapping.findOne({ 
         email: email.trim().toLowerCase(),
+        company: user.company, // Check within same company
         isDeleted: false 
       });
 
@@ -36,6 +40,7 @@ async function handler(req, res) {
 
       const mapping = new CompanyEmailMapping({
         companyName: companyName.trim(),
+        company: user.company, // Add company field
         email: email.trim().toLowerCase(),
       });
 
@@ -50,9 +55,10 @@ async function handler(req, res) {
         return res.status(400).json({ message: 'ID, company name and email are required' });
       }
 
-      // Check if email already exists for another mapping
+      // Check if email already exists for another mapping in the same company
       const existing = await CompanyEmailMapping.findOne({ 
         email: email.trim().toLowerCase(),
+        company: user.company, // Check within same company
         isDeleted: false,
         _id: { $ne: id }
       });
@@ -61,10 +67,17 @@ async function handler(req, res) {
         return res.status(400).json({ message: 'Email already mapped to another company' });
       }
 
+      // Verify the mapping belongs to user's company before updating
+      const existingMapping = await CompanyEmailMapping.findById(id).lean();
+      if (!existingMapping || existingMapping.company?.toString() !== user.company?.toString()) {
+        return res.status(403).json({ message: 'You can only update mappings for your company' });
+      }
+
       const mapping = await CompanyEmailMapping.findByIdAndUpdate(
         id,
         {
           companyName: companyName.trim(),
+          company: user.company, // Ensure company is set
           email: email.trim().toLowerCase(),
         },
         { new: true }
@@ -84,15 +97,20 @@ async function handler(req, res) {
         return res.status(400).json({ message: 'ID is required' });
       }
 
+      // Verify the mapping belongs to user's company before deleting
+      const existingMapping = await CompanyEmailMapping.findById(id).lean();
+      if (!existingMapping) {
+        return res.status(404).json({ message: 'Mapping not found' });
+      }
+      if (existingMapping.company?.toString() !== user.company?.toString()) {
+        return res.status(403).json({ message: 'You can only delete mappings for your company' });
+      }
+
       const mapping = await CompanyEmailMapping.findByIdAndUpdate(
         id,
         { isDeleted: true },
         { new: true }
       );
-
-      if (!mapping) {
-        return res.status(404).json({ message: 'Mapping not found' });
-      }
 
       return res.status(200).json({ success: true, message: 'Mapping deleted successfully' });
     }

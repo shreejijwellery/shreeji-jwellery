@@ -10,8 +10,10 @@ import { toast } from 'react-toastify';
 import _ from 'lodash';
 import ItemOptionsForFinalProduct from '../components/ItemOptionsForFinalProduct';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 export default function InProcessProductDashboard(props) {
+  const { checkFeature, loading: flagsLoading } = useFeatureFlags();
   const [items, setItems] = useState([]);
   const [selectedSection, setSelectedSection] = useState({});
   const [startDate, setStartDate] = useState(moment().startOf('day').format('YYYY-MM-DD'));
@@ -55,11 +57,6 @@ export default function InProcessProductDashboard(props) {
     fetchItems();
   }, []);
 
-  useEffect(() => {
-    setOffset(0);
-    getProducts(true);
-  }, [startDate, endDate, selectedItems]);
-
   const getProducts = async (reset, off_set) => {
     try {
       const response = await HTTP('GET', `/in-process-product?fromDate=${startDate}&toDate=${endDate}&items=${selectedItems.join(
@@ -88,6 +85,11 @@ export default function InProcessProductDashboard(props) {
       toast.error('An error occurred while fetching in-process products.');
     }
   };
+
+  useEffect(() => {
+    setOffset(0);
+    getProducts(true);
+  }, [startDate, endDate, selectedItems]);
 
   const handleScroll = e => {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
