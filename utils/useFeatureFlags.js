@@ -1,36 +1,48 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 /**
  * Custom hook to fetch and check feature flags
- * @returns {Object} { featureFlags, loading, checkFeature }
+ * @returns {Object} { featureFlags, loading, checkFeature, refreshFlags }
  */
 export const useFeatureFlags = () => {
   const [featureFlags, setFeatureFlags] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchFlags = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setLoading(false);
-          return;
-        }
-        const { data } = await axios.get('/api/company/flags', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setFeatureFlags(data?.featureFlags || {});
-      } catch (error) {
-        console.error('Error fetching feature flags:', error);
+  const fetchFlags = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
         setFeatureFlags({});
-      } finally {
         setLoading(false);
+        return;
       }
-    };
-
-    fetchFlags();
+      const { data } = await axios.get('/api/company/flags', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setFeatureFlags(data?.featureFlags || {});
+    } catch (error) {
+      console.error('Error fetching feature flags:', error);
+      setFeatureFlags({});
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchFlags();
+    
+    // Listen for custom events to refresh flags
+    const handleCustomEvent = () => {
+      fetchFlags();
+    };
+    
+    window.addEventListener('featureFlagsRefresh', handleCustomEvent);
+    
+    return () => {
+      window.removeEventListener('featureFlagsRefresh', handleCustomEvent);
+    };
+  }, [fetchFlags]);
 
   /**
    * Check if a feature flag is enabled
@@ -47,6 +59,11 @@ export const useFeatureFlags = () => {
     }
   };
 
-  return { featureFlags, loading, checkFeature };
+  const refreshFlags = useCallback(() => {
+    setLoading(true);
+    fetchFlags();
+  }, [fetchFlags]);
+
+  return { featureFlags, loading, checkFeature, refreshFlags };
 };
 

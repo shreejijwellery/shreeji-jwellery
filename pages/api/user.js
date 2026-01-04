@@ -58,6 +58,11 @@ const handler = async (req, res) => {
     }
 
     try {
+        // Verify the user belongs to the same company before updating
+        const userToUpdate = await User.findById(_id);
+        if (!userToUpdate || userToUpdate.company.toString() !== company.toString()) {
+            return res.status(403).json({ message: 'Unauthorized: Cannot update user from another company' });
+        }
 
         const updates = {};
 
@@ -84,8 +89,7 @@ const handler = async (req, res) => {
             if(!oldPassword){
                 return res.status(400).json({ message: 'Old password is required' });
             }
-            const user = await User.findById(_id);
-            const isPasswordMatch = await bcrypt.compare(oldPassword, user.password);
+            const isPasswordMatch = await bcrypt.compare(oldPassword, userToUpdate.password);
             if(!isPasswordMatch){
                 return res.status(400).json({ message: 'Old password is incorrect' });
             }
@@ -101,11 +105,20 @@ const handler = async (req, res) => {
       res.status(500).json({ message: 'Error creating user', error });
     }
   }else if (method === 'GET') {
-    const users = await User.find({role : {$nin : [USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR]}, isDeleted : {$ne : true}},{password : 0});
+    const users = await User.find({
+      role : {$nin : [USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR]}, 
+      isDeleted : {$ne : true},
+      company: company
+    },{password : 0});
     res.status(200).json({ message: 'Users fetched successfully', data: users });
   }
   else if (method === 'DELETE') {
     const { _id } = req.body;
+    // Verify the user belongs to the same company before deleting
+    const userToDelete = await User.findById(_id);
+    if (!userToDelete || userToDelete.company.toString() !== company.toString()) {
+      return res.status(403).json({ message: 'Unauthorized: Cannot delete user from another company' });
+    }
     await User.findByIdAndUpdate(_id, {isDeleted : true});
     res.status(200).json({ message: 'User deleted successfully' });
   }
