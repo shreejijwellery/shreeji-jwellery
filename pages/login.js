@@ -5,7 +5,7 @@ import axios from 'axios';
 import { HTTP } from '../actions/actions_creators';
 import Link from 'next/link';
 import { PERMISSIONS, USER_ROLES } from '../lib/constants';
-import { useFeatureFlags } from '../utils/useFeatureFlags';
+import { clearFlagsCache } from '../utils/useFeatureFlags';
 import { FaUser, FaLock, FaArrowRight, FaTruck, FaBoxes, FaWarehouse, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 const Login = () => {
@@ -16,7 +16,6 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
-  const { checkFeature } = useFeatureFlags();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,6 +28,9 @@ const Login = () => {
     try {
       const response = await HTTP('POST', '/login', formData);
       if (response?.token) {
+        // Clear old flags cache on login
+        clearFlagsCache();
+        
         localStorage.setItem('token', response.token);
         if (response.user) {
           localStorage.setItem('user', JSON.stringify(response.user));
@@ -47,8 +49,16 @@ const Login = () => {
             const fullUser = userResponse.data.user;
             const featureFlags = flagsResponse.data?.featureFlags || {};
             localStorage.setItem('user', JSON.stringify(fullUser));
-            // Dispatch event to refresh feature flags in Layout component
-            window.dispatchEvent(new Event('featureFlagsRefresh'));
+            
+            // Cache the flags immediately
+            const cacheData = {
+              flags: featureFlags,
+              timestamp: Date.now()
+            };
+            localStorage.setItem('featureFlags_cache', JSON.stringify(cacheData));
+            
+            // Dispatch event to notify components that user logged in
+            window.dispatchEvent(new Event('userLoggedIn'));
             
             // Check if user only has SKU permission
             const hasPermissionsBeyondSKU = () => {
