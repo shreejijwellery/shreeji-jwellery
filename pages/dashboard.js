@@ -46,6 +46,26 @@ const Dashboard = () => {
     }
   };
 
+  // Check if user has permissions beyond SKU
+  const hasPermissionsBeyondSKU = () => {
+    if (!user) return false;
+    if (user.role === USER_ROLES.ADMINISTRATOR) return true;
+    const permissions = user.permissions || [];
+    const nonSKUPermissions = [
+      PERMISSIONS.PARTY_BILLS,
+      PERMISSIONS.WORKER_BILLS,
+      PERMISSIONS.SECTIONS,
+      PERMISSIONS.ITEMS,
+      PERMISSIONS.VENDORS,
+      PERMISSIONS.WORKERS,
+      PERMISSIONS.FINAL_PRODUCT,
+      PERMISSIONS.IN_PROCESS_PRODUCT,
+      PERMISSIONS.PLATTING,
+      PERMISSIONS.PRODUCTION_FLOW
+    ];
+    return nonSKUPermissions.some(perm => permissions.includes(perm));
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -62,6 +82,17 @@ const Dashboard = () => {
         });
     }
   }, [router]);
+
+  // Redirect if user doesn't have permissions beyond SKU
+  useEffect(() => {
+    if (user && !hasPermissionsBeyondSKU()) {
+      if (user.permissions?.includes(PERMISSIONS.EXTRACT_SKU)) {
+        router.push('/extract-sku');
+      } else {
+        router.push('/extract-sku');
+      }
+    }
+  }, [user, router]);
 
   if (flagsLoading) {
     return <div className="p-4">Loading...</div>;
@@ -170,36 +201,6 @@ const Dashboard = () => {
   if (!user) {
     return <p>Loading...</p>;
   }
-
-  // Check if user has permissions beyond SKU
-  const hasPermissionsBeyondSKU = () => {
-    if (user.role === USER_ROLES.ADMINISTRATOR) return true;
-    const permissions = user.permissions || [];
-    const nonSKUPermissions = [
-      PERMISSIONS.PARTY_BILLS,
-      PERMISSIONS.WORKER_BILLS,
-      PERMISSIONS.SECTIONS,
-      PERMISSIONS.ITEMS,
-      PERMISSIONS.VENDORS,
-      PERMISSIONS.WORKERS,
-      PERMISSIONS.FINAL_PRODUCT,
-      PERMISSIONS.IN_PROCESS_PRODUCT,
-      PERMISSIONS.PLATTING,
-      PERMISSIONS.PRODUCTION_FLOW
-    ];
-    return nonSKUPermissions.some(perm => permissions.includes(perm));
-  };
-
-  // Redirect if user doesn't have permissions beyond SKU
-  useEffect(() => {
-    if (user && !hasPermissionsBeyondSKU()) {
-      if (user.permissions?.includes(PERMISSIONS.EXTRACT_SKU)) {
-        router.push('/extract-sku');
-      } else {
-        router.push('/extract-sku');
-      }
-    }
-  }, [user, router]);
 
   if (!hasPermissionsBeyondSKU()) {
     return <div className="p-4">Redirecting...</div>;
