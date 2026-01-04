@@ -125,13 +125,6 @@ export default function ExtractSKU() {
       setError(null);
       const token = localStorage.getItem('token');
       
-      console.log('🔍 fetchInventoryData called with:', {
-        filterStartDate,
-        filterEndDate,
-        filterCompany,
-        filterSKU
-      });
-      
       // Determine if we need to split the query
       const needsSplitting = filterStartDate && filterEndDate;
       let allData = { data: {}, rawData: [] };
@@ -142,12 +135,9 @@ export default function ExtractSKU() {
         const end = new Date(filterEndDate);
         const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
         
-        console.log(`📊 Date range: ${daysDiff} days`);
-        
         // If > 60 days, split into monthly chunks
         if (daysDiff > 60) {
           const chunks = splitDateRangeIntoMonths(filterStartDate, filterEndDate);
-          console.log(`📅 Splitting query into ${chunks.length} chunks:`, chunks);
           
           setStatus(`Loading ${chunks.length} months of data...`);
           
@@ -187,8 +177,6 @@ export default function ExtractSKU() {
               if (data.rawData) {
                 allData.rawData.push(...data.rawData);
               }
-              
-              console.log(`✅ Loaded ${chunk.label}: ${data.rawData?.length || 0} records`);
             } catch (chunkErr) {
               console.error(`❌ Failed to load ${chunk.label}:`, chunkErr);
               // Continue with other chunks even if one fails
@@ -268,14 +256,6 @@ export default function ExtractSKU() {
         setActualDataDateRange({ min: '', max: '' });
       }
       
-      console.log('📊 Inventory Data Fetched:', {
-        companiesCount: Object.keys(trimmedData).length,
-        companies: Object.keys(trimmedData),
-        totalRawRecords: allData.rawData?.length || 0,
-        data: trimmedData,
-        dataByDate: dataByDate
-      });
-      
       setInventoryData(trimmedData);
       setInventoryDataByDate(dataByDate);
       
@@ -283,7 +263,6 @@ export default function ExtractSKU() {
       // customOrder should only be set by:
       // 1. fetchCustomOrder() on initialization
       // 2. handleTabDrop() when user explicitly reorders via drag-drop
-      console.log('ℹ️ Inventory data loaded. Not modifying customOrder.');
       
       setError(null);
     } catch (err) {
@@ -322,13 +301,6 @@ export default function ExtractSKU() {
           return date; // Fallback to original if parsing fails
         }
       }).filter(date => date !== null);
-      
-      console.log('🏢 Filter Options Fetched:', {
-        datesCount: normalizedDates.length,
-        companiesCount: companyNames.length,
-        originalCompanies: data.companyNames || [],
-        companies: companyNames
-      });
       
       setAvailableDates(normalizedDates);
       setAvailableCompanies(companyNames);
@@ -369,7 +341,6 @@ export default function ExtractSKU() {
       
       // DO NOT set customOrder here - let fetchCustomOrder() handle it!
       // fetchCustomOrder() will be called after this in initInventory()
-      console.log('ℹ️ fetchFilterOptions completed, available companies:', companyNames.length);
     } catch (err) {
       console.error('Failed to fetch filter options:', err);
     }
@@ -387,25 +358,15 @@ export default function ExtractSKU() {
         ? data.customOrder.map(name => name.trim()).filter(name => name)
         : [];
       
-      console.log('📋 Custom Order Fetched from API:', {
-        hasOrder: trimmedOrder.length > 0,
-        orderLength: trimmedOrder.length,
-        isDefault: data.isDefault,
-        originalOrder: data.customOrder,
-        order: trimmedOrder
-      });
-      
       // Always use default order as the base, then merge with saved order or API returned order
       const defaultOrder = getDefaultCompanyOrder();
       
       // If we have a saved order (and it's not the default from API), use it
       // Otherwise, use the default order
       if (trimmedOrder.length > 0 && !data.isDefault) {
-        console.log('📋 Using Saved Order from database');
         setCustomOrder(trimmedOrder);
         setTempCustomOrder(trimmedOrder);
       } else {
-        console.log('📋 Using Default Order (no saved order or API returned default)');
         setCustomOrder(defaultOrder);
         setTempCustomOrder(defaultOrder);
       }
@@ -413,7 +374,6 @@ export default function ExtractSKU() {
       console.error('Failed to fetch custom order:', err);
       // Use default order if API fails
       const defaultOrder = getDefaultCompanyOrder();
-      console.log('📋 Using Default Order (API error):', defaultOrder);
       setCustomOrder(defaultOrder);
       setTempCustomOrder(defaultOrder);
     }
@@ -893,7 +853,6 @@ export default function ExtractSKU() {
         
         // Skip pages without Customer Address
         if (!hasCustomerAddress) {
-          console.log(`Skipping page ${i} - no Customer Address found`);
           continue;
         }
         
@@ -1207,8 +1166,6 @@ export default function ExtractSKU() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      console.log('Order saved successfully:', response.data);
-      
       // Show success message
       setSuccess(true);
       setStatus('Company order saved successfully');
@@ -1320,7 +1277,6 @@ export default function ExtractSKU() {
       // customOrder should only be set by:
       // 1. fetchCustomOrder() on initialization
       // 2. handleTabDrop() when user explicitly reorders via drag-drop
-      console.log('ℹ️ Data uploaded successfully. Not modifying customOrder.');
       
       // Refresh filter options to update uploadedDates immediately
       await fetchFilterOptions();
@@ -2516,9 +2472,6 @@ export default function ExtractSKU() {
                       // Get unique list of companies from both customOrder and inventoryData
                       const companiesFromData = inventoryData ? Object.keys(inventoryData) : [];
                       
-                      console.log('🎨 Before Rendering - customOrder:', customOrder);
-                      console.log('🎨 Before Rendering - companiesFromData:', companiesFromData);
-                      
                       // If customOrder is empty, use default order
                       const baseOrder = customOrder.length > 0 ? customOrder : getDefaultCompanyOrder();
                       
@@ -2532,29 +2485,12 @@ export default function ExtractSKU() {
                         }
                       }
                       
-                      console.log('🔍 Building orderedCompanies:', {
-                        baseOrderSample: baseOrder.slice(0, 5),
-                        orderedCompaniesSample: orderedCompanies.slice(0, 5),
-                        orderedCompaniesCount: orderedCompanies.length
-                      });
-                      
                       // Add any new companies from data that aren't in baseOrder (alphabetically)
                       const newCompanies = companiesFromData
                         .filter(company => !baseOrder.includes(company))
                         .sort();
                       
                       const sortedCompanies = [...orderedCompanies, ...newCompanies];
-                      
-                      console.log('🎨 Rendering Company List:', {
-                        customOrderLength: customOrder.length,
-                        baseOrderLength: baseOrder.length,
-                        availableCompaniesLength: availableCompanies.length,
-                        companiesFromData: companiesFromData.length,
-                        orderedCompanies: orderedCompanies.length,
-                        newCompanies: newCompanies,
-                        sortedCompaniesLength: sortedCompanies.length,
-                        '>>> FINAL SORTED ORDER >>>': sortedCompanies
-                      });
                       
                       return sortedCompanies;
                     })().map((company, index) => {
@@ -3192,10 +3128,8 @@ export default function ExtractSKU() {
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              console.log('File selected:', file.name, file.size);
                               setSelectedFile(file);
                             } else {
-                              console.log('No file selected');
                               setSelectedFile(null);
                             }
                           }}
