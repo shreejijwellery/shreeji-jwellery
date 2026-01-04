@@ -87,37 +87,149 @@ export default function ExtractSKU() {
     return { firstDay: firstDayStr, lastDay: lastDayStr };
   };
 
+  // Helper function to split date range into monthly chunks
+  const splitDateRangeIntoMonths = (startDate, endDate) => {
+    if (!startDate || !endDate) return [];
+    
+    const chunks = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    let current = new Date(start);
+    
+    while (current <= end) {
+      const chunkStart = new Date(current);
+      // Get last day of current month
+      const chunkEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+      
+      // Don't go beyond the end date
+      const actualChunkEnd = chunkEnd > end ? end : chunkEnd;
+      
+      chunks.push({
+        startDate: chunkStart.toISOString().split('T')[0],
+        endDate: actualChunkEnd.toISOString().split('T')[0],
+        label: `${chunkStart.toLocaleString('default', { month: 'short' })} ${chunkStart.getFullYear()}`
+      });
+      
+      // Move to first day of next month
+      current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+    }
+    
+    return chunks;
+  };
+
   // SKU Inventory Management Functions - moved before useEffect hooks
   const fetchInventoryData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const token = localStorage.getItem('token');
-      const params = new URLSearchParams();
-      if (filterStartDate) params.append('startDate', filterStartDate);
-      if (filterEndDate) params.append('endDate', filterEndDate);
-      if (filterCompany) params.append('companyName', filterCompany);
-      if (filterSKU) params.append('sku', filterSKU);
+      
+      // Determine if we need to split the query
+      const needsSplitting = filterStartDate && filterEndDate;
+      let allData = { data: {}, rawData: [] };
+      
+      if (needsSplitting) {
+        // Calculate days between dates
+        const start = new Date(filterStartDate);
+        const end = new Date(filterEndDate);
+        const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        
+        // If > 60 days, split into monthly chunks
+        if (daysDiff > 60) {
+          const chunks = splitDateRangeIntoMonths(filterStartDate, filterEndDate);
+          console.log(`📅 Splitting query into ${chunks.length} chunks:`, chunks);
+          
+          setStatus(`Loading ${chunks.length} months of data...`);
+          
+          // Fetch each chunk
+          for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            setStatus(`Loading ${chunk.label} (${i + 1}/${chunks.length})...`);
+            
+            const params = new URLSearchParams();
+            params.append('startDate', chunk.startDate);
+            params.append('endDate', chunk.endDate);
+            if (filterCompany) params.append('companyName', filterCompany);
+            if (filterSKU) params.append('sku', filterSKU);
+            
+            try {
+              const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              
+              // Merge data
+              if (data.data) {
+                Object.keys(data.data).forEach(company => {
+                  if (!allData.data[company]) {
+                    allData.data[company] = {};
+                  }
+                  // Merge SKU quantities
+                  Object.keys(data.data[company]).forEach(sku => {
+                    if (!allData.data[company][sku]) {
+                      allData.data[company][sku] = 0;
+                    }
+                    allData.data[company][sku] += data.data[company][sku];
+                  });
+                });
+              }
+              
+              // Append rawData
+              if (data.rawData) {
+                allData.rawData.push(...data.rawData);
+              }
+              
+              console.log(`✅ Loaded ${chunk.label}: ${data.rawData?.length || 0} records`);
+            } catch (chunkErr) {
+              console.error(`❌ Failed to load ${chunk.label}:`, chunkErr);
+              // Continue with other chunks even if one fails
+            }
+          }
+          
+          setStatus('');
+        } else {
+          // Date range is small enough, fetch normally
+          const params = new URLSearchParams();
+          if (filterStartDate) params.append('startDate', filterStartDate);
+          if (filterEndDate) params.append('endDate', filterEndDate);
+          if (filterCompany) params.append('companyName', filterCompany);
+          if (filterSKU) params.append('sku', filterSKU);
 
-      const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+          const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          allData = data;
+        }
+      } else {
+        // No date range specified, fetch all
+        const params = new URLSearchParams();
+        if (filterCompany) params.append('companyName', filterCompany);
+        if (filterSKU) params.append('sku', filterSKU);
+
+        const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        allData = data;
+      }
       
       // Trim all company names in the data
       const trimmedData = {};
-      if (data.data) {
-        Object.keys(data.data).forEach(companyName => {
+      if (allData.data) {
+        Object.keys(allData.data).forEach(companyName => {
           const trimmedName = companyName.trim();
           if (trimmedName) {
-            trimmedData[trimmedName] = data.data[companyName];
+            trimmedData[trimmedName] = allData.data[companyName];
           }
         });
       }
       
       // Organize data by date: { date: { company: totalQuantity } }
       const dataByDate = {};
-      if (data.rawData && data.rawData.length > 0) {
+      if (allData.rawData && allData.rawData.length > 0) {
         // Group by date and company to sum quantities
-        data.rawData.forEach(item => {
+        allData.rawData.forEach(item => {
           const dateStr = new Date(item.selectedDate).toISOString().split('T')[0];
           const trimmedCompanyName = (item.companyName || '').trim();
           if (!trimmedCompanyName) return;
@@ -134,8 +246,8 @@ export default function ExtractSKU() {
       }
       
       // Calculate actual date range from rawData
-      if (data.rawData && data.rawData.length > 0) {
-        const dates = data.rawData.map(item => new Date(item.selectedDate));
+      if (allData.rawData && allData.rawData.length > 0) {
+        const dates = allData.rawData.map(item => new Date(item.selectedDate));
         const minDate = new Date(Math.min(...dates));
         const maxDate = new Date(Math.max(...dates));
         setActualDataDateRange({
@@ -150,7 +262,7 @@ export default function ExtractSKU() {
       console.log('📊 Inventory Data Fetched:', {
         companiesCount: Object.keys(trimmedData).length,
         companies: Object.keys(trimmedData),
-        originalCompanies: data.data ? Object.keys(data.data) : [],
+        totalRawRecords: allData.rawData?.length || 0,
         data: trimmedData,
         dataByDate: dataByDate
       });
@@ -2242,7 +2354,7 @@ export default function ExtractSKU() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span className="text-sm text-gray-600">Loading...</span>
+                    <span className="text-sm text-gray-600">{status || 'Loading...'}</span>
                   </div>
                 )}
 
