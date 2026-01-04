@@ -31,57 +31,119 @@ async function handler(req, res) {
         try {
             const { startDate, endDate, companyName, sku } = req.query;
 
-            const query = {
+            // Build match stage for aggregation pipeline
+            const matchStage = {
                 company: user.company,
                 isDeleted: false
             };
 
             // Date filter
             if (startDate || endDate) {
-                query.selectedDate = {};
+                matchStage.selectedDate = {};
                 if (startDate) {
-                    query.selectedDate.$gte = new Date(startDate);
+                    matchStage.selectedDate.$gte = new Date(startDate);
                 }
                 if (endDate) {
                     const endDateTime = new Date(endDate);
                     endDateTime.setHours(23, 59, 59, 999);
-                    query.selectedDate.$lte = endDateTime;
+                    matchStage.selectedDate.$lte = endDateTime;
                 }
             }
 
             // Company name filter
             if (companyName) {
-                query.companyName = companyName;
+                matchStage.companyName = companyName.trim();
             }
 
             // SKU filter
             if (sku) {
-                query.sku = { $regex: sku, $options: 'i' };
+                matchStage.sku = { $regex: sku.trim(), $options: 'i' };
             }
 
-            const data = await SkuInventory.find(query)
-                .sort({ selectedDate: -1, companyName: 1, sku: 1 })
-                .lean();
+            // Aggregation pipeline 1: Aggregate by company and SKU (for main table display)
+            const companySkuAggregation = [
+                { $match: matchStage },
+                {
+                    $group: {
+                        _id: {
+                            companyName: { $trim: { input: '$companyName' } },
+                            sku: '$sku'
+                        },
+                        totalQuantity: { $sum: '$quantity' }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$_id.companyName',
+                        skus: {
+                            $push: {
+                                sku: '$_id.sku',
+                                quantity: '$totalQuantity'
+                            }
+                        }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ];
 
-            // Aggregate data by company and SKU (trim company names)
+            // Aggregation pipeline 2: Aggregate by date and company (for calendar view)
+            // This creates records similar to rawData but pre-aggregated
+            // Add a reasonable limit to prevent timeout on very large datasets
+            const dateCompanyAggregation = [
+                { $match: matchStage },
+                {
+                    $group: {
+                        _id: {
+                            selectedDate: '$selectedDate',
+                            companyName: { $trim: { input: '$companyName' } }
+                        },
+                        quantity: { $sum: '$quantity' }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,
+                        selectedDate: '$_id.selectedDate',
+                        companyName: '$_id.companyName',
+                        quantity: 1,
+                        sku: '' // Empty SKU since we're aggregating
+                    }
+                },
+                { $sort: { selectedDate: -1, companyName: 1 } },
+                { $limit: 50000 } // Safety limit: max 50k date-company combinations
+            ];
+
+            // Run both aggregations in parallel
+            // Use allowDiskUse for large datasets to prevent memory issues
+            const [companySkuResults, dateCompanyResults] = await Promise.all([
+                SkuInventory.aggregate(companySkuAggregation).allowDiskUse(true),
+                SkuInventory.aggregate(dateCompanyAggregation).allowDiskUse(true)
+            ]);
+
+            // Transform company+SKU aggregation results
             const aggregated = {};
-            data.forEach(item => {
-                const trimmedCompanyName = (item.companyName || '').trim();
-                if (!trimmedCompanyName) return; // Skip empty company names
-                
-                if (!aggregated[trimmedCompanyName]) {
-                    aggregated[trimmedCompanyName] = {};
-                }
-                if (!aggregated[trimmedCompanyName][item.sku]) {
-                    aggregated[trimmedCompanyName][item.sku] = 0;
-                }
-                aggregated[trimmedCompanyName][item.sku] += item.quantity;
+            companySkuResults.forEach(result => {
+                const trimmedCompanyName = result._id?.trim();
+                if (!trimmedCompanyName) return;
+
+                aggregated[trimmedCompanyName] = {};
+                result.skus.forEach(skuItem => {
+                    aggregated[trimmedCompanyName][skuItem.sku] = skuItem.quantity;
+                });
             });
+
+            // Transform date+company aggregation results to match rawData format
+            const rawData = dateCompanyResults.map(result => ({
+                selectedDate: result.selectedDate,
+                companyName: result.companyName,
+                quantity: result.quantity,
+                sku: result.sku || ''
+            }));
 
             return res.status(200).json({
                 success: true,
                 data: aggregated,
-                rawData: data
+                rawData: rawData
             });
         } catch (error) {
             console.error('Error fetching SKU inventory:', error);

@@ -51,6 +51,7 @@ export default function ExtractSKU() {
   const [markAsHoliday, setMarkAsHoliday] = useState(false); // For upload modal
   const [uploadedDates, setUploadedDates] = useState(new Set()); // Set of uploaded date strings
   const [filterPanelOpen, setFilterPanelOpen] = useState(true); // Filter panel open/close state
+  
 
   // Handle tab query parameter from URL
   useEffect(() => {
@@ -397,7 +398,7 @@ export default function ExtractSKU() {
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterStartDate, filterEndDate, selectedTab, fetchInventoryData]);
+  }, [filterStartDate, filterEndDate, filterCompany, filterSKU, selectedTab, fetchInventoryData]);
 
   useEffect(() => {
     const refreshFlagsIfNeeded = async () => {
