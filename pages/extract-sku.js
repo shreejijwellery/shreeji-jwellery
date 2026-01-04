@@ -51,6 +51,9 @@ export default function ExtractSKU() {
   const [markAsHoliday, setMarkAsHoliday] = useState(false); // For upload modal
   const [uploadedDates, setUploadedDates] = useState(new Set()); // Set of uploaded date strings
   const [filterPanelOpen, setFilterPanelOpen] = useState(true); // Filter panel open/close state
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false); // Date range picker visibility
+  const [tempStartDate, setTempStartDate] = useState(''); // Temporary start date
+  const [tempEndDate, setTempEndDate] = useState(''); // Temporary end date
   
 
   // Handle tab query parameter from URL
@@ -70,21 +73,29 @@ export default function ExtractSKU() {
     return `${day}/${month}/${year}`;
   };
 
-  // Get first and last day of current month (using local time)
+  // Get first and last day of current month (using local time, avoiding timezone issues)
   const getCurrentMonthRange = () => {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth();
     
-    // First day of current month (local time)
-    const firstDay = new Date(year, month, 1);
-    const firstDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(firstDay.getDate()).padStart(2, '0')}`;
+    // First day of current month - always day 1
+    const firstDayStr = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     
-    // Last day of current month (local time)
-    const lastDay = new Date(year, month + 1, 0);
-    const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay.getDate()).padStart(2, '0')}`;
+    // Last day of current month
+    const lastDay = new Date(year, month + 1, 0); // Day 0 of next month = last day of current month
+    const lastDayNum = lastDay.getDate();
+    const lastDayStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`;
     
     return { firstDay: firstDayStr, lastDay: lastDayStr };
+  };
+
+  // Convert Date object to YYYY-MM-DD string WITHOUT timezone conversion
+  const toLocalDateString = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // Helper function to split date range into monthly chunks
@@ -445,7 +456,9 @@ export default function ExtractSKU() {
         let startDate = filterStartDate;
         let endDate = filterEndDate;
         
-        if (!startDate || !endDate) {
+        const isFirstLoad = !startDate || !endDate;
+        
+        if (isFirstLoad) {
           const { firstDay, lastDay } = getCurrentMonthRange();
           startDate = firstDay;
           endDate = lastDay;
@@ -456,27 +469,20 @@ export default function ExtractSKU() {
         await fetchFilterOptions();
         await fetchCustomOrder();
         
-        // Set filter dates first
-        setFilterStartDate(startDate);
-        setFilterEndDate(endDate);
-        
-        // Don't fetch here - let the useEffect below handle it
-        // after the state has been updated
+        // Auto-fetch data on initial load only
+        if (isFirstLoad) {
+          // Wait a bit for state to update
+          setTimeout(() => {
+            fetchInventoryData();
+          }, 100);
+        }
       };
       initInventory();
     }
   }, [selectedTab, featureFlags]);
 
-  // Auto-fetch data when filters change
-  useEffect(() => {
-    if (selectedTab === 'inventory' && checkFeature('isSKUInventory') && (filterStartDate || filterEndDate)) {
-      const timer = setTimeout(() => {
-        fetchInventoryData();
-      }, 300); // Debounce for 300ms
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterStartDate, filterEndDate, filterCompany, filterSKU, selectedTab, fetchInventoryData]);
+  // Removed auto-fetch - now using manual Apply button for better UX
+  // This prevents annoying automatic calls when user is selecting dates
 
   useEffect(() => {
     const refreshFlagsIfNeeded = async () => {
@@ -2293,30 +2299,309 @@ export default function ExtractSKU() {
               )}
               
               <div className="flex items-center gap-4 flex-wrap">
-                {/* Date Filters */}
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">From:</label>
-                  <input
-                    type="date"
-                    value={filterStartDate}
-                    onChange={(e) => setFilterStartDate(e.target.value)}
+                {/* Date Range Picker with Apply Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setTempStartDate(filterStartDate);
+                      setTempEndDate(filterEndDate);
+                      setShowDateRangePicker(!showDateRangePicker);
+                    }}
                     disabled={loading}
-                    min={dateRange.min}
-                    max={dateRange.max}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  />
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-colors flex items-center gap-2 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span className="text-gray-700">
+                      {filterStartDate && filterEndDate 
+                        ? `${formatDate(filterStartDate)} - ${formatDate(filterEndDate)}`
+                        : filterStartDate 
+                          ? `From ${formatDate(filterStartDate)}`
+                          : filterEndDate
+                            ? `Until ${formatDate(filterEndDate)}`
+                            : 'Select Date Range'
+                      }
+                    </span>
+                    <svg className={`w-4 h-4 text-gray-600 transition-transform ${showDateRangePicker ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Date Range Dropdown */}
+                  {showDateRangePicker && (
+                    <>
+                      {/* Backdrop to close dropdown */}
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => setShowDateRangePicker(false)}
+                      />
+                      
+                      {/* Dropdown Content */}
+                      <div className="absolute top-full left-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-20 w-80">
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">From Date</label>
+                            <input
+                              type="date"
+                              value={tempStartDate}
+                              onChange={(e) => setTempStartDate(e.target.value)}
+                              min={dateRange.min}
+                              max={dateRange.max}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">To Date</label>
+                            <input
+                              type="date"
+                              value={tempEndDate}
+                              onChange={(e) => setTempEndDate(e.target.value)}
+                              min={dateRange.min}
+                              max={dateRange.max}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          
+                          {/* Quick Date Range Buttons */}
+                          <div className="pt-2 border-t border-gray-200">
+                            <p className="text-xs font-medium text-gray-700 mb-2">Quick Select:</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => {
+                                  const today = new Date();
+                                  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                                  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                                  setTempStartDate(toLocalDateString(firstDay));
+                                  setTempEndDate(toLocalDateString(lastDay));
+                                }}
+                                className="px-2 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                              >
+                                This Month
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const today = new Date();
+                                  const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                                  const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
+                                  setTempStartDate(toLocalDateString(firstDay));
+                                  setTempEndDate(toLocalDateString(lastDay));
+                                }}
+                                className="px-2 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                              >
+                                Last Month
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const today = new Date();
+                                  const threeMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+                                  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                                  setTempStartDate(toLocalDateString(threeMonthsAgo));
+                                  setTempEndDate(toLocalDateString(lastDay));
+                                }}
+                                className="px-2 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                              >
+                                Last 3 Months
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setTempStartDate('');
+                                  setTempEndDate('');
+                                }}
+                                className="px-2 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                              >
+                                Clear Dates
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Apply and Cancel Buttons */}
+                          <div className="flex gap-2 pt-2">
+                            <button
+                              onClick={async () => {
+                                // Update the actual filter states
+                                setFilterStartDate(tempStartDate);
+                                setFilterEndDate(tempEndDate);
+                                setShowDateRangePicker(false);
+                                
+                                // Fetch data immediately with the new dates
+                                // We'll call the fetch logic directly instead of relying on state update
+                                if (tempStartDate || tempEndDate || filterCompany || filterSKU) {
+                                  try {
+                                    setLoading(true);
+                                    setError(null);
+                                    const token = localStorage.getItem('token');
+                                    
+                                    // Use temp dates for the query
+                                    const needsSplitting = tempStartDate && tempEndDate;
+                                    let allData = { data: {}, rawData: [] };
+                                    
+                                    if (needsSplitting) {
+                                      const start = new Date(tempStartDate);
+                                      const end = new Date(tempEndDate);
+                                      const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                      
+                                      if (daysDiff > 60) {
+                                        const chunks = splitDateRangeIntoMonths(tempStartDate, tempEndDate);
+                                        setStatus(`Loading ${chunks.length} months of data...`);
+                                        
+                                        for (let i = 0; i < chunks.length; i++) {
+                                          const chunk = chunks[i];
+                                          setStatus(`Loading ${chunk.label} (${i + 1}/${chunks.length})...`);
+                                          
+                                          const params = new URLSearchParams();
+                                          params.append('startDate', chunk.startDate);
+                                          params.append('endDate', chunk.endDate);
+                                          if (filterCompany) params.append('companyName', filterCompany);
+                                          if (filterSKU) params.append('sku', filterSKU);
+                                          
+                                          try {
+                                            const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+                                              headers: { Authorization: `Bearer ${token}` }
+                                            });
+                                            
+                                            if (data.data) {
+                                              Object.keys(data.data).forEach(company => {
+                                                if (!allData.data[company]) {
+                                                  allData.data[company] = {};
+                                                }
+                                                Object.keys(data.data[company]).forEach(sku => {
+                                                  if (!allData.data[company][sku]) {
+                                                    allData.data[company][sku] = 0;
+                                                  }
+                                                  allData.data[company][sku] += data.data[company][sku];
+                                                });
+                                              });
+                                            }
+                                            
+                                            if (data.rawData) {
+                                              allData.rawData.push(...data.rawData);
+                                            }
+                                          } catch (chunkErr) {
+                                            console.error(`❌ Failed to load ${chunk.label}:`, chunkErr);
+                                          }
+                                        }
+                                        
+                                        setStatus('');
+                                      } else {
+                                        const params = new URLSearchParams();
+                                        if (tempStartDate) params.append('startDate', tempStartDate);
+                                        if (tempEndDate) params.append('endDate', tempEndDate);
+                                        if (filterCompany) params.append('companyName', filterCompany);
+                                        if (filterSKU) params.append('sku', filterSKU);
+
+                                        const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+                                          headers: { Authorization: `Bearer ${token}` }
+                                        });
+                                        
+                                        allData = data;
+                                      }
+                                    } else {
+                                      const params = new URLSearchParams();
+                                      if (filterCompany) params.append('companyName', filterCompany);
+                                      if (filterSKU) params.append('sku', filterSKU);
+
+                                      const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
+                                        headers: { Authorization: `Bearer ${token}` }
+                                      });
+                                      
+                                      allData = data;
+                                    }
+                                    
+                                    // Process and set the data
+                                    const trimmedData = {};
+                                    if (allData.data) {
+                                      Object.keys(allData.data).forEach(companyName => {
+                                        const trimmedName = companyName.trim();
+                                        if (trimmedName) {
+                                          trimmedData[trimmedName] = allData.data[companyName];
+                                        }
+                                      });
+                                    }
+                                    
+                                    const dataByDate = {};
+                                    if (allData.rawData && allData.rawData.length > 0) {
+                                      allData.rawData.forEach(item => {
+                                        const dateStr = new Date(item.selectedDate).toISOString().split('T')[0];
+                                        const trimmedCompanyName = (item.companyName || '').trim();
+                                        if (!trimmedCompanyName) return;
+                                        
+                                        if (!dataByDate[dateStr]) {
+                                          dataByDate[dateStr] = {};
+                                        }
+                                        if (!dataByDate[dateStr][trimmedCompanyName]) {
+                                          dataByDate[dateStr][trimmedCompanyName] = 0;
+                                        }
+                                        dataByDate[dateStr][trimmedCompanyName] += (item.quantity || 0);
+                                      });
+                                    }
+                                    
+                                    if (allData.rawData && allData.rawData.length > 0) {
+                                      const dates = allData.rawData.map(item => new Date(item.selectedDate));
+                                      const minDate = new Date(Math.min(...dates));
+                                      const maxDate = new Date(Math.max(...dates));
+                                      setActualDataDateRange({
+                                        min: minDate.toISOString().split('T')[0],
+                                        max: maxDate.toISOString().split('T')[0]
+                                      });
+                                    } else {
+                                      setActualDataDateRange({ min: '', max: '' });
+                                    }
+                                    
+                                    setInventoryData(trimmedData);
+                                    setInventoryDataByDate(dataByDate);
+                                    setError(null);
+                                  } catch (err) {
+                                    setError(err.response?.data?.message || 'Failed to fetch inventory data');
+                                    setInventoryData(null);
+                                  } finally {
+                                    setLoading(false);
+                                  }
+                                }
+                              }}
+                              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                            >
+                              Apply
+                            </button>
+                            <button
+                              onClick={() => {
+                                setTempStartDate(filterStartDate);
+                                setTempEndDate(filterEndDate);
+                                setShowDateRangePicker(false);
+                              }}
+                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">To:</label>
-                  <input
-                    type="date"
-                    value={filterEndDate}
-                    onChange={(e) => setFilterEndDate(e.target.value)}
-                    disabled={loading}
-                    min={dateRange.min}
-                    max={dateRange.max}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                  />
+                
+                {/* Company Filter Dropdown */}
+                {availableCompanies.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700">Company:</label>
+                    <select
+                      value={filterCompany}
+                      onChange={(e) => setFilterCompany(e.target.value)}
+                      disabled={loading}
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="">All Companies</option>
+                      {availableCompanies.map(company => (
+                        <option key={company} value={company}>{company}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                {/* Date Filters - Hidden, replaced by date range picker above */}
+                <div className="hidden">
+                  <input type="date" value={filterStartDate} readOnly />
+                  <input type="date" value={filterEndDate} readOnly />
                 </div>
                 
                 {/* SKU Search */}
@@ -2328,11 +2613,51 @@ export default function ExtractSKU() {
                     type="text"
                     value={filterSKU}
                     onChange={(e) => setFilterSKU(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        fetchInventoryData();
+                      }
+                    }}
                     disabled={loading}
-                    placeholder="Search SKU..."
+                    placeholder="Search SKU... (Press Enter)"
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
+                
+                {/* Search Button for SKU */}
+                {filterSKU && (
+                  <button
+                    onClick={() => fetchInventoryData()}
+                    disabled={loading}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Search
+                  </button>
+                )}
+                
+                {/* Clear All Filters Button */}
+                {(filterStartDate || filterEndDate || filterCompany || filterSKU) && (
+                  <button
+                    onClick={() => {
+                      setFilterStartDate('');
+                      setFilterEndDate('');
+                      setFilterCompany('');
+                      setFilterSKU('');
+                      setInventoryData(null);
+                      setInventoryDataByDate({});
+                    }}
+                    disabled={loading}
+                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm flex items-center gap-1 disabled:bg-gray-50 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear All
+                  </button>
+                )}
 
                 {/* Loading Indicator */}
                 {loading && (
