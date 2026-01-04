@@ -47,12 +47,24 @@ const Layout = ({ children }) => {
         .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
         .then(response => {
           delete response.data?.user?.password;
-          setUser(response.data.user);
-          localStorage.setItem('user', JSON.stringify(response.data.user));
-          // Refresh feature flags when user is set
-          refreshFlags();
-          // Dispatch custom event to trigger flag refresh in other components
-          window.dispatchEvent(new Event('featureFlagsRefresh'));
+          const newUser = response.data.user;
+          const previousUserStr = localStorage.getItem('user');
+          const previousUser = previousUserStr ? JSON.parse(previousUserStr) : null;
+          
+          setUser(newUser);
+          localStorage.setItem('user', JSON.stringify(newUser));
+          
+          // Only refresh flags if user actually changed (e.g., after login or user switch)
+          // Compare user IDs to detect actual user change
+          const userChanged = !previousUser || previousUser._id !== newUser._id;
+          
+          if (userChanged) {
+            // User changed, refresh flags
+            refreshFlags();
+            // Dispatch custom event to trigger flag refresh in other components
+            window.dispatchEvent(new Event('userLoggedIn'));
+          }
+          // If user didn't change, flags hook will use existing cache automatically
         })
         .catch(error => {
           console.error('Token validation failed:', error);
@@ -63,14 +75,11 @@ const Layout = ({ children }) => {
         router.push('/login');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  // Refresh feature flags when user changes or route changes
-  useEffect(() => {
-    if (user) {
-      refreshFlags();
-    }
-  }, [user, router.pathname, refreshFlags]);
+  // Removed the useEffect that was calling refreshFlags on every route change
+  // The flags are cached and will be used automatically by useFeatureFlags hook
 
   // Load sidebar state from localStorage
   useEffect(() => {
