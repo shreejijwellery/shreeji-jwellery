@@ -1,9 +1,9 @@
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
-import { useFeatureFlags } from '../utils/useFeatureFlags';
+import { useFeatureFlags, clearFlagsCache } from '../utils/useFeatureFlags';
 import { CgProfile } from 'react-icons/cg';
 import { 
   FaUsersCog, 
@@ -81,6 +81,7 @@ const Layout = ({ children }) => {
   }, []);
 
   const handleLogout = () => {
+    clearFlagsCache(); // Clear feature flags cache on logout
     localStorage.clear();
     setUser(null);
     router.push('/login');
