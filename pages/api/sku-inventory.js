@@ -87,12 +87,13 @@ async function handler(req, res) {
                         }
                     }
                 },
-                { $sort: { _id: 1 } }
+                { $sort: { _id: 1 } },
+                { $limit: 100 } // Limit number of companies to prevent slowdown
             ];
 
             // Aggregation pipeline 2: Aggregate by date and company (for calendar view)
             // This creates records similar to rawData but pre-aggregated
-            // Reduced limit to prevent exceeding Vercel's 4.5MB response limit
+            // Reduced limit to prevent exceeding Vercel's 4.5MB response limit and 10s timeout
             const dateCompanyAggregation = [
                 { $match: matchStage },
                 {
@@ -114,7 +115,7 @@ async function handler(req, res) {
                     }
                 },
                 { $sort: { selectedDate: -1, companyName: 1 } },
-                { $limit: 10000 } // Reduced from 50k to 10k to prevent payload size issues
+                { $limit: 5000 } // Further reduced from 10k to 5k for Hobby plan 10s timeout
             ];
 
             // Run both aggregations in parallel

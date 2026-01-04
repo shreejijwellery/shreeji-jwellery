@@ -34,3 +34,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documentation and test files (generated)
+*_ANALYSIS.md
+*_CHECKLIST.md
+*_COMPARISON.md
+*_GUIDE.txt
+*_IMPLEMENTATION.md
+*_NEEDED.md
+*_NOTES.md
+*_OPTIMIZATION.md
+*_SOLUTION.md
+*_SUMMARY.md
+test-api-fix.sh
+test-production-api.sh
