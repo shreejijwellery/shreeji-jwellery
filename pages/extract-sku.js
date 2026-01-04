@@ -125,6 +125,13 @@ export default function ExtractSKU() {
       setError(null);
       const token = localStorage.getItem('token');
       
+      console.log('🔍 fetchInventoryData called with:', {
+        filterStartDate,
+        filterEndDate,
+        filterCompany,
+        filterSKU
+      });
+      
       // Determine if we need to split the query
       const needsSplitting = filterStartDate && filterEndDate;
       let allData = { data: {}, rawData: [] };
@@ -134,6 +141,8 @@ export default function ExtractSKU() {
         const start = new Date(filterStartDate);
         const end = new Date(filterEndDate);
         const daysDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        
+        console.log(`📊 Date range: ${daysDiff} days`);
         
         // If > 60 days, split into monthly chunks
         if (daysDiff > 60) {
@@ -487,15 +496,12 @@ export default function ExtractSKU() {
         await fetchFilterOptions();
         await fetchCustomOrder();
         
-        // Ensure dates are still set (in case fetchFilterOptions changed them)
-        // Only override if they were reset to empty
-        if (!filterStartDate || !filterEndDate) {
-          setFilterStartDate(startDate);
-          setFilterEndDate(endDate);
-        }
+        // Set filter dates first
+        setFilterStartDate(startDate);
+        setFilterEndDate(endDate);
         
-        // Fetch initial data after filters and order are loaded
-        fetchInventoryData();
+        // Don't fetch here - let the useEffect below handle it
+        // after the state has been updated
       };
       initInventory();
     }
