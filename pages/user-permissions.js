@@ -155,9 +155,41 @@ const UserManagement = () => {
         </tbody>
       </table>
 
-      <Modal isOpen={modalIsOpen} onRequestClose={closeModal} ariaHideApp={false} className="max-w-lg mx-auto p-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">{editingUser ? 'Edit User' : 'Add User'}</h2>
-        <Formik
+      <Modal 
+        isOpen={modalIsOpen} 
+        onRequestClose={closeModal} 
+        ariaHideApp={false}
+        style={{
+          overlay: {
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+          },
+          content: {
+            position: 'relative',
+            maxWidth: '600px',
+            width: '100%',
+            maxHeight: '90vh',
+            margin: 'auto',
+            padding: '0',
+            borderRadius: '8px',
+            border: 'none',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }
+        }}
+      >
+        <div className="flex flex-col h-full max-h-[90vh]">
+          <div className="flex-shrink-0 p-6 border-b border-gray-200">
+            <h2 className="text-2xl font-bold text-center text-gray-800">{editingUser ? 'Edit User' : 'Add User'}</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            <Formik
           initialValues={{
             name: editingUser ? editingUser.name : '',
             mobileNumber: editingUser ? editingUser.mobileNumber : '',
@@ -314,6 +346,8 @@ const UserManagement = () => {
             </Form>
           )}
         </Formik>
+          </div>
+        </div>
       </Modal>
     </div>
   );
