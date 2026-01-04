@@ -38,7 +38,7 @@ const Layout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [expandedMenus, setExpandedMenus] = useState({});
-  const { checkFeature } = useFeatureFlags();
+  const { checkFeature, refreshFlags } = useFeatureFlags();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -49,6 +49,10 @@ const Layout = ({ children }) => {
           delete response.data?.user?.password;
           setUser(response.data.user);
           localStorage.setItem('user', JSON.stringify(response.data.user));
+          // Refresh feature flags when user is set
+          refreshFlags();
+          // Dispatch custom event to trigger flag refresh in other components
+          window.dispatchEvent(new Event('featureFlagsRefresh'));
         })
         .catch(error => {
           console.error('Token validation failed:', error);
@@ -60,6 +64,13 @@ const Layout = ({ children }) => {
       }
     }
   }, [router]);
+
+  // Refresh feature flags when user changes or route changes
+  useEffect(() => {
+    if (user) {
+      refreshFlags();
+    }
+  }, [user, router.pathname, refreshFlags]);
 
   // Load sidebar state from localStorage
   useEffect(() => {

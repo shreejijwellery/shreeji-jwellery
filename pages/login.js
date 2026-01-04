@@ -47,6 +47,8 @@ const Login = () => {
             const fullUser = userResponse.data.user;
             const featureFlags = flagsResponse.data?.featureFlags || {};
             localStorage.setItem('user', JSON.stringify(fullUser));
+            // Dispatch event to refresh feature flags in Layout component
+            window.dispatchEvent(new Event('featureFlagsRefresh'));
             
             // Check if user only has SKU permission
             const hasPermissionsBeyondSKU = () => {
