@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
+import axios from 'axios';
 import { HTTP } from '../actions/actions_creators';
 import Link from 'next/link';
+import { PERMISSIONS, USER_ROLES } from '../lib/constants';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 import { FaUser, FaLock, FaArrowRight, FaTruck, FaBoxes, FaWarehouse, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 const Login = () => {
@@ -13,6 +16,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const { checkFeature } = useFeatureFlags();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,10 +33,80 @@ const Login = () => {
         if (response.user) {
           localStorage.setItem('user', JSON.stringify(response.user));
         }
-        toast.success('Login successful!');
-        setTimeout(() => {
-          router.push('/');
-        }, 1000);
+        
+          // Fetch full user data and feature flags to check permissions
+          try {
+            const [userResponse, flagsResponse] = await Promise.all([
+              axios.get('/api/validateToken', {
+                headers: { Authorization: `Bearer ${response.token}` }
+              }),
+              axios.get('/api/company/flags', {
+                headers: { Authorization: `Bearer ${response.token}` }
+              })
+            ]);
+            const fullUser = userResponse.data.user;
+            const featureFlags = flagsResponse.data?.featureFlags || {};
+            localStorage.setItem('user', JSON.stringify(fullUser));
+            
+            // Check if user only has SKU permission
+            const hasPermissionsBeyondSKU = () => {
+              if (fullUser.role === USER_ROLES.ADMINISTRATOR) return true;
+              const permissions = fullUser.permissions || [];
+              const nonSKUPermissions = [
+                PERMISSIONS.PARTY_BILLS,
+                PERMISSIONS.WORKER_BILLS,
+                PERMISSIONS.SECTIONS,
+                PERMISSIONS.ITEMS,
+                PERMISSIONS.VENDORS,
+                PERMISSIONS.WORKERS,
+                PERMISSIONS.FINAL_PRODUCT,
+                PERMISSIONS.IN_PROCESS_PRODUCT,
+                PERMISSIONS.PLATTING,
+                PERMISSIONS.PRODUCTION_FLOW
+              ];
+              return nonSKUPermissions.some(perm => permissions.includes(perm));
+            };
+            
+            toast.success('Login successful!');
+            setTimeout(() => {
+              // Helper function to check if user has permission
+              const hasPermission = (permission) => {
+                if (fullUser.role === USER_ROLES.ADMIN || fullUser.role === USER_ROLES.ADMINISTRATOR) return true;
+                return fullUser.permissions?.includes(permission) || false;
+              };
+
+              // Determine first available navigation item based on permissions and feature flags
+              let redirectPath = '/';
+              
+              // Check navigation items in order of priority
+              if (Boolean(featureFlags.isDashboard)) {
+                redirectPath = '/';
+              } else if (hasPermission(PERMISSIONS.EXTRACT_SKU) && Boolean(featureFlags.isExtractSKU)) {
+                redirectPath = '/extract-sku';
+              } else if (hasPermission(PERMISSIONS.PARTY_BILLS) && (Boolean(featureFlags.isPartyBills) || Boolean(featureFlags.isVendorBills))) {
+                redirectPath = '/party_dashboard';
+              } else if (hasPermission(PERMISSIONS.WORKER_BILLS) && (Boolean(featureFlags.isWorkerBills) || Boolean(featureFlags.isWorkerPayments))) {
+                redirectPath = '/billing';
+              } else if (hasPermission(PERMISSIONS.FINAL_PRODUCT) && (Boolean(featureFlags.isFinalProduct) || Boolean(featureFlags.isInProcessProduct))) {
+                redirectPath = '/final-product';
+              } else if (hasPermission(PERMISSIONS.PLATTING) && Boolean(featureFlags.isPlatting)) {
+                redirectPath = '/platting';
+              } else if (hasPermission(PERMISSIONS.PRODUCTION_FLOW) && Boolean(featureFlags.isProductionFlow)) {
+                redirectPath = '/production-flow';
+              } else if (hasPermission(PERMISSIONS.EXTRACT_SKU) && Boolean(featureFlags.isExtractSKU)) {
+                // Fallback to SKU if available
+                redirectPath = '/extract-sku';
+              }
+              
+              router.push(redirectPath);
+            }, 1000);
+        } catch (error) {
+          // Fallback to default redirect if user fetch fails
+          toast.success('Login successful!');
+          setTimeout(() => {
+            router.push('/');
+          }, 1000);
+        }
       }
     } catch (error) {
       console.error('Error logging in:', error);

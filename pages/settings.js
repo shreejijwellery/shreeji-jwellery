@@ -98,13 +98,13 @@ const SettingsTabs = () => {
               </button>
             )}
             {checkPermission(user, PERMISSIONS.SECTIONS) && flags?.isSections && (
-              <button
-                onClick={() => setSelectedTab('sections')}
-                className={`px-4 py-2 rounded ${
-                  selectedTab === 'sections' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
-                }`}>
-                Sections
-              </button>
+                <button
+                  onClick={() => setSelectedTab('sections')}
+                  className={`px-4 py-2 rounded ${
+                    selectedTab === 'sections' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-black'
+                  }`}>
+                  Sections
+                </button>
             )}
             {checkPermission(user, PERMISSIONS.ITEMS) && flags?.isItems && (
               <button
@@ -138,9 +138,9 @@ const SettingsTabs = () => {
             )}
             {selectedTab === 'items' && (
               flags?.isItems ? (
-                <div>
-                  <ItemsManager user={user} />
-                </div>
+              <div>
+                <ItemsManager user={user} />
+              </div>
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
                   <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
@@ -150,9 +150,9 @@ const SettingsTabs = () => {
             )}
             {selectedTab === 'workers' && (
               flags?.isWorkers ? (
-                <div>
-                  <WorkerDetails user={user} />
-                </div>
+              <div>
+                <WorkerDetails user={user} />
+              </div>
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
                   <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
@@ -162,9 +162,9 @@ const SettingsTabs = () => {
             )}
             {selectedTab === 'party' && (
               flags?.isVendors ? (
-                <div>
-                  <PartyDetails user={user} />
-                </div>
+              <div>
+                <PartyDetails user={user} />
+              </div>
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
                   <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
@@ -233,15 +233,15 @@ const SettingsTabs = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                           {group.flags.map(flag => (
                             <label key={flag.key} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
-                              <input
-                                type="checkbox"
+                      <input
+                        type="checkbox"
                                 checked={!!flags[flag.key]}
                                 onChange={(e) => saveFlags({ ...flags, [flag.key]: e.target.checked })}
-                                disabled={saving}
+                        disabled={saving}
                                 className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                              />
+                      />
                               <span className="text-sm">{flag.label}</span>
-                            </label>
+                    </label>
                           ))}
                         </div>
                       </div>

@@ -9,7 +9,7 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { MdDeleteForever } from "react-icons/md";
 import 'tailwindcss/tailwind.css';
 import OrderData from '../components/OrderData';
-import { USER_ROLES } from '../lib/constants';
+import { USER_ROLES, PERMISSIONS } from '../lib/constants';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 const Dashboard = () => {
@@ -171,7 +171,39 @@ const Dashboard = () => {
     return <p>Loading...</p>;
   }
 
+  // Check if user has permissions beyond SKU
+  const hasPermissionsBeyondSKU = () => {
+    if (user.role === USER_ROLES.ADMINISTRATOR) return true;
+    const permissions = user.permissions || [];
+    const nonSKUPermissions = [
+      PERMISSIONS.PARTY_BILLS,
+      PERMISSIONS.WORKER_BILLS,
+      PERMISSIONS.SECTIONS,
+      PERMISSIONS.ITEMS,
+      PERMISSIONS.VENDORS,
+      PERMISSIONS.WORKERS,
+      PERMISSIONS.FINAL_PRODUCT,
+      PERMISSIONS.IN_PROCESS_PRODUCT,
+      PERMISSIONS.PLATTING,
+      PERMISSIONS.PRODUCTION_FLOW
+    ];
+    return nonSKUPermissions.some(perm => permissions.includes(perm));
+  };
 
+  // Redirect if user doesn't have permissions beyond SKU
+  useEffect(() => {
+    if (user && !hasPermissionsBeyondSKU()) {
+      if (user.permissions?.includes(PERMISSIONS.EXTRACT_SKU)) {
+        router.push('/extract-sku');
+      } else {
+        router.push('/extract-sku');
+      }
+    }
+  }, [user, router]);
+
+  if (!hasPermissionsBeyondSKU()) {
+    return <div className="p-4">Redirecting...</div>;
+  }
 
   return (
     <div className="p-8 min-h-screen bg-gray-100">

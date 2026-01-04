@@ -88,6 +88,46 @@ const Layout = ({ children }) => {
     }));
   };
 
+  // Check if user has permissions beyond just SKU management
+  // ADMIN users need explicit permissions, only ADMINISTRATOR bypasses this check
+  const hasPermissionsBeyondSKU = (user) => {
+    if (!user) return false;
+    if (user.role === USER_ROLES.ADMINISTRATOR) return true;
+    
+    const permissions = user.permissions || [];
+    const nonSKUPermissions = [
+      PERMISSIONS.PARTY_BILLS,
+      PERMISSIONS.WORKER_BILLS,
+      PERMISSIONS.SECTIONS,
+      PERMISSIONS.ITEMS,
+      PERMISSIONS.VENDORS,
+      PERMISSIONS.WORKERS,
+      PERMISSIONS.FINAL_PRODUCT,
+      PERMISSIONS.IN_PROCESS_PRODUCT,
+      PERMISSIONS.PLATTING,
+      PERMISSIONS.PRODUCTION_FLOW
+    ];
+    
+    return nonSKUPermissions.some(perm => permissions.includes(perm));
+  };
+
+  // Check if user has access to Settings (needs Workers, Vendors, Sections, or Items permissions)
+  // ADMIN users need explicit permissions, only ADMINISTRATOR bypasses this check
+  const hasSettingsAccess = (user) => {
+    if (!user) return false;
+    if (user.role === USER_ROLES.ADMINISTRATOR) return true;
+    
+    const permissions = user.permissions || [];
+    const settingsPermissions = [
+      PERMISSIONS.WORKERS,
+      PERMISSIONS.VENDORS,
+      PERMISSIONS.SECTIONS,
+      PERMISSIONS.ITEMS
+    ];
+    
+    return settingsPermissions.some(perm => permissions.includes(perm));
+  };
+
   const NavItem = ({ href, icon: Icon, label, submenu, menuKey }) => {
     const isActive = router.pathname === href || (submenu && submenu.some(item => router.pathname === item.href));
     const hasSubmenu = submenu && submenu.length > 0;
@@ -198,7 +238,9 @@ const Layout = ({ children }) => {
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto py-4 px-3">
             <ul className="space-y-1">
-              <NavItem href="/" icon={FaHome} label="Home" />
+              {user && checkFeature('isDashboard') && (
+                <NavItem href="/" icon={FaHome} label="Home" />
+              )}
               
               {!user && (
                 <>
@@ -252,7 +294,7 @@ const Layout = ({ children }) => {
                 <NavItem href="/production-flow" icon={FaProjectDiagram} label="Production Flow" />
               )}
               
-              {user && user.role !== USER_ROLES.ADMINISTRATOR && (
+              {user && (user.role === USER_ROLES.ADMINISTRATOR || hasSettingsAccess(user)) && (
                 <NavItem href="/settings" icon={FaCog} label="Settings" />
               )}
             </ul>
