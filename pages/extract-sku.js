@@ -21,6 +21,8 @@ export default function ExtractSKU() {
   const [hasCsvFile, setHasCsvFile] = useState(false);
   const [selectedPdfFile, setSelectedPdfFile] = useState(null); // For Meesho Sort
   const [selectedCsvFile, setSelectedCsvFile] = useState(null); // For Meesho Sort
+  const [selectedSnapdealPdfFile, setSelectedSnapdealPdfFile] = useState(null); // For Snapdeal Sort
+  const [selectedSnapdealCsvFile, setSelectedSnapdealCsvFile] = useState(null); // For Snapdeal Sort
   
   // SKU Inventory Management states
   const [inventoryData, setInventoryData] = useState(null);
@@ -733,8 +735,15 @@ export default function ExtractSKU() {
         
         let originName = 'Unknown Origin';
         if (csvData.length > 0 && skuKey && originKey) {
-          const originRow = csvData.find(row => String(row[skuKey]).trim() === String(sku).trim() || String(row.Origin).trim() === String(sku).trim());
-          if (originRow) originName = originRow[originKey] || 'Unknown Origin';
+          const extractedSku = String(sku).trim();
+          const originRow = csvData.find(row => {
+            const rowSku = String(row[skuKey] || '').trim();
+            return rowSku === extractedSku;
+          });
+          
+          if (originRow) {
+            originName = String(originRow[originKey] || '').trim() || 'Unknown Origin';
+          }
         }
         const company = extractSnapdealCompany(lines) || 'Zzzzz';
         pageData.push({ pageNumber: i, sku, qty, originName, company });
@@ -770,25 +779,106 @@ export default function ExtractSKU() {
       }
 
       setStatus('Building output PDF...');
+      
+      // Dynamically detect content width by analyzing text positions
+      setStatus('Analyzing content boundaries...');
+      let maxContentWidth = 0;
+      const pagesToAnalyze = Math.min(5, pdf.numPages); // Analyze first 5 pages
+      
+      for (let i = 1; i <= pagesToAnalyze; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        
+        // Find the rightmost text position
+        let rightmostX = 0;
+        if (textContent && textContent.items) {
+          for (const item of textContent.items) {
+            if (item.transform && item.transform.length >= 6) {
+              // transform[4] is the x position
+              const x = item.transform[4];
+              const fontSize = Math.abs(item.transform[0]) || Math.abs(item.transform[3]) || 12;
+              const textWidth = (item.str || '').length * fontSize * 0.5;
+              const rightEdge = x + textWidth;
+              if (rightEdge > rightmostX) {
+                rightmostX = rightEdge;
+              }
+            }
+          }
+        }
+        
+        // Add padding (30 points) to ensure we capture all content
+        if (rightmostX > maxContentWidth) {
+          maxContentWidth = rightmostX + 30;
+        }
+      }
+      
+      // Now load the PDF document for processing
       const sourcePdfDoc = await PDFDocument.load(pdfArrayBuffer);
       const outPdf = await PDFDocument.create();
       const helveticaBoldFont = await outPdf.embedFont(StandardFonts.HelveticaBold);
       
+      // Get first page to determine page dimensions
+      const firstPage = sourcePdfDoc.getPage(0);
+      const { width: originalWidth, height: originalHeight } = firstPage.getSize();
+      
+      // For Snapdeal, crop to ~45% width to get only the LEFT shipping label box
+      // and remove the RIGHT tax invoice section
+      const cropWidth = originalWidth * 0.45;
+      
+      // Detect the bottom edge of content in the left portion (shipping label box)
+      // by finding the minimum Y position of text within the crop width
+      let minContentY = originalHeight; // Start with max (top of page)
+      
+      for (let i = 1; i <= Math.min(5, pdf.numPages); i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        
+        if (textContent && textContent.items) {
+          for (const item of textContent.items) {
+            if (item.transform && item.transform.length >= 6) {
+              const x = item.transform[4];
+              const y = item.transform[5];
+              
+              // Only consider text within the left crop area
+              if (x < cropWidth && y < minContentY) {
+                minContentY = y;
+              }
+            }
+          }
+        }
+      }
+      
+      // Add padding below content for the Origin text
+      const textSize = 14;
+      const paddingForText = 30; // Space for Origin text + margin
+      const cropBottom = Math.max(0, minContentY - paddingForText);
+      const cropHeight = originalHeight - cropBottom;
+      
       for (const pageInfo of pageData) {
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
         
-        // Add text overlay at the bottom of the page
-        const textToDisplay = csvFile 
-          ? `Origin: ${pageInfo.originName}` 
-          : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`;
+        // Apply crop box to the copied page
+        // Crop box: [x, y, width, height] where (x,y) is bottom-left corner
+        copied.setCropBox(0, cropBottom, cropWidth, cropHeight);
         
-        copied.drawText(textToDisplay, {
-          x: 50,
-          y: 25,
-          size: 10,
-          font: helveticaBoldFont,
-          color: rgb(0, 0, 0)
-        });
+        // Add text overlay just below the box content
+        const textToDisplay = csvFile 
+          ? `Origin: ${pageInfo.originName || 'Unknown'}` 
+          : `SKU: ${pageInfo.sku || 'N/A'} | Qty: ${pageInfo.qty || 0}`;
+        
+        if (textToDisplay && textToDisplay.trim()) {
+          // Position text at the bottom of the cropped area (just below box content)
+          // Y position relative to the crop box bottom
+          const textYPosition = cropBottom + 10; // 10 points above the crop bottom edge
+          
+          copied.drawText(textToDisplay, {
+            x: 10,
+            y: textYPosition,
+            size: textSize,
+            font: helveticaBoldFont,
+            color: rgb(0, 0, 0)
+          });
+        }
         
         outPdf.addPage(copied);
       }
@@ -914,10 +1004,15 @@ export default function ExtractSKU() {
         const hasMultiplePages = originCounts[page.originName] > 1;
         const showCount = isFirstOfOrigin && hasMultiplePages && page.originName !== 'Unknown Origin';
         
-        // Draw origin name on the left
+        // Get page dimensions
+        const { width, height } = copied.getSize();
+        
+        // Draw origin name on the left bottom
+        // PDF coordinates: (0,0) is bottom-left, y increases upward
+        // Use same approach as working processFiles.js
         copied.drawText(`Origin : ${page.originName}`, { 
           x: 50, 
-          y: 25, 
+          y: 50, 
           size: 14, 
           font: helveticaBoldFont,
           color: rgb(0, 0, 0)
@@ -929,17 +1024,14 @@ export default function ExtractSKU() {
           const countText = `(${count})`;
           const countFontSize = 24; // Bigger font for count
           
-          // Get page dimensions
-          const { width } = copied.getSize();
-          
           // Calculate width of count text to position it from right
           const countWidth = helveticaBoldFont.widthOfTextAtSize(countText, countFontSize);
           
           // Position at right bottom corner (same y level as origin name)
-          copied.drawText(countText, { 
+          copied.drawText(countText, {
             x: width - countWidth - 50, // 50px margin from right
-            y: 25, // Same y level as origin name
-            size: countFontSize, 
+            y: 50, // Same y level as origin name (50 points from bottom)
+            size: countFontSize,
             font: helveticaBoldFont,
             color: rgb(0, 0, 0)
           });
@@ -1901,12 +1993,25 @@ export default function ExtractSKU() {
                           name="pdf_snapdeal"
                           accept=".pdf"
                           required
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            setSelectedSnapdealPdfFile(file);
+                          }}
                           className="sr-only"
                         />
                       </label>
                       <p className="pl-1">or drag and drop</p>
                     </div>
                     <p className="text-xs text-gray-500">PDF up to 25MB</p>
+                    {selectedSnapdealPdfFile && (
+                      <div className="mt-3 flex items-center gap-2 text-blue-900 bg-blue-50 p-2 rounded">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <span className="font-medium">Selected:</span>
+                        <span className="truncate text-sm">{selectedSnapdealPdfFile.name}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1927,13 +2032,26 @@ export default function ExtractSKU() {
                           id="csv_snapdeal"
                           name="csv_snapdeal"
                           accept=".csv"
-                          onChange={(e) => setHasCsvFile(e.target.files.length > 0)}
+                          onChange={(e) => {
+                            const file = e.target.files[0] || null;
+                            setSelectedSnapdealCsvFile(file);
+                            setHasCsvFile(e.target.files.length > 0);
+                          }}
                           className="sr-only"
                         />
                       </label>
                       <p className="pl-1">or drag and drop</p>
                     </div>
                     <p className="text-xs text-gray-500">CSV file</p>
+                    {selectedSnapdealCsvFile && (
+                      <div className="mt-3 flex items-center gap-2 text-green-900 bg-green-50 p-2 rounded">
+                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <span className="font-medium">Selected:</span>
+                        <span className="truncate text-sm">{selectedSnapdealCsvFile.name}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 p-3 bg-blue-50 rounded-lg">
