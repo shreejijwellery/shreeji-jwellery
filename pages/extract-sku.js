@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CancelOrder from '../components/CancelOrder';
+import SnapdealSort from '../components/SnapdealSort';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 
@@ -18,11 +19,8 @@ export default function ExtractSKU() {
   const [selectedTab, setSelectedTab] = useState('sort');
   const { featureFlags, checkFeature, loading: flagsLoading } = useFeatureFlags();
   const [allowed, setAllowed] = useState(null);
-  const [hasCsvFile, setHasCsvFile] = useState(false);
   const [selectedPdfFile, setSelectedPdfFile] = useState(null); // For Meesho Sort
   const [selectedCsvFile, setSelectedCsvFile] = useState(null); // For Meesho Sort
-  const [selectedSnapdealPdfFile, setSelectedSnapdealPdfFile] = useState(null); // For Snapdeal Sort
-  const [selectedSnapdealCsvFile, setSelectedSnapdealCsvFile] = useState(null); // For Snapdeal Sort
   
   // SKU Inventory Management states
   const [inventoryData, setInventoryData] = useState(null);
@@ -529,50 +527,6 @@ export default function ExtractSKU() {
     return company;
   }
 
-  // Snapdeal-specific extraction functions
-  function extractSnapdealSKU(lines, i) {
-    // TODO: Customize this for Snapdeal PDF format
-    // debugger
-    let name;
-    const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
-    if (SKUIndex > -1) {
-      const withPipeline = lines[SKUIndex + 1]?.trim()?.split('  ')?.[0]?.trim();
-      name = withPipeline?.split('|')?.[1]?.trim();
-    }else{
-      const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
-      if (PRODUCTNameIndex) {
-        name = lines[PRODUCTNameIndex + 2]?.trim()?.split('  ')?.[0]?.trim();
-      }
-    }
-    return name;
-  }
-
-  function extractSnapdealQuantity(lines) {
-    // TODO: Customize this for Snapdeal PDF format
-    const QtyIndex = lines.findIndex(line => line.includes('QUANTITY'));
-    
-    if (QtyIndex === -1) return null;
-    let qty = 0;
-    const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
-    if (SKUIndex > -1) {
-      const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.[1]?.trim();
-      qty = Number(numberWithSpace);
-    }else{
-      const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
-      if (PRODUCTNameIndex) {
-        const numberWithSpace = lines[PRODUCTNameIndex + 3];
-        qty = Number(numberWithSpace);
-      }
-    }
-    return qty;
-  }
-
-  function extractSnapdealCompany(lines) {
-    // TODO: Customize this for Snapdeal PDF format
-    const company = lines[3]?.trim();
-    return company;
-  }
-
   function parseCSV(text) {
     const rows = [];
     let i = 0, field = '', row = [], inQuotes = false;
@@ -682,232 +636,6 @@ export default function ExtractSKU() {
       reader.readAsArrayBuffer(file);
     });
   }
-
-  const handleSnapdealSubmit = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-    setSuccess(false);
-    setStatus('Preparing files...');
-    try {
-      const pdfFile = event.target.pdf_snapdeal.files[0];
-      const csvFile = event.target.csv_snapdeal?.files?.[0] || null;
-      
-      if (!pdfFile) throw new Error('Please select a PDF file');
-
-      const loadPdfJsPromise = loadPdfJs();
-      const pdfArrayBufferPromise = readFileAsArrayBuffer(pdfFile);
-      const csvTextPromise = csvFile ? readFileAsText(csvFile) : Promise.resolve(null);
-
-      const [pdfjsLib, pdfArrayBuffer, csvText] = await Promise.all([
-        loadPdfJsPromise,
-        pdfArrayBufferPromise,
-        csvTextPromise
-      ]);
-
-      let csvData = [];
-      let skuKey = null;
-      let originKey = null;
-
-      if (csvText) {
-        setStatus('Parsing CSV...');
-        csvData = parseCSV(csvText);
-        if (csvData.length > 0) {
-          skuKey = findHeaderKeyInsensitive(csvData[0], 'SKU');
-          originKey = findHeaderKeyInsensitive(csvData[0], 'Origin') || findHeaderKeyInsensitive(csvData[0], 'origin');
-        }
-      }
-
-      setStatus('Reading PDF...');
-      const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
-      const pdf = await loadingTask.promise;
-
-      const pageData = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        setStatus(`Analyzing page ${i} of ${pdf.numPages}...`);
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const lines = reconstructLinesFromTextItems(textContent.items || []);
-        
-        // Use Snapdeal-specific extraction functions
-        const sku = extractSnapdealSKU(lines, i) || `Page_${i}`;
-        const qty = extractSnapdealQuantity(lines) || 0;
-        
-        let originName = 'Unknown Origin';
-        if (csvData.length > 0 && skuKey && originKey) {
-          const extractedSku = String(sku).trim();
-          const originRow = csvData.find(row => {
-            const rowSku = String(row[skuKey] || '').trim();
-            return rowSku === extractedSku;
-          });
-          
-          if (originRow) {
-            originName = String(originRow[originKey] || '').trim() || 'Unknown Origin';
-          }
-        }
-        const company = extractSnapdealCompany(lines) || 'Zzzzz';
-        pageData.push({ pageNumber: i, sku, qty, originName, company });
-      }
-
-      // Sort by SKU name if no excel, otherwise by qty -> origin -> company
-      if (!csvFile) {
-        setStatus('Sorting by quantity, SKU, and company...');
-        pageData.sort((a, b) => {
-          const qtyA = a.qty || 0;
-          const qtyB = b.qty || 0;
-          if (qtyA !== qtyB) return qtyA - qtyB;
-          const skuA = a.sku || '';
-          const skuB = b.sku || '';
-          if (skuA !== skuB) return skuA.localeCompare(skuB);
-          const companyA = a.company || '';
-          const companyB = b.company || '';
-          return companyA.localeCompare(companyB);
-        });
-      } else {
-        setStatus('Sorting by origin, quantity, and company...');
-        pageData.sort((a, b) => {
-          const originA = a.originName || '';
-          const originB = b.originName || '';
-          if (originA !== originB) return originA.localeCompare(originB);
-          const qtyA = a.qty || 0;
-          const qtyB = b.qty || 0;
-          if (qtyA !== qtyB) return qtyA - qtyB;
-          const companyA = a.company || '';
-          const companyB = b.company || '';
-          return companyA.localeCompare(companyB);
-        });
-      }
-
-      setStatus('Building output PDF...');
-      
-      // Dynamically detect content width by analyzing text positions
-      setStatus('Analyzing content boundaries...');
-      let maxContentWidth = 0;
-      const pagesToAnalyze = Math.min(5, pdf.numPages); // Analyze first 5 pages
-      
-      for (let i = 1; i <= pagesToAnalyze; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        
-        // Find the rightmost text position
-        let rightmostX = 0;
-        if (textContent && textContent.items) {
-          for (const item of textContent.items) {
-            if (item.transform && item.transform.length >= 6) {
-              // transform[4] is the x position
-              const x = item.transform[4];
-              const fontSize = Math.abs(item.transform[0]) || Math.abs(item.transform[3]) || 12;
-              const textWidth = (item.str || '').length * fontSize * 0.5;
-              const rightEdge = x + textWidth;
-              if (rightEdge > rightmostX) {
-                rightmostX = rightEdge;
-              }
-            }
-          }
-        }
-        
-        // Add padding (30 points) to ensure we capture all content
-        if (rightmostX > maxContentWidth) {
-          maxContentWidth = rightmostX + 30;
-        }
-      }
-      
-      // Now load the PDF document for processing
-      const sourcePdfDoc = await PDFDocument.load(pdfArrayBuffer);
-      const outPdf = await PDFDocument.create();
-      const helveticaBoldFont = await outPdf.embedFont(StandardFonts.HelveticaBold);
-      
-      // Get first page to determine page dimensions
-      const firstPage = sourcePdfDoc.getPage(0);
-      const { width: originalWidth, height: originalHeight } = firstPage.getSize();
-      
-      // For Snapdeal, crop to ~45% width to get only the LEFT shipping label box
-      // and remove the RIGHT tax invoice section
-      const cropWidth = originalWidth * 0.45;
-      
-      // Detect the bottom edge of content in the left portion (shipping label box)
-      // by finding the minimum Y position of text within the crop width
-      let minContentY = originalHeight; // Start with max (top of page)
-      
-      for (let i = 1; i <= Math.min(5, pdf.numPages); i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        
-        if (textContent && textContent.items) {
-          for (const item of textContent.items) {
-            if (item.transform && item.transform.length >= 6) {
-              const x = item.transform[4];
-              const y = item.transform[5];
-              
-              // Only consider text within the left crop area
-              if (x < cropWidth && y < minContentY) {
-                minContentY = y;
-              }
-            }
-          }
-        }
-      }
-      
-      // Add padding below content for the Origin text
-      const textSize = 14;
-      const paddingForText = 30; // Space for Origin text + margin
-      const cropBottom = Math.max(0, minContentY - paddingForText);
-      const cropHeight = originalHeight - cropBottom;
-      
-      for (const pageInfo of pageData) {
-        const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
-        
-        // Apply crop box to the copied page
-        // Crop box: [x, y, width, height] where (x,y) is bottom-left corner
-        copied.setCropBox(0, cropBottom, cropWidth, cropHeight);
-        
-        // Add text overlay just below the box content
-        const textToDisplay = csvFile 
-          ? `Origin: ${pageInfo.originName || 'Unknown'}` 
-          : `SKU: ${pageInfo.sku || 'N/A'} | Qty: ${pageInfo.qty || 0}`;
-        
-        if (textToDisplay && textToDisplay.trim()) {
-          // Position text at the bottom of the cropped area (just below box content)
-          // Y position relative to the crop box bottom
-          const textYPosition = cropBottom + 10; // 10 points above the crop bottom edge
-          
-          copied.drawText(textToDisplay, {
-            x: 10,
-            y: textYPosition,
-            size: textSize,
-            font: helveticaBoldFont,
-            color: rgb(0, 0, 0)
-          });
-        }
-        
-        outPdf.addPage(copied);
-      }
-      
-      const outBytes = await outPdf.save();
-      const url = window.URL.createObjectURL(new Blob([outBytes], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      
-      // Generate output filename based on input filename
-      const inputFileName = pdfFile.name || 'snapdeal_output.pdf';
-      const fileNameWithoutExt = inputFileName.replace(/\.pdf$/i, '');
-      const outputFileName = `${fileNameWithoutExt}_sorted.pdf`;
-      
-      link.setAttribute('download', outputFileName);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode.removeChild(link);
-
-      setSuccess(true);
-      setStatus('Done. File downloaded.');
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Processing failed');
-      setStatus('');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -1968,119 +1696,20 @@ export default function ExtractSKU() {
         )}
 
         {selectedTab === 'snapdeal' && (
-          <div className="p-8">
-            {allowed === false && (
-              <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                <p className="text-sm text-yellow-700">This feature is disabled for your company. Please contact your admin.</p>
-              </div>
-            )}
-            <form onSubmit={handleSnapdealSubmit} encType="multipart/form-data" className="space-y-6">
-              <div>
-                <label htmlFor="pdf_snapdeal" className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload PDF File <span className="text-red-500">*</span>
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-400 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <div className="flex text-sm text-gray-600">
-                      <label htmlFor="pdf_snapdeal" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
-                        <span>Upload a file</span>
-                        <input
-                          type="file"
-                          id="pdf_snapdeal"
-                          name="pdf_snapdeal"
-                          accept=".pdf"
-                          required
-                          onChange={(e) => {
-                            const file = e.target.files[0];
-                            setSelectedSnapdealPdfFile(file);
-                          }}
-                          className="sr-only"
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">PDF up to 25MB</p>
-                    {selectedSnapdealPdfFile && (
-                      <div className="mt-3 flex items-center gap-2 text-blue-900 bg-blue-50 p-2 rounded">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <span className="font-medium">Selected:</span>
-                        <span className="truncate text-sm">{selectedSnapdealPdfFile.name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload CSV (Optional)
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-green-400 transition-colors">
-                  <div className="space-y-1 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
-                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <div className="flex text-sm text-gray-600">
-                      <label htmlFor="csv_snapdeal" className="relative cursor-pointer bg-white rounded-md font-medium text-green-600 hover:text-green-500">
-                        <span>Upload a file</span>
-                        <input
-                          type="file"
-                          id="csv_snapdeal"
-                          name="csv_snapdeal"
-                          accept=".csv"
-                          onChange={(e) => {
-                            const file = e.target.files[0] || null;
-                            setSelectedSnapdealCsvFile(file);
-                            setHasCsvFile(e.target.files.length > 0);
-                          }}
-                          className="sr-only"
-                        />
-                      </label>
-                      <p className="pl-1">or drag and drop</p>
-                    </div>
-                    <p className="text-xs text-gray-500">CSV file</p>
-                    {selectedSnapdealCsvFile && (
-                      <div className="mt-3 flex items-center gap-2 text-green-900 bg-green-50 p-2 rounded">
-                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                        </svg>
-                        <span className="font-medium">Selected:</span>
-                        <span className="truncate text-sm">{selectedSnapdealCsvFile.name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-xs text-blue-700">
-                    {hasCsvFile 
-                      ? "✓ CSV file will be used to add origin information" 
-                      : "ℹ Without CSV, sorting will be done by quantity, SKU, and company"}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="submit"
-                disabled={loading || allowed === false || allowed === null}
-                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing...
-                  </>
-                ) : (
-                  'Process Snapdeal PDF'
-                )}
-              </button>
-            </form>
-          </div>
+          <SnapdealSort
+            allowed={allowed}
+            loading={loading}
+            setLoading={setLoading}
+            setError={setError}
+            setSuccess={setSuccess}
+            setStatus={setStatus}
+            loadPdfJs={loadPdfJs}
+            readFileAsArrayBuffer={readFileAsArrayBuffer}
+            readFileAsText={readFileAsText}
+            parseCSV={parseCSV}
+            findHeaderKeyInsensitive={findHeaderKeyInsensitive}
+            reconstructLinesFromTextItems={reconstructLinesFromTextItems}
+          />
         )}
 
         {selectedTab === 'excel' && (
