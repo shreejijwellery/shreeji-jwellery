@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { fetchAllItems, fetchAllSections, HTTP } from '../actions/actions_creators';
 import { FaDownload, FaPlus, FaTimes } from 'react-icons/fa';
 import jsPDF from 'jspdf';
@@ -44,6 +44,62 @@ export default function ProductionFlowDashboard() {
   ]);
   
   const [loading, setLoading] = useState(false);
+
+  // Fetch items and sections on component mount
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        // Fetch sections
+        const sectionsResponse = await fetchAllSections();
+        setAllSections(sectionsResponse);
+        
+        // Find and set Final Product section
+        const finalProductSec = sectionsResponse.find(sec => sec.name === FINAL_PRODUCT_SECTION);
+        setFinalProductSection(finalProductSec);
+        
+        // Fetch items
+        const itemsResponse = await fetchAllItems();
+        setItems(itemsResponse);
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        toast.error('Failed to load items and sections');
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
+  // Fetch data when filters change
+  useEffect(() => {
+    if (items.length > 0 && finalProductSection) {
+      fetchInProcessData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [col1Filters, finalProductSection, items.length]);
+
+  useEffect(() => {
+    if (items.length > 0 && finalProductSection) {
+      fetchFinalProductData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [col5Filters, finalProductSection, items.length]);
+
+  // Create a memoized dependency string for middle column filters
+  const middleColumnsFiltersKey = useMemo(() => {
+    return middleColumns.map(col => 
+      `${col.startDate}-${col.endDate}-${col.selectedSection?.value || ''}-${col.selectedItems.join(',')}`
+    ).join('|');
+  }, [middleColumns]);
+
+  // Fetch data for middle columns when filters change or when items are loaded
+  useEffect(() => {
+    if (items.length > 0) {
+      middleColumns.forEach((_, index) => {
+        fetchSectionDataForColumn(index);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [middleColumnsFiltersKey, items.length]);
 
   const fetchInProcessData = async () => {
     try {
