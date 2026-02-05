@@ -4,7 +4,7 @@ import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import moment from 'moment';
-import { PAYMENT_STATUS } from '../lib/constants';
+import { PAYMENT_STATUS, USER_ROLES } from '../lib/constants';
 import { HTTP } from '../actions/actions_creators';
 export default function WorkerBills(props) {
   const { selectedWorker } = props;
@@ -24,6 +24,15 @@ export default function WorkerBills(props) {
   const [endDate, setEndDate] = useState(moment().endOf('month').format('YYYY-MM-DD'));
   const [selectedRecords, setSelectedRecords] = useState([]);
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
+  const [user, setUser] = useState(null);
+  const isAdmin = user?.role === USER_ROLES.ADMIN || user?.role === USER_ROLES.ADMINISTRATOR;
+  useEffect(() => {
+    const userData = JSON.parse(localStorage.getItem('user'));
+    if (userData) {
+      setUser(userData);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchSections = async () => {
       try {
@@ -52,7 +61,7 @@ export default function WorkerBills(props) {
       const payment_status = selectedPaymentStatus ? `&payment_status=${selectedPaymentStatus}` : '';
       const fromDate = startDate ? `&fromDate=${startDate}` : '';
       const toDate = endDate ? `&toDate=${endDate}` : '';
-      const worker = selectedWorker && selectedWorker._id !== 'all' ? selectedWorker._id : ''
+      const worker = selectedWorker && selectedWorker._id !== 'all' ? selectedWorker._id : '';
       const data = await HTTP('GET', `/work_records?worker=${worker}${payment_status}${fromDate}${toDate}`);
       setWorkDetails(data);
     } catch (error) {
@@ -198,6 +207,16 @@ export default function WorkerBills(props) {
     doc.setTextColor(0, 0, 0); // Black text for body
     doc.text(`Mobile Number: ${selectedWorker.mobile_no}`, 14, 25);
     doc.text(`Address: ${selectedWorker.address}`, 14, 32);
+    
+    let currentY = 40;
+    
+    // Add Manager Name from worker if available
+    if (selectedWorker?.assignedManager?.name) {
+      doc.setFontSize(sectionFontSize);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Manager: ${selectedWorker.assignedManager.name}`, 14, currentY);
+      currentY += 10;
+    }
 
     // Add Date Range (if filters are applied)
     if (startDate || endDate) {
@@ -206,7 +225,8 @@ export default function WorkerBills(props) {
       const dateText = `Period: ${
         startDate ? new Date(startDate).toLocaleDateString() : 'Start'
       } to ${endDate ? new Date(endDate).toLocaleDateString() : 'End'}`;
-      doc.text(dateText, 14, 40);
+      doc.text(dateText, 14, currentY);
+      currentY += 10;
     }
 
     // Prepare Table Data
@@ -231,8 +251,9 @@ export default function WorkerBills(props) {
     tableData.push(['Total', '', '', '', `Rs. ${totalAmount.toFixed(2)}`, '', '', '']);
 
     // Generate Table with Improved Design
+    const startY = currentY + 10;
     doc.autoTable({
-      startY: startDate || endDate ? 50 : 40,
+      startY: startY,
       head: [
         [
           'Section',
@@ -332,6 +353,15 @@ export default function WorkerBills(props) {
     doc.setFontSize(12);
     doc.text(`Mobile Number: ${selectedWorker.mobile_no}`, 14, 25);
     doc.text(`Address: ${selectedWorker.address}`, 14, 32);
+    
+    let currentY = 40;
+    
+    // Add Manager Name from worker if available
+    if (selectedWorker?.assignedManager?.name) {
+      doc.setFontSize(12);
+      doc.text(`Manager: ${selectedWorker.assignedManager.name}`, 14, currentY);
+      currentY += 10;
+    }
 
     // Prepare Table Data
     const tableData = selectedDetails.map(detail => [
@@ -356,7 +386,7 @@ export default function WorkerBills(props) {
 
     // Generate Table
     doc.autoTable({
-      startY: 40,
+      startY: currentY + 10,
       head: [
         [
           'Section',
@@ -511,6 +541,7 @@ export default function WorkerBills(props) {
           <div className="w-max bg-gray-100 p-4 font-medium text-gray-700 flex gap-4">
             <div className="w-10">Select</div>
             <div className="w-32">Actions</div>
+            {isAdmin && !selectedWorker && <div className="w-32">Manager</div>}
             <div className="w-32">Section</div>
             <div className="w-32">Item</div>
             <div className="w-10">Piece</div>
@@ -609,6 +640,7 @@ export default function WorkerBills(props) {
                         className="border border-gray-300 rounded-lg p-2 w-16"
                       />
                       <div className="w-16">₹{(editData.piece * editData.item_rate).toFixed(2)}</div>
+                      {isAdmin && !selectedWorker && <div className='w-32'></div>}
                       <div className='w-32'></div>
                       <div className='w-20'></div>
                       <div className='w-32'></div>
@@ -636,6 +668,9 @@ export default function WorkerBills(props) {
                           <FaTrash className="w-5 h-5 text-red-500 hover:text-red-600" />
                         </button>
                       </div>
+                      {isAdmin && !selectedWorker && (
+                        <div className="w-32">{detail.assignedManager?.name || 'N/A'}</div>
+                      )}
                       <div className="w-32">{detail.section_name}</div>
                       <div className="w-32">{detail.item_name}</div>
                       <div className="w-10">{detail.piece}</div>
@@ -661,6 +696,7 @@ export default function WorkerBills(props) {
               <div className="min-w-full flex p-4 border-t bg-gray-50 font-semibold">
                 <div className="w-40">Total</div>
                 <div className="w-32"></div>
+                {isAdmin && !selectedWorker && <div className="w-32"></div>}
                 <div className="w-32"></div>
                 <div className="w-40"></div>
                 <div className="w-52"></div>

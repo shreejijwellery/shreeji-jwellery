@@ -4,13 +4,18 @@ import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import moment from 'moment';
-import { PAYMENT_STATUS } from '../lib/constants';
+import { PAYMENT_STATUS, USER_ROLES } from '../lib/constants';
 import Select from 'react-select';
 import { HTTP } from '../actions/actions_creators';
+import axios from 'axios';
 export default function PayableDashboard(props) {
+  const { user } = props;
   const [workDetails, setWorkDetails] = useState([]);
   const [sections, setSections] = useState([]);
   const [items, setItems] = useState([]);
+  const [managers, setManagers] = useState([]);
+  const [selectedManager, setSelectedManager] = useState('');
+  const isAdmin = user?.role === USER_ROLES.ADMIN || user?.role === USER_ROLES.ADMINISTRATOR;
 
   const [startDate, setStartDate] = useState(moment().startOf('day').format('YYYY-MM-DD'));
   const [endDate, setEndDate] = useState(moment().endOf('day').format('YYYY-MM-DD'));
@@ -53,9 +58,24 @@ export default function PayableDashboard(props) {
       }
     };
 
+    const fetchManagers = async () => {
+      if (isAdmin) {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await axios.get('/api/users-with-worker-permission', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setManagers(response.data);
+        } catch (error) {
+          console.error('Error fetching managers:', error);
+        }
+      }
+    };
+
     fetchSections();
     fetchItems();
-  }, []);
+    fetchManagers();
+  }, [isAdmin]);
 
 
   const fetchWorkDetails = async (reset = false) => {
@@ -69,8 +89,9 @@ export default function PayableDashboard(props) {
       // Add filters for sections and items
       const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
       const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+      const managerFilter = isAdmin && selectedManager ? `&manager=${selectedManager}` : '';
 
-      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}&limit=${limit}&skip=${skip}`);
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}${managerFilter}&limit=${limit}&skip=${skip}`);
 
       if (reset) {
         setWorkDetails(data ?? []);
@@ -92,8 +113,9 @@ export default function PayableDashboard(props) {
       const toDate = endDate ? `&toDate=${endDate}` : '';
       const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
       const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+      const managerFilter = isAdmin && selectedManager ? `&manager=${selectedManager}` : '';
 
-      const data = await HTTP('GET', `/work_records_totals?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}`);
+      const data = await HTTP('GET', `/work_records_totals?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}${managerFilter}`);
       setTotals(data ?? { totalPieces: 0, totalAmount: 0, totalRecords: 0 });
     } catch (error) {
       console.error('Error fetching totals:', error);
@@ -105,7 +127,7 @@ export default function PayableDashboard(props) {
     setOffset(0);
     fetchWorkDetails(true);
     fetchTotals();
-  }, [selectedPaymentStatus, startDate, endDate, selectedSections, selectedItems]);
+  }, [selectedPaymentStatus, startDate, endDate, selectedSections, selectedItems, selectedManager]);
 
   const handleScroll = (e) => {
     const bottom = e.target.scrollHeight - e.target.scrollTop === e.target.clientHeight;
@@ -130,8 +152,9 @@ export default function PayableDashboard(props) {
   
     const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
     const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+    const managerFilter = isAdmin && selectedManager ? `&manager=${selectedManager}` : '';
   
-    const data = await HTTP('GET', `/worker-pays?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}`);
+    const data = await HTTP('GET', `/worker-pays?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}${managerFilter}`);
   
     data.sort((a, b) => b.totalAmount - a.totalAmount);
     return data;
@@ -174,12 +197,21 @@ export default function PayableDashboard(props) {
     doc.setFontSize(12);
     doc.setFont('Arial', 'normal');
     doc.setTextColor(80, 80, 80);
+    
+    // Add Manager Name if filtered
+    if (isAdmin && selectedManager) {
+      const manager = managers.find(m => m._id === selectedManager);
+      if (manager) {
+        doc.text(`Manager: ${manager.name}`, 14, 28);
+      }
+    }
+    
     const dateRangeText = `Date Range: ${startDate ? new Date(startDate).toLocaleDateString() : 'Start'} to ${
       endDate ? new Date(endDate).toLocaleDateString() : 'End'
     }`;
-    doc.text(dateRangeText, 14, 28);
+    doc.text(dateRangeText, 14, isAdmin && selectedManager ? 36 : 28);
   
-    const tableStartY = 40;
+    const tableStartY = isAdmin && selectedManager ? 48 : 40;
     doc.setFontSize(10);
     doc.setFillColor(60, 120, 180);
     doc.rect(14, tableStartY, 180, 10, 'F');
@@ -265,12 +297,27 @@ export default function PayableDashboard(props) {
     const titleColor = [52, 73, 94]; // Darker color for the title
     const headerColor = [71, 85, 105]; // Custom blue for the header
 
-    // Add Title, Mobile Number, and Address
+    // Add Title
     doc.setFontSize(mainTitleFontSize);
     doc.setTextColor(...titleColor);
+    doc.text('All Payable Dashboard', 14, 15);
 
     doc.setFontSize(normalFontSize);
     doc.setTextColor(0, 0, 0); // Black text for body
+    
+    let currentY = 25;
+    
+    // Add Manager Name if filtered
+    if (isAdmin && selectedManager) {
+      const manager = managers.find(m => m._id === selectedManager);
+      if (manager) {
+        doc.setFontSize(sectionFontSize);
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Manager: ${manager.name}`, 14, currentY);
+        currentY += 10;
+      }
+    }
+    
     // Add Date Range (if filters are applied)
     if (startDate || endDate) {
       doc.setFontSize(sectionFontSize);
@@ -278,7 +325,8 @@ export default function PayableDashboard(props) {
       const dateText = `Period: ${
         startDate ? new Date(startDate).toLocaleDateString() : 'Start'
       } to ${endDate ? new Date(endDate).toLocaleDateString() : 'End'}`;
-      doc.text(dateText, 14, 40);
+      doc.text(dateText, 14, currentY);
+      currentY += 10;
     }
 
     // Prepare Table Data
@@ -304,8 +352,9 @@ export default function PayableDashboard(props) {
     tableData.push(['Total', '', '', '', `Rs. ${totalAmount.toFixed(2)}`, '', '', '']);
 
     // Generate Table with Improved Design
+    const startY = currentY + 10;
     doc.autoTable({
-      startY: startDate || endDate ? 50 : 40,
+      startY: startY,
       head: [
         [
           'Name',
@@ -396,7 +445,23 @@ export default function PayableDashboard(props) {
     const doc = new jsPDF();
     const selectedDetails = workDetails?.filter(detail => selectedRecords.includes(detail._id)).reverse();
 
-    // Add Worker Details
+    // Add Title
+    doc.setFontSize(18);
+    doc.setTextColor(52, 73, 94);
+    doc.text('Selected Records', 14, 15);
+    
+    let currentY = 25;
+    
+    // Add Manager Name if filtered
+    if (isAdmin && selectedManager) {
+      const manager = managers.find(m => m._id === selectedManager);
+      if (manager) {
+        doc.setFontSize(12);
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Manager: ${manager.name}`, 14, currentY);
+        currentY += 10;
+      }
+    }
 
     // Prepare Table Data
     const tableData = selectedDetails.map(detail => [
@@ -422,7 +487,7 @@ export default function PayableDashboard(props) {
 
     // Generate Table
     doc.autoTable({
-      startY: 40,
+      startY: currentY + 10,
       head: [
         [
           'Name',
@@ -470,7 +535,10 @@ export default function PayableDashboard(props) {
       const payment_status = selectedPaymentStatus ? `payment_status=${selectedPaymentStatus}` : '';
       const fromDate = startDate ? `&fromDate=${startDate}` : '';
       const toDate = endDate ? `&toDate=${endDate}` : '';
-      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}`);
+      const sectionFilter = selectedSections.length ? `&sections=${selectedSections.join(',')}` : '';
+      const itemFilter = selectedItems.length ? `&items=${selectedItems.join(',')}` : '';
+      const managerFilter = isAdmin && selectedManager ? `&manager=${selectedManager}` : '';
+      const data = await HTTP('GET', `/work_records?${payment_status}${fromDate}${toDate}${sectionFilter}${itemFilter}${managerFilter}`);
 
       // Convert data to CSV format
       const csvContent = [
@@ -568,6 +636,20 @@ export default function PayableDashboard(props) {
           classNamePrefix="select"
           placeholder="Select Items"
         />
+        {isAdmin && (
+          <select
+            value={selectedManager}
+            onChange={e => setSelectedManager(e.target.value)}
+            className="border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All Managers</option>
+            {managers.map(manager => (
+              <option key={manager._id} value={manager._id}>
+                {manager.name}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
 
@@ -607,6 +689,7 @@ export default function PayableDashboard(props) {
               <thead className="sticky top-0">
                 <tr className="bg-gray-100 font-medium text-gray-700">
                   <th className="px-4 py-2">Name</th>
+                  {isAdmin && <th className="px-4 py-2">Manager</th>}
                   <th className="px-4 py-2">Section</th>
                   <th className="px-4 py-2">Item</th>
                   <th className="px-4 py-2">Piece</th>
@@ -618,6 +701,7 @@ export default function PayableDashboard(props) {
                 </tr>
                 <tr className="bg-gray-200 font-semibold text-gray-800">
                   <td className="px-4 py-2">Total ({totals.totalRecords} records)</td>
+                  {isAdmin && <td className="px-4 py-2"></td>}
                   <td className="px-4 py-2"></td>
                   <td className="px-4 py-2"></td>
                   <td className="px-4 py-2">
@@ -637,6 +721,7 @@ export default function PayableDashboard(props) {
               <thead>
                 <tr className="bg-gray-100 p-4 font-medium text-gray-700">
                   <th className="px-4 py-2">Name</th>
+                  {isAdmin && <th className="px-4 py-2">Manager</th>}
                   <th className="px-4 py-2">Section</th>
                   <th className="px-4 py-2">Item</th>
                   <th className="px-4 py-2">Piece</th>
@@ -653,6 +738,7 @@ export default function PayableDashboard(props) {
                 filteredWorkDetails.map(detail => (
                   <tr key={detail._id} className="border-b last:border-none text-gray-700">
                     <td className="px-4 py-2">{detail.worker?.name} {detail.worker?.lastname ?? ""} </td>
+                    {isAdmin && <td className="px-4 py-2">{detail.assignedManager?.name || 'N/A'}</td>}
                     <td className="px-4 py-2">{detail.section_name}</td>
                     <td className="px-4 py-2">{detail.item_name}</td>
                     <td className="px-4 py-2">{detail.piece}</td>
@@ -678,7 +764,7 @@ export default function PayableDashboard(props) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="9" className="p-4 text-gray-500 text-center">No work details found</td>
+                  <td colSpan={isAdmin ? "10" : "9"} className="p-4 text-gray-500 text-center">No work details found</td>
                 </tr>
               )}
             </tbody>

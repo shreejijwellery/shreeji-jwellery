@@ -3,18 +3,26 @@ import { WorkRecord } from '../../models/work_records';
 import connectToDatabase from '../../lib/mongodb';
 import moment from 'moment-timezone';
 import { authMiddleware } from './common/common.services';
-import { PAYMENT_STATUS } from '../../lib/constants';
+import { PAYMENT_STATUS, USER_ROLES } from '../../lib/constants';
 
 // Get Work Records Totals (without pagination)
 export const getWorkRecordsTotals = async (req, res) => {
   await connectToDatabase();
-  const { company } = req.userData;
+  const { company, _id, role } = req.userData;
   
   try {
-    const { worker, payment_status, fromDate, toDate, sections, items } = req.query;
+    const { worker, payment_status, fromDate, toDate, sections, items, manager } = req.query;
     let query = { isDeleted: false, company };
     
-    if (worker) query = { ...query, worker };
+    // If user is a manager (not admin or administrator), filter by assignedManager
+    if (role !== USER_ROLES.ADMIN && role !== USER_ROLES.ADMINISTRATOR) {
+      query.assignedManager = new mongoose.Types.ObjectId(_id);
+    } else if (manager) {
+      // Admin can filter by manager
+      query.assignedManager = new mongoose.Types.ObjectId(manager);
+    }
+    
+    if (worker) query = { ...query, worker: new mongoose.Types.ObjectId(worker) };
     if (payment_status === PAYMENT_STATUS.PAID) query = { ...query, payment_status };
     if (payment_status === PAYMENT_STATUS.PENDING)
       query = { ...query, payment_status: { $ne: PAYMENT_STATUS.PAID } };
