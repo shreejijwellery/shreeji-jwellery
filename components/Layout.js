@@ -136,7 +136,7 @@ const Layout = ({ children }) => {
   // ADMIN users need explicit permissions, only ADMINISTRATOR bypasses this check
   const hasSettingsAccess = (user) => {
     if (!user) return false;
-    if (user.role === USER_ROLES.ADMINISTRATOR) return true;
+    if (user.role === USER_ROLES.ADMINISTRATOR || user.role === USER_ROLES.ADMIN) return true;
     
     const permissions = user.permissions || [];
     const settingsPermissions = [
