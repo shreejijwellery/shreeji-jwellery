@@ -80,7 +80,7 @@ const Home = () => {
   return (
     <div className="p-4 md:p-6 w-full">
       <div className="max-w-7xl mx-auto">
-        {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && <PayableDashboard />}
+        {user && checkPermission(user, PERMISSIONS.WORKER_BILLS) && <PayableDashboard user={user} />}
       </div>
     </div>
   );

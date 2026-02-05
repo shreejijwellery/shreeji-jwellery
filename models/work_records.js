@@ -16,6 +16,7 @@ const WorkRecordSchema = new mongoose.Schema({
     payment_status: { type: String, enum: [PAYMENT_STATUS.PENDING, PAYMENT_STATUS.PAID] },
     lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
+    assignedManager: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
 export const WorkRecord = mongoose.models.WorkRecord || mongoose.model('WorkRecord', WorkRecordSchema);

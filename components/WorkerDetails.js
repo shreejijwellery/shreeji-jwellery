@@ -5,17 +5,36 @@ import 'react-toastify/dist/ReactToastify.css';
 import { FaTrash, FaPlus, FaEdit, FaSave } from 'react-icons/fa';
 import Loader from './loader'; // Assume a custom loader component
 import { fetchAllWorker, HTTP } from '../actions/actions_creators';
+import { USER_ROLES } from '../lib/constants';
+import axios from 'axios';
 
 const WorkerDetails = (props) => {
     const { user } = props;
     const [workers, setWorkers] = useState([]);
-    const [newWorker, setNewWorker] = useState({ name: '', lastname: '', mobile_no: '', address: '', bank_account_no: '', bank_name: '', bank_branch: '', bank_ifsc: '', bank_account_holder_name: '' });
+    const [newWorker, setNewWorker] = useState({ name: '', lastname: '', mobile_no: '', address: '', bank_account_no: '', bank_name: '', bank_branch: '', bank_ifsc: '', bank_account_holder_name: '', assignedManager: '' });
     const [loading, setLoading] = useState(false);
     const [editingWorker, setEditingWorker] = useState(null);
+    const [managers, setManagers] = useState([]);
+    const isAdmin = user?.role === USER_ROLES.ADMIN || user?.role === USER_ROLES.ADMINISTRATOR;
 
     useEffect(() => {
         fetchWorkers();
+        if (isAdmin) {
+            fetchManagers();
+        }
     }, []);
+
+    const fetchManagers = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.get('/api/users-with-worker-permission', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setManagers(response.data);
+        } catch (error) {
+            console.error('Error fetching managers:', error);
+        }
+    };
 
     const fetchWorkers = async (isCallApi) => {
         setLoading(true);
@@ -32,12 +51,17 @@ const WorkerDetails = (props) => {
     const handleCreateWorker = async () => {
         setLoading(true);
         try {
-            const response = await HTTP('POST','/workers', { ...newWorker });
+            const workerData = { ...newWorker };
+            // If not admin, assignedManager will be set automatically by API
+            if (!isAdmin) {
+                delete workerData.assignedManager;
+            }
+            const response = await HTTP('POST','/workers', workerData);
             toast.success("Worker added successfully!", { autoClose: 500 });
             fetchWorkers(true);
-            setNewWorker({ name: '', lastname: '', mobile_no: '', address: '', bank_account_no: '', bank_name: '', bank_branch: '', bank_ifsc: '', bank_account_holder_name: ''  });
+            setNewWorker({ name: '', lastname: '', mobile_no: '', address: '', bank_account_no: '', bank_name: '', bank_branch: '', bank_ifsc: '', bank_account_holder_name: '', assignedManager: '' });
         } catch (error) {
-            toast.error("Failed to add worker.");
+            toast.error(error.response?.data?.message || "Failed to add worker.");
         } finally {
             setLoading(false);
         }
@@ -59,12 +83,17 @@ const WorkerDetails = (props) => {
     const handleEditWorker = async () => {
         setLoading(true);
         try {
-            const response = await HTTP('PUT',`/workers`, editingWorker);
+            const workerData = { ...editingWorker };
+            // If not admin, don't send assignedManager
+            if (!isAdmin) {
+                delete workerData.assignedManager;
+            }
+            const response = await HTTP('PUT',`/workers`, workerData);
             toast.success("Worker updated successfully!", { autoClose: 500 });
             fetchWorkers(true);
             setEditingWorker(null);
         } catch (error) {
-            toast.error("Failed to update worker.");
+            toast.error(error.response?.data?.message || "Failed to update worker.");
         } finally {
             setLoading(false);
         }
@@ -133,6 +162,20 @@ const WorkerDetails = (props) => {
                     onChange={(e) => setNewWorker({ ...newWorker, bank_account_holder_name: e.target.value })}
                     className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400"
                 />
+                {isAdmin && (
+                    <select
+                        value={newWorker.assignedManager}
+                        onChange={(e) => setNewWorker({ ...newWorker, assignedManager: e.target.value })}
+                        className="p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-400"
+                    >
+                        <option value="">Select Manager</option>
+                        {managers.map(manager => (
+                            <option key={manager._id} value={manager._id}>
+                                {manager.name}
+                            </option>
+                        ))}
+                    </select>
+                )}
                 <button
                     onClick={handleCreateWorker}
                     className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-md transition"
@@ -154,6 +197,7 @@ const WorkerDetails = (props) => {
                             <th className="py-4 px-6 text-left text-gray-700 font-semibold">Bank Branch</th>
                             <th className="py-4 px-6 text-left text-gray-700 font-semibold">Bank IFSC</th>
                             <th className="py-4 px-6 text-left text-gray-700 font-semibold">Account Holder Name</th>
+                            {isAdmin && <th className="py-4 px-6 text-left text-gray-700 font-semibold">Assigned Manager</th>}
                             <th className="py-4 px-6 text-center text-gray-700 font-semibold">Actions</th>
                         </tr>
                     </thead>
@@ -251,6 +295,26 @@ const WorkerDetails = (props) => {
                                         worker.bank_account_holder_name
                                     )}
                                 </td>
+                                {isAdmin && (
+                                    <td className="py-3 px-6">
+                                        {editingWorker && editingWorker._id === worker._id ? (
+                                            <select
+                                                value={editingWorker.assignedManager || ''}
+                                                onChange={(e) => handleEditChange(e, 'assignedManager')}
+                                                className="p-1 border border-gray-300 rounded-md"
+                                            >
+                                                <option value="">Select Manager</option>
+                                                {managers.map(manager => (
+                                                    <option key={manager._id} value={manager._id}>
+                                                        {manager.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            worker.assignedManager?.name || 'N/A'
+                                        )}
+                                    </td>
+                                )}
                                 
                                 <td className="py-3 px-6 text-center">
                                     {editingWorker && editingWorker._id === worker._id ? (

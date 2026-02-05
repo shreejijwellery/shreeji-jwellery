@@ -1,30 +1,62 @@
 import React, { useEffect, useState } from 'react';
 import { fetchAllWorker } from '../actions/actions_creators';
 import { Tooltip as ReactTooltip } from 'react-tooltip'; // Use named import for Tooltip
+import { USER_ROLES } from '../lib/constants';
+import axios from 'axios';
 
 const WorkerDropdown = props => {
   const { setSelectedWorker } = props;
   const [workers, setWorkers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedWorkerId, setSelectedWorkerId] = useState(null);
+  const [user, setUser] = useState(null);
+  const [managers, setManagers] = useState([]);
+  const [selectedManager, setSelectedManager] = useState('');
+  const isAdmin = user?.role === USER_ROLES.ADMIN || user?.role === USER_ROLES.ADMINISTRATOR;
+
+  useEffect(() => {
+    const userData = JSON.parse(localStorage.getItem('user'));
+    if (userData) {
+      setUser(userData);
+    }
+  }, []);
 
   useEffect(() => {
     const fetchWorkers = async () => {
       try {
-        const response = await fetchAllWorker();
+        // Force API call to ensure we get filtered workers based on current user's role
+        const response = await fetchAllWorker(true);
         setWorkers(response);
       } catch (error) {
         console.error('Error fetching workers:', error);
       }
     };
 
-    fetchWorkers();
-  }, []);
+    const fetchManagers = async () => {
+      if (isAdmin) {
+        try {
+          const token = localStorage.getItem('token');
+          const response = await axios.get('/api/users-with-worker-permission', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setManagers(response.data);
+        } catch (error) {
+          console.error('Error fetching managers:', error);
+        }
+      }
+    };
 
-  const filteredWorkers = workers.filter(worker =>
-    worker.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    worker.lastname.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+    fetchWorkers();
+    fetchManagers();
+  }, [isAdmin, selectedManager]);
+
+  const filteredWorkers = workers.filter(worker => {
+    const matchesSearch = worker.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      worker.lastname.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesManager = !isAdmin || !selectedManager || 
+      (worker.assignedManager && worker.assignedManager._id === selectedManager);
+    return matchesSearch && matchesManager;
+  });
 
   return (
     <div className="bg-white shadow-md rounded-lg p-4 w-full max-w-md mx-auto">
@@ -38,6 +70,20 @@ const WorkerDropdown = props => {
         onChange={e => setSearchTerm(e.target.value)}
         className="w-full p-2 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+      {isAdmin && (
+        <select
+          value={selectedManager}
+          onChange={e => setSelectedManager(e.target.value)}
+          className="w-full p-2 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">All Managers</option>
+          {managers.map(manager => (
+            <option key={manager._id} value={manager._id}>
+              {manager.name}
+            </option>
+          ))}
+        </select>
+      )}
 
       {/* Worker List */}
       <div className="max-h-60 overflow-y-auto">

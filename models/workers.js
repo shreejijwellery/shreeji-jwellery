@@ -13,6 +13,7 @@ const WorkerSchema = new mongoose.Schema({
     bank_branch: { type: String,  },
     bank_ifsc: { type: String,  },
     bank_account_holder_name: { type: String,  },
+    assignedManager: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 }, { timestamps: true });
 
 export default mongoose.models.Worker || mongoose.model('Worker', WorkerSchema);
