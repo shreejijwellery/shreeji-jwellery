@@ -240,7 +240,7 @@ const Login = () => {
 
         {/* Footer Text */}
         <p className="text-center text-gray-500 text-sm mt-6">
-          © 2025 OMS Portal. All rights reserved.
+          © 2026 OMS Portal by Tech Shekhada. All rights reserved.
         </p>
       </div>
 
