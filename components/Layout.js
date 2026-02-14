@@ -24,13 +24,14 @@ import {
   FaChevronRight,
   FaTimesCircle,
   FaUpload,
-  FaSortAmountDown,
-  FaFolder,
   FaFileAlt,
   FaBoxes,
   FaWarehouse,
-  FaTruck
+  FaTruck,
+  FaShoppingBag,
+  FaTag
 } from "react-icons/fa";
+import { SiAmazon } from "react-icons/si";
 
 const Layout = ({ children }) => {
   const router = useRouter();
@@ -277,8 +278,9 @@ const Layout = ({ children }) => {
                   label="SKU Management"
                   menuKey="sku"
                   submenu={[
-                    { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaSortAmountDown },
-                    { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaFolder },
+                    { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaShoppingBag },
+                    { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaTag },
+                    { href: '/extract-sku?tab=amazon', label: 'Amazon Sort', icon: SiAmazon },
                     { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt, flag: 'isExcelFromPDF' },
                     { href: '/extract-sku?tab=inventory', label: 'SKU Inventory', icon: FaBoxes, flag: 'isSKUInventory' },
                     { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle, flag: 'isCancelledOrders' },

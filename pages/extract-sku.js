@@ -7,7 +7,10 @@ import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 import CancelOrder from '../components/CancelOrder';
 import SnapdealSort from '../components/SnapdealSort';
+import AmazonSort from '../components/AmazonSort';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
+import { SiAmazon } from 'react-icons/si';
+import { FaShoppingBag, FaTag } from 'react-icons/fa';
 
 
 export default function ExtractSKU() {
@@ -1409,9 +1412,7 @@ export default function ExtractSKU() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                </svg>
+                <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'sort' ? 'text-pink-400' : 'text-gray-400'}`} title="Meesho" />
                 <span>Meesho Sort</span>
               </div>
             </button>
@@ -1424,10 +1425,21 @@ export default function ExtractSKU() {
               }`}
             >
               <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                </svg>
+                <FaTag className={`w-5 h-5 ${selectedTab === 'snapdeal' ? 'text-red-400' : 'text-gray-400'}`} title="Snapdeal" />
                 <span>Snapdeal Sort</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('amazon')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'amazon'
+                  ? 'border-orange-400 text-orange-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <SiAmazon className={`w-5 h-5 ${selectedTab === 'amazon' ? 'text-orange-400' : 'text-gray-400'}`} title="Amazon" />
+                <span>Amazon Sort</span>
               </div>
             </button>
             <button
@@ -1708,6 +1720,20 @@ export default function ExtractSKU() {
             readFileAsText={readFileAsText}
             parseCSV={parseCSV}
             findHeaderKeyInsensitive={findHeaderKeyInsensitive}
+            reconstructLinesFromTextItems={reconstructLinesFromTextItems}
+          />
+        )}
+
+        {selectedTab === 'amazon' && (
+          <AmazonSort
+            allowed={allowed}
+            loading={loading}
+            setLoading={setLoading}
+            setError={setError}
+            setSuccess={setSuccess}
+            setStatus={setStatus}
+            loadPdfJs={loadPdfJs}
+            readFileAsArrayBuffer={readFileAsArrayBuffer}
             reconstructLinesFromTextItems={reconstructLinesFromTextItems}
           />
         )}
