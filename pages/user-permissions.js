@@ -132,6 +132,7 @@ const UserManagement = () => {
       <table className="min-w-full border-collapse border border-gray-200">
         <thead>
           <tr>
+            <th className="border border-gray-200 p-2">Name</th>
             <th className="border border-gray-200 p-2">Username</th>
             <th className="border border-gray-200 p-2">Role</th>
             <th className="border border-gray-200 p-2">Actions</th>
@@ -140,6 +141,7 @@ const UserManagement = () => {
         <tbody>
           {users.map((user) => (
             <tr key={user._id}>
+              <td className="border border-gray-200 p-2">{user.name || '—'}</td>
               <td className="border border-gray-200 p-2">{user.username}</td>
               <td className="border border-gray-200 p-2">{user.role}</td>
               <td className="border border-gray-200 p-2 flex justify-start">
