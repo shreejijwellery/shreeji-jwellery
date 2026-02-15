@@ -648,17 +648,25 @@ export default function ExtractSKU() {
     setStatus('Preparing files...');
     try {
       const pdfFile = event.target.pdf.files[0];
-      const csvFile = event.target.csv.files[0];
-      if (!pdfFile || !csvFile) throw new Error('Please select both PDF and CSV files');
+      const dataFile = event.target.csv.files[0];
+      if (!pdfFile || !dataFile) throw new Error('Please select both PDF and CSV/Excel files');
 
-      const [pdfjsLib, pdfArrayBuffer, csvText] = await Promise.all([
-        loadPdfJs(),
-        readFileAsArrayBuffer(pdfFile),
-        readFileAsText(csvFile)
-      ]);
-
-      setStatus('Parsing CSV...');
-      const csvData = parseCSV(csvText);
+      const isExcel = /\.(xlsx|xls)$/i.test(dataFile.name);
+      const [pdfjsLib, pdfArrayBuffer, csvData] = await (async () => {
+        const [lib, pdfBuf] = await Promise.all([
+          loadPdfJs(),
+          readFileAsArrayBuffer(pdfFile)
+        ]);
+        if (isExcel) {
+          const dataBuf = await readFileAsArrayBuffer(dataFile);
+          setStatus('Parsing Excel...');
+          const data = parseExcel(dataBuf);
+          return [lib, pdfBuf, data];
+        }
+        setStatus('Parsing CSV...');
+        const csvText = await readFileAsText(dataFile);
+        return [lib, pdfBuf, parseCSV(csvText)];
+      })();
       const skuKey = csvData.length ? findHeaderKeyInsensitive(csvData[0], 'SKU') : null;
       const originKey = csvData.length ? findHeaderKeyInsensitive(csvData[0], 'Origin') || findHeaderKeyInsensitive(csvData[0], 'origin') : null;
 
@@ -1600,7 +1608,7 @@ export default function ExtractSKU() {
               </div>
               <div>
                 <label htmlFor="csv" className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload CSV File
+                  Upload CSV or Excel File
                 </label>
                 <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
                   selectedCsvFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400'
@@ -1641,7 +1649,7 @@ export default function ExtractSKU() {
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
-                        <p className="text-xs text-gray-500">CSV file</p>
+                        <p className="text-xs text-gray-500">CSV or Excel (.xlsx, .xls)</p>
                       </>
                     )}
                   </div>
@@ -1650,7 +1658,7 @@ export default function ExtractSKU() {
                   type="file"
                   id="csv"
                   name="csv"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   required
                   onChange={(e) => {
                     const file = e.target.files?.[0];
