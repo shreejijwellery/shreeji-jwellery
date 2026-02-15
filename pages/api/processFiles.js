@@ -3,6 +3,7 @@ import path from 'path';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import pdfParse from 'pdf-parse';
 import csv from 'csv-parser';
+import XLSX from 'xlsx';
 import { IncomingForm } from 'formidable';
 import { v4 as uuidv4 } from 'uuid';
 import Company from '../../models/company';
@@ -53,6 +54,14 @@ const extractCompany = (lines) => {
 };
 
 const getCSVData = async (filePath) => {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.xlsx' || ext === '.xls') {
+    const buffer = fs.readFileSync(filePath);
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(firstSheet);
+    return data;
+  }
   return new Promise((resolve, reject) => {
     const results = [];
     fs.createReadStream(filePath)
