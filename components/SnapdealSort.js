@@ -26,9 +26,10 @@ export default function SnapdealSort({
       const withPipeline = lines[SKUIndex + 1]?.trim()?.split('  ')?.[0]?.trim();
       name = withPipeline?.split('|')?.[1]?.trim();
     } else {
+      debugger
       const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
       if (PRODUCTNameIndex > -1) {
-        name = lines[PRODUCTNameIndex + 2]?.trim()?.split('  ')?.[0]?.trim();
+        name = lines[PRODUCTNameIndex + 1]?.trim()?.split('  ')?.[0]?.trim()?.split('|')?.[1]?.trim();
       }
     }
     return name || `Page_${i}`;
@@ -120,17 +121,23 @@ export default function SnapdealSort({
         pageData.push({ pageNumber: i, sku, qty, originName, company });
       }
 
+      const UNKNOWN_ORIGIN = 'Unknown Origin';
+      const isUnknown = (o) => (o || '') === UNKNOWN_ORIGIN;
+
       pageData.sort((a, b) => {
         if (csvFile) {
-          // Sort by origin first
-          if (a.originName !== b.originName) {
-            return a.originName.localeCompare(b.originName);
+          // 1) Known origins first, Unknown Origin last
+          const aUnknown = isUnknown(a.originName);
+          const bUnknown = isUnknown(b.originName);
+          if (aUnknown !== bUnknown) return aUnknown ? 1 : -1; // known first (a unknown → a after b)
+
+          // 2) Both Unknown Origin: sort by SKU
+          if (aUnknown && bUnknown) {
+            return (a.sku || '').localeCompare(b.sku || '');
           }
-          // Within Unknown Origin group, sort by SKU
-          if (a.originName === 'Unknown Origin' && b.originName === 'Unknown Origin') {
-            return a.sku.localeCompare(b.sku);
-          }
-          // For other origins, sort by quantity then company
+
+          // 3) Both known: sort by origin name, then qty, then company
+          if (a.originName !== b.originName) return a.originName.localeCompare(b.originName);
           if (a.qty !== b.qty) return a.qty - b.qty;
           return (a.company || '').localeCompare(b.company || '');
         } else {
