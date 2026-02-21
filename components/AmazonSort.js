@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 /**
- * Amazon Sort: PDF has 2 pages per order.
- * - Use only the first page of each order (pages 1, 3, 5, ...).
- * - From the second page (2, 4, 6, ...): extract SKU (in parentheses before HSN in description) and quantity.
- * - Draw SKU and quantity on the first page below Seller GSTIN boxes.
- * - Sort: single quantity first, then multiple quantity, then multiple SKUs last. Within group sort by SKU name.
+ * Amazon Sort: PDF has 2 or 3 pages per order (label + invoice, or label + invoice + extra details).
+ * - Detect order boundaries: label pages (e.g. "Ship to" / "Delivery address", no HSN) start a new order.
+ * - Use only the first (label) page of each order in the output.
+ * - Extract SKU and quantity from any invoice/detail page of that order (first page with (SKU) HSN wins).
+ * - Sort: single qty first, then multiple qty, then multiple SKUs last. Within group sort by SKU name.
  */
 export default function AmazonSort({
   allowed,
@@ -148,36 +148,71 @@ export default function AmazonSort({
       const pdf = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
       const numPages = pdf.numPages;
 
-      // 2 pages per order: order index k -> first page 2k+1, second page 2k+2
+      const descSkuRegex = /\(([^)]+)\)\s*HSN/gi;
+
+      // Walk by order: each order is 2 pages (label + invoice) or 3 pages (label + extra + invoice). Output = 1 page (label) per order.
       const orderData = [];
-      for (let k = 0; 2 * k + 1 <= numPages; k++) {
-        const firstPageNum = 2 * k + 1;
-        const secondPageNum = 2 * k + 2;
+      let labelPageNum = 1;
+      let orderIndex = 0;
 
-        let sku = null;
-        let qty = 1;
-        let skus = []; // for multi-SKU orders, collect all
+      const tryPage = async (pageNum) => {
+        if (pageNum > numPages) return { skus: [], sku: null, qty: 1, pageText: '' };
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const lines = reconstructLinesFromTextItems(textContent.items || []);
+        const pageText = (textContent.items || []).map(it => it.str || '').join(' ');
+        const descSkuMatches = [...pageText.matchAll(descSkuRegex)];
+        const foundSkus = descSkuMatches.length > 0
+          ? descSkuMatches.map(m => (m[1] || '').trim()).filter(Boolean)
+          : [];
+        const foundSku = foundSkus.length > 0 ? foundSkus[foundSkus.length - 1] : null;
+        const foundQty = extractAmazonQuantity(pageText, lines, textContent.items);
+        return { skus: foundSkus, sku: foundSku, qty: foundQty, pageText };
+      };
 
-        if (secondPageNum <= numPages) {
-          setStatus(`Reading order ${k + 1} (pages ${firstPageNum}-${secondPageNum})...`);
-          const secondPage = await pdf.getPage(secondPageNum);
-          const textContent = await secondPage.getTextContent();
-          const lines = reconstructLinesFromTextItems(textContent.items || []);
-          const pageText = (textContent.items || []).map(i => i.str || '').join(' ');
+      const isInvoicePage = (text) => {
+        const t = (text || '').toUpperCase();
+        return t.includes('PAYMENT TRANSACTION ID') || t.includes('TAX INVOICE') || t.includes('PAGE 2 OF 2');
+      };
 
-          // Only take text from () which is in description, just before HSN (e.g. "... (LX-I0TK-MEFD) HSN:7117")
-          const descSkuRegex = /\(([^)]+)\)\s*HSN/gi;
-          const descSkuMatches = [...pageText.matchAll(descSkuRegex)];
-          if (descSkuMatches.length > 0) {
-            skus = descSkuMatches.map(m => (m[1] || '').trim()).filter(Boolean);
-            sku = skus[skus.length - 1]; // primary SKU for display/sort
+      while (labelPageNum <= numPages) {
+        orderIndex++;
+        const page2 = labelPageNum + 1;
+        const page3 = labelPageNum + 2;
+        const firstPageNumber = labelPageNum;
+
+        setStatus(`Reading order ${orderIndex} (pages ${labelPageNum}-${Math.min(page3, numPages)})...`);
+        const fromPage2 = await tryPage(page2);
+        let sku = fromPage2.sku;
+        let qty = fromPage2.qty;
+        let skus = fromPage2.skus;
+
+        if (fromPage2.sku != null && page3 <= numPages) {
+          const fromPage3 = await tryPage(page3);
+          if (isInvoicePage(fromPage3.pageText)) {
+            labelPageNum += 3; // page 3 is invoice (Payment Transaction ID etc.), don't output it
+          } else {
+            labelPageNum += 2; // page 3 is next order's label
           }
-          qty = extractAmazonQuantity(pageText, lines, textContent.items);
+        } else if (fromPage2.sku != null) {
+          labelPageNum += 2; // 2-page order, no page 3
+        } else if (page3 <= numPages) {
+          const fromPage3 = await tryPage(page3);
+          if (fromPage3.sku != null) {
+            sku = fromPage3.sku;
+            skus = fromPage3.skus;
+            qty = fromPage3.qty;
+          } else {
+            qty = fromPage2.qty;
+          }
+          labelPageNum += 3; // 3-page order, skip page 3 in output
+        } else {
+          labelPageNum += 2;
         }
 
         orderData.push({
-          firstPageNumber: firstPageNum,
-          sku: sku || `Order_${k + 1}`,
+          firstPageNumber,
+          sku: sku || `Order_${orderIndex}`,
           qty: qty || 1,
           skus,
         });
