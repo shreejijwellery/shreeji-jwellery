@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import Select from 'react-select';
+import ItemSelectWithImage from './ItemSelectWithImage';
 import { fetchAllItems, fetchAllSections } from '../actions/actions_creators';
 import { FaEdit, FaSave, FaTimes, FaTrash, FaDownload } from 'react-icons/fa';
 import jsPDF from 'jspdf';
@@ -25,7 +27,11 @@ export default function WorkerBills(props) {
   const [selectedRecords, setSelectedRecords] = useState([]);
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState(null);
   const [user, setUser] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const isAdmin = user?.role === USER_ROLES.ADMIN || user?.role === USER_ROLES.ADMINISTRATOR;
+
+  const itemImageSrc = (url) =>
+    url ? `/api/item-image?url=${encodeURIComponent(url)}` : null;
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user'));
     if (userData) {
@@ -119,14 +125,112 @@ export default function WorkerBills(props) {
     setFilteredItems(items.filter(item => item.section === sectionId));
   };
 
-  const handleItemChange = e => {
-    const itemId = e.target.value;
-    const selectedItem = items.find(item => item._id === itemId);
+  const handleItemChange = (option) => {
+    if (!option) {
+      setNewWorkDetail(prevData => ({ ...prevData, item: '', item_rate: '' }));
+      return;
+    }
     setNewWorkDetail(prevData => ({
       ...prevData,
-      item: itemId,
-      item_rate: selectedItem?.rate || '',
+      item: option.value,
+      item_rate: option.rate ?? '',
     }));
+  };
+
+  const addWorkDetailItemOptions = filteredItems.map(item => ({
+    value: item._id,
+    label: item.name,
+    rate: item.rate,
+    imageUrl: item.imageUrl,
+  }));
+
+  const selectedItemOption = addWorkDetailItemOptions.find(
+    o => o.value === newWorkDetail.item
+  ) || null;
+
+  const formatItemOptionLabel = (option, { context }) => {
+    const src = itemImageSrc(option.imageUrl);
+    const handleImageClick = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (src) setImagePreviewUrl(src);
+    };
+    return (
+      <div className="flex items-center gap-2">
+        {src ? (
+          <button
+            type="button"
+            onClick={handleImageClick}
+            className="flex-shrink-0 rounded border border-gray-200 overflow-hidden hover:ring-2 hover:ring-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <img src={src} alt="" className="h-8 w-8 object-cover" />
+          </button>
+        ) : (
+          <div className="h-8 w-8 flex-shrink-0 rounded border border-gray-200 bg-gray-100 flex items-center justify-center text-gray-400 text-xs">—</div>
+        )}
+        <span>{option.label}</span>
+      </div>
+    );
+  };
+
+  const ItemInput = (props) => {
+    const { selectProps } = props;
+    const hideInput = !!selectProps.value && !selectProps.menuIsOpen;
+    const inputPlaceholder = selectProps.menuIsOpen ? 'Search...' : 'Select Item';
+    return (
+      <input
+        {...props}
+        placeholder={inputPlaceholder}
+        style={{
+          ...props.style,
+          ...(hideInput && {
+            width: 0,
+            minWidth: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+            position: 'absolute',
+          }),
+        }}
+      />
+    );
+  };
+
+  const ItemPlaceholder = () => null;
+
+  const ItemSingleValue = ({ data }) => {
+    const [imgError, setImgError] = React.useState(false);
+    const rawSrc = data?.imageUrl ? itemImageSrc(data.imageUrl) : null;
+    const src = rawSrc && !imgError ? rawSrc : null;
+    const handleImageClick = (e) => {
+      e.stopPropagation();
+      if (rawSrc) setImagePreviewUrl(rawSrc);
+    };
+    const showPlaceholder = !src;
+    return (
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleImageClick}
+          className={`flex-shrink-0 rounded border overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+            showPlaceholder
+              ? 'h-8 w-8 border-gray-200 bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200'
+              : 'h-8 w-8 border-gray-200 hover:ring-2 hover:ring-blue-300'
+          }`}
+        >
+          {src ? (
+            <img
+              src={src}
+              alt=""
+              className="h-8 w-8 object-cover block"
+              onError={() => setImgError(true)}
+            />
+          ) : (
+            <span className="text-xs text-gray-400">—</span>
+          )}
+        </button>
+        <span className="font-medium text-gray-800 truncate">{data?.label ?? 'Select Item'}</span>
+      </div>
+    );
   };
 
   const handleEditClick = detail => {
@@ -428,7 +532,33 @@ export default function WorkerBills(props) {
 
   return (
     <div className="container mx-auto p-4">
-      {/* Date Filter Inputs */}
+      {/* Image preview modal */}
+      {imagePreviewUrl && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setImagePreviewUrl(null)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Escape' && setImagePreviewUrl(null)}
+          aria-label="Close image"
+        >
+          <button
+            type="button"
+            onClick={() => setImagePreviewUrl(null)}
+            className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+            aria-label="Close"
+          >
+            <FaTimes className="w-6 h-6" />
+          </button>
+          <img
+            src={imagePreviewUrl}
+            alt="Item"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            role="presentation"
+          />
+        </div>
+      )}
 
       {selectedWorker && (
         <div className="bg-white shadow-lg rounded-lg p-4 mb-8">
@@ -447,18 +577,32 @@ export default function WorkerBills(props) {
               ))}
             </select>
 
-            <select
-              name="item"
-              value={newWorkDetail.item}
-              onChange={handleItemChange}
-              className="border border-gray-300 rounded-lg p-2">
-              <option value="">Select Item</option>
-              {filteredItems.map(item => (
-                <option key={item._id} value={item._id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+            <div className="min-w-[220px]">
+              <Select
+                isClearable
+                isSearchable
+                placeholder="Select Item"
+                options={addWorkDetailItemOptions}
+                value={selectedItemOption}
+                onChange={handleItemChange}
+                formatOptionLabel={formatItemOptionLabel}
+                components={{
+                  SingleValue: ItemSingleValue,
+                  Input: ItemInput,
+                  Placeholder: ItemPlaceholder,
+                }}
+                getOptionLabel={(o) => o.label}
+                getOptionValue={(o) => o.value}
+                classNamePrefix="select"
+                className="basic-single"
+                noOptionsMessage={() => newWorkDetail.section ? 'No items in this section' : 'Select section first'}
+                styles={{
+                  control: (base) => ({ ...base, minHeight: 38 }),
+                  valueContainer: (base) => ({ ...base, padding: '0 8px' }),
+                  singleValue: (base) => ({ ...base, margin: 0 }),
+                }}
+              />
+            </div>
 
             <input
               type="number"
@@ -602,28 +746,24 @@ export default function WorkerBills(props) {
                       </select>
 
                       {/* Editable Dropdown for Item */}
-                      <select
-                        name="item"
-                        value={editData.item}
-                        onChange={e => {
-                          const itemId = e.target.value;
-                          const selectedItem = items.find(item => item._id === itemId);
-                          setEditData(prevData => ({
-                            ...prevData,
-                            item: itemId,
-                            item_name: selectedItem ? selectedItem.name : '',
-                            item_rate: selectedItem ? selectedItem.rate : 0,
-                            amount: selectedItem ? selectedItem.rate * editData.piece : 0,
-                          }));
-                        }}
-                        className="border border-gray-300 rounded-lg p-2 w-32">
-                        <option value="">Select Item</option>
-                        {filteredItems.map(item => (
-                          <option key={item._id} value={item._id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="w-40">
+                        <ItemSelectWithImage
+                          items={filteredItems}
+                          value={editData.item}
+                          onChange={option => {
+                            setEditData(prevData => ({
+                              ...prevData,
+                              item: option?.value ?? '',
+                              item_name: option?.label ?? '',
+                              item_rate: option?.rate ?? 0,
+                              amount: (option?.rate ?? 0) * editData.piece,
+                            }));
+                          }}
+                          placeholder="Select Item"
+                          noOptionsMessage="No items"
+                          styles={{ control: (base) => ({ ...base, minHeight: 36 }) }}
+                        />
+                      </div>
 
                       <input
                         type="number"

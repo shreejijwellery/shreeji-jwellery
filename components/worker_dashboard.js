@@ -6,6 +6,7 @@ import 'jspdf-autotable';
 import moment from 'moment';
 import { PAYMENT_STATUS, USER_ROLES } from '../lib/constants';
 import Select from 'react-select';
+import ItemSelectWithImage from './ItemSelectWithImage';
 import { HTTP } from '../actions/actions_creators';
 import axios from 'axios';
 export default function PayableDashboard(props) {
@@ -575,11 +576,6 @@ export default function PayableDashboard(props) {
     label: section.name,
   }));
 
-  const itemOptions = uniqueItems.map(item => ({
-    value: item._id,
-    label: `${item.name} (${uniqueSections.find(sec => sec._id === item.section)?.name})`,
-  }));
-
   return (
     <div className="flex flex-col items-center p-4 bg-gray-100 min-h-screen">
       {/* Filters in One Line */}
@@ -627,14 +623,14 @@ export default function PayableDashboard(props) {
           classNamePrefix="select"
           placeholder="Select Sections"
         />
-        <Select
-            isMulti
-            options={itemOptions}
-            value={itemOptions.filter(option => selectedItems.includes(option.value))}
-          onChange={selected => setSelectedItems(selected.map(option => option.value))}
-          className="basic-multi-select w-64 "
-          classNamePrefix="select"
+        <ItemSelectWithImage
+          isMulti
+          items={uniqueItems}
+          value={selectedItems}
+          onChange={setSelectedItems}
+          className="w-64"
           placeholder="Select Items"
+          noOptionsMessage="No items"
         />
         {isAdmin && (
           <select

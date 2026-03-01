@@ -5,7 +5,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import moment from 'moment';
 import { FINAL_PRODUCT_SECTION, PAYMENT_STATUS } from '../lib/constants';
-import Select from 'react-select';
+import ItemSelectWithImage from '../components/ItemSelectWithImage';
 import { toast } from 'react-toastify';
 import _ from 'lodash';
 import ItemOptionsForFinalProduct from '../components/ItemOptionsForFinalProduct';
@@ -239,12 +239,7 @@ export default function InProcessProductDashboard(props) {
     }
   };
 
-  const itemOptions = items
-    .filter(item => item.section === selectedSection?._id)
-    .map(item => ({
-      value: item._id,
-      label: item.name,
-    }));
+  const inProcessItems = items.filter(item => item.section === selectedSection?._id);
 
   const handleCreateRecord = async () => {
     if (!newItem || !newPiece) {
@@ -385,12 +380,11 @@ export default function InProcessProductDashboard(props) {
         <div className="flex flex-col p-4 w-full md:w-4/5 h-full">
           {/* Add New Record Form */}
           <div className="flex  justify-start mb-4 space-x-2">
-            <Select
-              options={itemOptions}
+            <ItemSelectWithImage
+              items={inProcessItems}
               value={newItem}
               onChange={setNewItem}
-              className="basic-single w-full md:w-64"
-              classNamePrefix="select"
+              className="w-full md:w-64"
               placeholder="Select Item"
             />
             <input

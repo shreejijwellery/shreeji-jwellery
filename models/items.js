@@ -8,6 +8,7 @@ const ItemSchema = new mongoose.Schema({
   lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   company : { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
   isDeleted: { type: Boolean, default: false },
+  imageUrl: { type: String, default: null },
 }, {timestamps: true});
 
 export default mongoose.models.Item || mongoose.model('Item', ItemSchema);

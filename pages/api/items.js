@@ -31,7 +31,7 @@ const handler = async (req, res) => {
   } else if (method === 'POST') {
     const body = req.body;
     const { _id, company } = req.userData;
-    const { name, rate, section } = body;
+    const { name, rate, section, imageUrl } = body;
 
     try {
       // Get the section details to check if it's "Final Product"
@@ -44,17 +44,20 @@ const handler = async (req, res) => {
       // Check if the section is "Final Product" (case-insensitive)
       const isFinalProductSection = sectionDetails.name.toLowerCase() === 'final product';
 
+      const itemPayload = (sec) => ({
+        name,
+        rate,
+        section: sec._id,
+        lastModifiedBy: _id,
+        company,
+        ...(imageUrl && { imageUrl }),
+      });
+
       if (isFinalProductSection) {
-        // If it's Final Product, add the item to ALL sections
+        // If it's Final Product, add the item to ALL sections (same imageUrl for each)
         const allSections = await Section.find({ isDeleted: false, company }).lean();
         
-        const itemsToCreate = allSections.map(sec => ({
-          name,
-          rate,
-          section: sec._id,
-          lastModifiedBy: _id,
-          company
-        }));
+        const itemsToCreate = allSections.map(sec => itemPayload(sec));
 
         // Bulk insert all items
         const createdItems = await Item.insertMany(itemsToCreate);
@@ -71,7 +74,7 @@ const handler = async (req, res) => {
         });
       } else {
         // Normal behavior: create item only in the selected section
-        const item = new Item({ name, lastModifiedBy: _id, rate, section, company });
+        const item = new Item(itemPayload({ _id: section }));
         const result = await item.save();
         return res.status(200).json({ message: 'Item created successfully!', item: result });
       }
@@ -92,17 +95,43 @@ const handler = async (req, res) => {
       res.status(500).json({ message: 'Error deleting item', error: error.message });
     }
   } else if (method === 'PUT') {
-    const { id } = req.query; // Extract id from query parameters
     const userId = req?.userData?._id;
+    const company = req?.userData?.company;
     const body = req.body;
-    const { _id, name, user, rate, section } = body; // Destructure the body to get item details
+    const { _id, name, user, rate, section, imageUrl, applyToSameNameItems } = body;
     try {
-      const updatedItem = await Item.findByIdAndUpdate(
-        _id,
-        { name, rate, section, lastModifiedBy: userId },
-        { new: true } // Return the updated document
-      );
-      res.status(200).json({ item: updatedItem, message: 'Item updated successfully!' });
+      const item = await Item.findOne({ _id, company, isDeleted: false }).lean();
+      if (!item) {
+        return res.status(404).json({ message: 'Item not found' });
+      }
+
+      // Image update (replace or delete): only when explicitly requested (applyToSameNameItems is boolean)
+      if (imageUrl !== undefined && typeof applyToSameNameItems === 'boolean') {
+        const filter = applyToSameNameItems
+          ? { name: item.name, company, isDeleted: false }
+          : { _id, company };
+        await Item.updateMany(filter, {
+          $set: { imageUrl: imageUrl || null, lastModifiedBy: userId },
+        });
+      }
+
+      // Name/rate/section update (single item only)
+      const hasFieldUpdate = name !== undefined || rate !== undefined || section !== undefined;
+      if (hasFieldUpdate) {
+        const updateFields = { lastModifiedBy: userId };
+        if (name !== undefined) updateFields.name = name;
+        if (rate !== undefined) updateFields.rate = rate;
+        if (section !== undefined) updateFields.section = section;
+        await Item.updateOne({ _id, company }, { $set: updateFields });
+      }
+
+      const updatedItem = await Item.findById(_id).lean();
+      res.status(200).json({
+        item: updatedItem,
+        message: imageUrl !== undefined && applyToSameNameItems
+          ? 'Image updated for all same-name items!'
+          : 'Item updated successfully!',
+      });
     } catch (error) {
       res.status(500).json({ message: 'Error updating item', error: error.message });
     }
