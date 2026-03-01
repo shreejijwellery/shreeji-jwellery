@@ -1,19 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { ToastContainer, toast } from 'react-toastify';
-import { FaTrash, FaEdit, FaPlus } from 'react-icons/fa'; 
+import { FaTrash, FaEdit, FaPlus, FaImage, FaUpload, FaTimes } from 'react-icons/fa';
 import Loader from './loader';
+import ImageWithPreview from './ImageWithPreview';
 import { fetchAllItems, fetchAllSections, HTTP } from '../actions/actions_creators';
 
 const ItemsManager = (props) => {
     const { user } = props;
+    const [allItems, setAllItems] = useState([]);
     const [items, setItems] = useState([]);
     const [sections, setSections] = useState([]);
     const [selectedSection, setSelectedSection] = useState('');
     const [newItem, setNewItem] = useState({ name: '', value: '', rate: '' });
+    const [itemImageFile, setItemImageFile] = useState(null);
+    const [itemImagePreview, setItemImagePreview] = useState(null);
     const [editableItemId, setEditableItemId] = useState(null);
     const [showNewItemRow, setShowNewItemRow] = useState(false);
-    const [loading, setLoading] = useState(false); // New loading state
+    const [loading, setLoading] = useState(false);
+    // Image update: pending URL after upload, item to apply to, and modal for same-name choice
+    const [pendingImageUrl, setPendingImageUrl] = useState(null);
+    const [pendingImageItem, setPendingImageItem] = useState(null);
+    const [showSameNameModal, setShowSameNameModal] = useState(false);
+    const [sameNameModalMode, setSameNameModalMode] = useState(null); // 'replace' | 'delete'
+    const [hiddenFileInputKey, setHiddenFileInputKey] = useState(0);
 
     useEffect(() => {
         fetchSections();
@@ -37,12 +47,11 @@ const ItemsManager = (props) => {
         setLoading(true); // Start loading
         try {
             const response = await fetchAllItems(isCallApi);
+            setAllItems(response || []);
             if (!selectedSection) {
-                setItems(response);
-                return;
-            }else{
-                const filteredItems = response.filter((item) => item.section === selectedSection);
-                setItems(filteredItems);
+                setItems(response || []);
+            } else {
+                setItems((response || []).filter((item) => item.section === selectedSection));
             }
         } catch (error) {
             toast.error('Failed to fetch items');
@@ -58,19 +67,45 @@ const ItemsManager = (props) => {
         setNewItem({ ...newItem, [name]: value });
     };
 
+    const uploadItemImage = async (file) => {
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await axios.post('/api/upload-item-image', formData, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        return res.data?.url;
+    };
+
     const handleAddItem = async (e) => {
         if (!selectedSection) {
             toast.warn('Section is required');
             return;
         }
         e.preventDefault();
-        const payload = { ...newItem, user: { _id: user?._id ?? '', name: user?.name ?? '' }, section: selectedSection };
+        let imageUrl = null;
+        if (itemImageFile) {
+            try {
+                imageUrl = await uploadItemImage(itemImageFile);
+            } catch (err) {
+                toast.error(err.response?.data?.message || 'Failed to upload image');
+                return;
+            }
+        }
+        const payload = {
+            ...newItem,
+            user: { _id: user?._id ?? '', name: user?.name ?? '' },
+            section: selectedSection,
+            ...(imageUrl && { imageUrl }),
+        };
         setLoading(true); // Start loading
         try {
-            const response = await HTTP('POST','/items', payload);
+            const response = await HTTP('POST', '/items', payload);
             fetchItems(true);
             setItems([response.item, ...items]);
             setNewItem({ name: '', rate: '' });
+            setItemImageFile(null);
+            setItemImagePreview(null);
             
             // Show different message if item was added to multiple sections
             if (response.itemsCreated && response.itemsCreated > 1) {
@@ -115,18 +150,209 @@ const ItemsManager = (props) => {
         }
     };
 
-    const handleAddNewRow = () => setShowNewItemRow(true);
+    const handleAddNewRow = () => {
+        setShowNewItemRow(true);
+        setItemImageFile(null);
+        setItemImagePreview(null);
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.warn('Please select an image (JPEG, PNG, GIF, WebP)');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.warn('Image must be under 5MB');
+            return;
+        }
+        setItemImageFile(file);
+        const reader = new FileReader();
+        reader.onload = () => setItemImagePreview(reader.result);
+        reader.readAsDataURL(file);
+    };
 
     const handleSaveNewItem = async (e) => {
         await handleAddItem(e);
         setShowNewItemRow(false);
     };
 
+    const getSameNameCount = (item) => (allItems || []).filter((i) => i.name === item.name).length;
+
+    const triggerImageFileInput = (item) => {
+        setPendingImageItem(item);
+        setSameNameModalMode(null);
+        document.getElementById('item-image-file-input')?.click();
+    };
+
+    const handleImageFileChosen = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file || !pendingImageItem) return;
+        if (!file.type.startsWith('image/')) {
+            toast.warn('Please select an image (JPEG, PNG, GIF, WebP)');
+            setPendingImageItem(null);
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.warn('Image must be under 5MB');
+            setPendingImageItem(null);
+            return;
+        }
+        setLoading(true);
+        try {
+            const url = await uploadItemImage(file);
+            const sameCount = getSameNameCount(pendingImageItem);
+            if (sameCount > 1) {
+                setPendingImageUrl(url);
+                setShowSameNameModal(true);
+                setSameNameModalMode('replace');
+            } else {
+                await applyImageUpdate(pendingImageItem._id, url, false);
+                setPendingImageItem(null);
+                toast.success('Image updated');
+            }
+        } catch (err) {
+            toast.error(err.response?.data?.message || 'Failed to upload image');
+            setPendingImageItem(null);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const applyImageUpdate = async (itemId, imageUrl, applyToSameNameItems) => {
+        const item = allItems.find((i) => i._id === itemId) || pendingImageItem;
+        if (!item) return;
+        setLoading(true);
+        try {
+            await HTTP('PUT', '/items', {
+                _id: item._id,
+                name: item.name,
+                rate: item.rate,
+                section: item.section,
+                imageUrl,
+                applyToSameNameItems,
+            });
+            fetchItems(true);
+            toast.success(applyToSameNameItems ? 'Image updated for all same-name items!' : 'Image updated');
+        } catch (error) {
+            toast.error('Failed to update image');
+        } finally {
+            setLoading(false);
+            setPendingImageUrl(null);
+            setPendingImageItem(null);
+            setShowSameNameModal(false);
+        }
+    };
+
+    const handleConfirmSameNameModal = (applyToSameName) => {
+        if (sameNameModalMode === 'replace' && pendingImageUrl && pendingImageItem) {
+            applyImageUpdate(pendingImageItem._id, pendingImageUrl, applyToSameName);
+        } else if (sameNameModalMode === 'delete' && pendingImageItem) {
+            removeItemImage(pendingImageItem._id, applyToSameName);
+        }
+    };
+
+    const removeItemImage = async (itemId, applyToSameNameItems = false) => {
+        const item = allItems.find((i) => i._id === itemId) || pendingImageItem;
+        if (!item) return;
+        setLoading(true);
+        try {
+            await HTTP('PUT', '/items', {
+                _id: item._id,
+                name: item.name,
+                rate: item.rate,
+                section: item.section,
+                imageUrl: null,
+                applyToSameNameItems: !!applyToSameNameItems,
+            });
+            fetchItems(true);
+            toast.success(applyToSameNameItems ? 'Image removed from all same-name items!' : 'Image removed');
+        } catch (error) {
+            toast.error('Failed to remove image');
+        } finally {
+            setLoading(false);
+            setPendingImageItem(null);
+            setShowSameNameModal(false);
+        }
+    };
+
+    const handleDeleteImageClick = (item) => {
+        const sameCount = getSameNameCount(item);
+        if (sameCount > 1) {
+            setPendingImageItem(item);
+            setSameNameModalMode('delete');
+            setShowSameNameModal(true);
+        } else {
+            if (window.confirm('Remove image from this item?')) {
+                removeItemImage(item._id, false);
+            }
+        }
+    };
+
+    const sameNameCount = pendingImageItem ? getSameNameCount(pendingImageItem) : 0;
+
     return (
         <div className="relative p-8 bg-gray-50 rounded-lg shadow-lg max-w-4xl mx-auto">
-             <ToastContainer /> 
+             <ToastContainer />
+            <input
+                id="item-image-file-input"
+                key={hiddenFileInputKey}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={handleImageFileChosen}
+            />
             {loading && (
                <Loader />
+            )}
+            {/* Same-name modal: apply image to only this item or all same-name items */}
+            {showSameNameModal && pendingImageItem && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                            {sameNameModalMode === 'delete' ? 'Remove image' : 'Update image'}
+                        </h3>
+                        <p className="text-gray-600 mb-4">
+                            {sameNameModalMode === 'delete'
+                                ? `"${pendingImageItem.name}" appears in ${sameNameCount} section(s).`
+                                : `"${pendingImageItem.name}" exists in ${sameNameCount} section(s).`}
+                        </p>
+                        <p className="text-sm text-gray-500 mb-4">
+                            {sameNameModalMode === 'delete'
+                                ? 'Remove image from this item only or from all same-name items?'
+                                : 'Apply this image to this item only or to all same-name items?'}
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <button
+                                type="button"
+                                onClick={() => handleConfirmSameNameModal(false)}
+                                className="w-full py-2.5 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 font-medium"
+                            >
+                                Only this item
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleConfirmSameNameModal(true)}
+                                className="w-full py-2.5 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium"
+                            >
+                                Same name in all sections ({sameNameCount} items)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowSameNameModal(false);
+                                    setPendingImageUrl(null);
+                                    setPendingImageItem(null);
+                                }}
+                                className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
             <h1 className="text-3xl font-bold text-gray-800 mb-6">Items Manager</h1>
 
@@ -162,6 +388,7 @@ const ItemsManager = (props) => {
                         <tr className="bg-gray-100 sticky">
                             <th className="py-3 px-4 text-left">Name</th>
                             <th className="py-3 px-4 text-left">Rate</th>
+                            <th className="py-3 px-4 text-left">Image</th>
                             <th className="py-3 px-4 text-left">Actions</th>
                         </tr>
                     </thead>
@@ -188,6 +415,22 @@ const ItemsManager = (props) => {
                                 />
                             </td>
                             <td className="py-2 px-4">
+                                <div className="flex items-center gap-2">
+                                    <label className="cursor-pointer text-sm text-blue-600 hover:underline">
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/gif,image/webp"
+                                            onChange={handleImageChange}
+                                            className="hidden"
+                                        />
+                                        {itemImageFile ? itemImageFile.name : 'Choose image'}
+                                    </label>
+                                    {itemImagePreview && (
+                                        <img src={itemImagePreview} alt="Preview" className="h-10 w-10 object-cover rounded border" />
+                                    )}
+                                </div>
+                            </td>
+                            <td className="py-2 px-4">
                                 <button
                                     onClick={handleSaveNewItem}
                                     className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
@@ -207,6 +450,7 @@ const ItemsManager = (props) => {
                 <th className="py-3 px-4 text-left">Section</th>
                 <th className="py-3 px-4 text-left">Name</th>
                 <th className="py-3 px-4 text-left">Rate</th>
+                <th className="py-3 px-4 text-left">Image</th>
                 <th className="py-3 px-4 text-left">Actions</th>
             </tr>
         </thead>
@@ -244,6 +488,44 @@ const ItemsManager = (props) => {
                             />
                         ) : (
                             item.rate
+                        )}
+                    </td>
+                    <td className="py-2 px-4">
+                        {item.imageUrl ? (
+                            <div className="flex items-center gap-2">
+                                <ImageWithPreview
+                                    src={`/api/item-image?url=${encodeURIComponent(item.imageUrl)}`}
+                                    alt={item.name}
+                                    thumbnailClass="h-10 w-10"
+                                />
+                                <div className="flex flex-col gap-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => triggerImageFileInput(item)}
+                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition"
+                                        title="Replace image"
+                                    >
+                                        <FaImage className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteImageClick(item)}
+                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition"
+                                        title="Delete image"
+                                    >
+                                        <FaTimes className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => triggerImageFileInput(item)}
+                                className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition"
+                            >
+                                <FaUpload className="w-4 h-4" />
+                                Upload
+                            </button>
                         )}
                     </td>
                     <td className="py-2 px-4 flex space-x-2">

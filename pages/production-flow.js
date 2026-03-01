@@ -6,6 +6,7 @@ import 'jspdf-autotable';
 import moment from 'moment';
 import { FINAL_PRODUCT_SECTION } from '../lib/constants';
 import Select from 'react-select';
+import ItemSelectWithImage from '../components/ItemSelectWithImage';
 import { toast } from 'react-toastify';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
 
@@ -355,18 +356,7 @@ export default function ProductionFlowDashboard() {
     doc.save(`production_flow_${moment().format('YYYY-MM-DD')}.pdf`);
   };
 
-  const itemOptions = items.map(item => ({
-    value: item._id,
-    label: item.name
-  }));
-  
-  // Filter items for Final Product section (for columns 1 and 5)
-  const finalProductItemOptions = items
-    .filter(item => item.section === finalProductSection?._id)
-    .map(item => ({
-      value: item._id,
-      label: item.name
-    }));
+  const finalProductItems = items.filter(item => item.section === finalProductSection?._id);
 
   const sectionOptions = allSections.map(section => ({
     value: section._id,
@@ -388,21 +378,13 @@ export default function ProductionFlowDashboard() {
     const total = columnData.reduce((sum, item) => sum + item.totalPiece, 0);
     
     // Determine which items to show in dropdown
-    let itemOptionsToUse;
+    let itemsToUse;
     if (useFilteredItems) {
-      // Columns 1 and 5: Show only Final Product section items
-      itemOptionsToUse = finalProductItemOptions;
+      itemsToUse = finalProductItems;
     } else if (showSectionFilter && filters.selectedSection) {
-      // Middle columns with section selected: Show only items from that section
-      itemOptionsToUse = items
-        .filter(item => item.section === filters.selectedSection.value)
-        .map(item => ({
-          value: item._id,
-          label: item.name
-        }));
+      itemsToUse = items.filter(item => item.section === filters.selectedSection.value);
     } else {
-      // Middle columns without section: Show all items
-      itemOptionsToUse = itemOptions;
+      itemsToUse = items;
     }
     
     // Group data by section if section filter is not applied
@@ -492,20 +474,20 @@ export default function ProductionFlowDashboard() {
           
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Items</label>
-            <Select
+            <ItemSelectWithImage
               isMulti
-              options={itemOptionsToUse}
-              value={itemOptionsToUse.filter(opt => filters.selectedItems.includes(opt.value))}
+              items={itemsToUse}
+              value={filters.selectedItems}
               onChange={selected => {
                 if (columnIndex !== null) {
-                  updateMiddleColumnFilter(columnIndex, 'selectedItems', selected.map(s => s.value));
+                  updateMiddleColumnFilter(columnIndex, 'selectedItems', selected);
                 } else {
-                  setFilters({ ...filters, selectedItems: selected.map(s => s.value) });
+                  setFilters({ ...filters, selectedItems: selected });
                 }
               }}
               className="text-xs"
-              classNamePrefix="select"
               placeholder="All items..."
+              noOptionsMessage="No items"
               styles={{
                 control: (base) => ({ ...base, minHeight: '28px', fontSize: '12px' }),
                 menu: (base) => ({ ...base, fontSize: '12px' })
