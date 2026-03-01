@@ -18,6 +18,8 @@ const ItemsManager = (props) => {
     const [editableItemId, setEditableItemId] = useState(null);
     const [showNewItemRow, setShowNewItemRow] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [imageActionItemId, setImageActionItemId] = useState(null);
+    const [imageActionLoading, setImageActionLoading] = useState(false);
     // Image update: pending URL after upload, item to apply to, and modal for same-name choice
     const [pendingImageUrl, setPendingImageUrl] = useState(null);
     const [pendingImageItem, setPendingImageItem] = useState(null);
@@ -200,6 +202,8 @@ const ItemsManager = (props) => {
             setPendingImageItem(null);
             return;
         }
+        setImageActionItemId(pendingImageItem._id);
+        setImageActionLoading(true);
         setLoading(true);
         try {
             const url = await uploadItemImage(file);
@@ -218,12 +222,15 @@ const ItemsManager = (props) => {
             setPendingImageItem(null);
         } finally {
             setLoading(false);
+            setImageActionLoading(false);
         }
     };
 
     const applyImageUpdate = async (itemId, imageUrl, applyToSameNameItems) => {
         const item = allItems.find((i) => i._id === itemId) || pendingImageItem;
         if (!item) return;
+        setImageActionItemId(itemId);
+        setImageActionLoading(true);
         setLoading(true);
         try {
             await HTTP('PUT', '/items', {
@@ -240,6 +247,8 @@ const ItemsManager = (props) => {
             toast.error('Failed to update image');
         } finally {
             setLoading(false);
+            setImageActionLoading(false);
+            setImageActionItemId(null);
             setPendingImageUrl(null);
             setPendingImageItem(null);
             setShowSameNameModal(false);
@@ -257,6 +266,8 @@ const ItemsManager = (props) => {
     const removeItemImage = async (itemId, applyToSameNameItems = false) => {
         const item = allItems.find((i) => i._id === itemId) || pendingImageItem;
         if (!item) return;
+        setImageActionItemId(itemId);
+        setImageActionLoading(true);
         setLoading(true);
         try {
             await HTTP('PUT', '/items', {
@@ -273,6 +284,8 @@ const ItemsManager = (props) => {
             toast.error('Failed to remove image');
         } finally {
             setLoading(false);
+            setImageActionLoading(false);
+            setImageActionItemId(null);
             setPendingImageItem(null);
             setShowSameNameModal(false);
         }
@@ -328,14 +341,16 @@ const ItemsManager = (props) => {
                             <button
                                 type="button"
                                 onClick={() => handleConfirmSameNameModal(false)}
-                                className="w-full py-2.5 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 font-medium"
+                                disabled={loading}
+                                className="w-full py-2.5 px-4 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 Only this item
                             </button>
                             <button
                                 type="button"
                                 onClick={() => handleConfirmSameNameModal(true)}
-                                className="w-full py-2.5 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium"
+                                disabled={loading}
+                                className="w-full py-2.5 px-4 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 Same name in all sections ({sameNameCount} items)
                             </button>
@@ -346,6 +361,7 @@ const ItemsManager = (props) => {
                                     setPendingImageUrl(null);
                                     setPendingImageItem(null);
                                 }}
+                                disabled={loading}
                                 className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm"
                             >
                                 Cancel
@@ -491,42 +507,61 @@ const ItemsManager = (props) => {
                         )}
                     </td>
                     <td className="py-2 px-4">
-                        {item.imageUrl ? (
-                            <div className="flex items-center gap-2">
-                                <ImageWithPreview
-                                    src={`/api/item-image?url=${encodeURIComponent(item.imageUrl)}`}
-                                    alt={item.name}
-                                    thumbnailClass="h-10 w-10"
-                                />
-                                <div className="flex flex-col gap-0.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => triggerImageFileInput(item)}
-                                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition"
-                                        title="Replace image"
-                                    >
-                                        <FaImage className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDeleteImageClick(item)}
-                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition"
-                                        title="Delete image"
-                                    >
-                                        <FaTimes className="w-3.5 h-3.5" />
-                                    </button>
+                        {(() => {
+                            const rowBusy = imageActionLoading && imageActionItemId === item._id;
+                            const imgSrc = `/api/item-image?url=${encodeURIComponent(item.imageUrl || '')}`;
+                            return item.imageUrl ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="relative">
+                                        <ImageWithPreview
+                                            src={imgSrc}
+                                            alt={item.name}
+                                            thumbnailClass="h-10 w-10"
+                                            className={rowBusy ? 'opacity-60 pointer-events-none' : ''}
+                                        />
+                                        {rowBusy && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => triggerImageFileInput(item)}
+                                            disabled={rowBusy || loading}
+                                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Replace image"
+                                        >
+                                            <FaImage className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteImageClick(item)}
+                                            disabled={rowBusy || loading}
+                                            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="Delete image"
+                                        >
+                                            <FaTimes className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => triggerImageFileInput(item)}
-                                className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition"
-                            >
-                                <FaUpload className="w-4 h-4" />
-                                Upload
-                            </button>
-                        )}
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => triggerImageFileInput(item)}
+                                    disabled={rowBusy || loading}
+                                    className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {rowBusy ? (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent" />
+                                    ) : (
+                                        <FaUpload className="w-4 h-4" />
+                                    )}
+                                    {rowBusy ? 'Uploading...' : 'Upload'}
+                                </button>
+                            );
+                        })()}
                     </td>
                     <td className="py-2 px-4 flex space-x-2">
                         <button
