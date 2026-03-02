@@ -1452,12 +1452,12 @@ export default function ExtractSKU() {
             </button>
             <button
               onClick={() => setSelectedTab('excel')}
-              disabled={!featureFlags || featureFlags.isExcelFromPDF !== true}
+              disabled={!flagsLoading && (!featureFlags || featureFlags.isExcelFromPDF !== true)}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'excel'
                   ? 'border-blue-400 text-blue-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${(!featureFlags || featureFlags.isExcelFromPDF !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${!flagsLoading && (!featureFlags || featureFlags.isExcelFromPDF !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1468,12 +1468,12 @@ export default function ExtractSKU() {
             </button>
             <button
               onClick={() => setSelectedTab('inventory')}
-              disabled={!checkFeature('isSKUInventory')}
+              disabled={!flagsLoading && !checkFeature('isSKUInventory')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'inventory'
                   ? 'border-blue-400 text-blue-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${!flagsLoading && !checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1484,12 +1484,12 @@ export default function ExtractSKU() {
             </button>
             <button
               onClick={() => setSelectedTab('cancelled-orders')}
-              disabled={!checkFeature('isCancelledOrders')}
+              disabled={!flagsLoading && !checkFeature('isCancelledOrders')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'cancelled-orders'
                   ? 'border-red-400 text-red-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!checkFeature('isCancelledOrders') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${!flagsLoading && !checkFeature('isCancelledOrders') ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1500,12 +1500,12 @@ export default function ExtractSKU() {
             </button>
             <button
               onClick={() => setSelectedTab('returns')}
-              disabled={!checkFeature('isReturns')}
+              disabled={!flagsLoading && !checkFeature('isReturns')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'returns'
                   ? 'border-amber-400 text-amber-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!checkFeature('isReturns') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${!flagsLoading && !checkFeature('isReturns') ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
