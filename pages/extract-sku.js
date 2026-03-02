@@ -1498,6 +1498,22 @@ export default function ExtractSKU() {
                 <span>Cancelled Orders</span>
               </div>
             </button>
+            <button
+              onClick={() => setSelectedTab('returns')}
+              disabled={!checkFeature('isReturns')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'returns'
+                  ? 'border-amber-400 text-amber-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              } ${!checkFeature('isReturns') ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Returns</span>
+              </div>
+            </button>
             </nav>
           </div>
         </div>
@@ -1993,6 +2009,19 @@ export default function ExtractSKU() {
             </div>
           ) : (
             <CancelOrder />
+          )
+        )}
+
+        {selectedTab === 'returns' && (
+          !checkFeature('isReturns') ? (
+            <div className="p-4">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <h2 className="text-xl font-semibold text-yellow-800 mb-2">Feature Not Available</h2>
+                <p className="text-yellow-700">Returns feature is not enabled for your company. Please contact your administrator.</p>
+              </div>
+            </div>
+          ) : (
+            <CancelOrder apiPath="returns" title="Returns" />
           )
         )}
 

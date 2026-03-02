@@ -185,6 +185,7 @@ const SettingsTabs = () => {
                           { key: 'isExcelFromPDF', label: 'Excel from PDF' },
                           { key: 'isSKUInventory', label: 'SKU Inventory' },
                           { key: 'isCancelledOrders', label: 'Cancelled Orders' },
+                          { key: 'isReturns', label: 'Returns' },
                         ]
                       },
                       {

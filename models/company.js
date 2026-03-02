@@ -10,6 +10,7 @@ const CompanySchema = new mongoose.Schema({
         isExcelFromPDF: { type: Boolean, default: false },
         isSKUInventory: { type: Boolean, default: false },
         isCancelledOrders: { type: Boolean, default: false },
+        isReturns: { type: Boolean, default: false },
         
         // Billing & Payment Features
         isPartyBills: { type: Boolean, default: false },

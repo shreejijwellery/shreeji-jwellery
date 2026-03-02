@@ -4,7 +4,8 @@ import * as XLSX from 'xlsx';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
 
-export default function CancelOrder() {
+export default function CancelOrder({ apiPath = 'cancelled-orders', title = 'Cancelled Orders' }) {
+  const apiBase = `/api/${apiPath}`;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -120,7 +121,7 @@ export default function CancelOrder() {
     try {
       const token = localStorage.getItem('token');
       // Fetch all dates by using a wide range
-      const { data } = await axios.get('/api/cancelled-orders?startDate=2020-01-01&endDate=2099-12-31', {
+      const { data } = await axios.get(`${apiBase}?startDate=2020-01-01&endDate=2099-12-31`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -174,7 +175,7 @@ export default function CancelOrder() {
       if (filterCompany) params.append('companyName', filterCompany);
       if (filterSKU) params.append('sku', filterSKU);
 
-      const { data } = await axios.get(`/api/cancelled-orders?${params.toString()}`, {
+      const { data } = await axios.get(`${apiBase}?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -197,8 +198,8 @@ export default function CancelOrder() {
         setError(null);
       }
     } catch (err) {
-      console.error('Error fetching cancelled orders:', err);
-      setError(err.response?.data?.message || 'Failed to fetch cancelled orders');
+      console.error(`Error fetching ${title.toLowerCase()}:`, err);
+      setError(err.response?.data?.message || `Failed to fetch ${title.toLowerCase()}`);
     } finally {
       setLoading(false);
     }
@@ -366,6 +367,16 @@ export default function CancelOrder() {
     return keys.find(k => (k || '').trim().toUpperCase() === target.toUpperCase());
   };
 
+  /** Try multiple possible header names (case-insensitive); returns first match. */
+  const findHeaderKeyFromAlternatives = (row, alternatives) => {
+    if (!row || !Array.isArray(alternatives)) return null;
+    for (const name of alternatives) {
+      const key = findHeaderKeyInsensitive(row, name);
+      if (key) return key;
+    }
+    return null;
+  };
+
   const readFileAsArrayBuffer = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -397,18 +408,54 @@ export default function CancelOrder() {
       const arrayBuffer = await readFileAsArrayBuffer(file);
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(firstSheet);
 
+      // Try with first row as headers; if required columns missing, try raw rows and find header row
+      let data = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
       if (data.length === 0) throw new Error('Excel file is empty');
 
-      // Find headers
       const firstRow = data[0];
-      const styleIdKey = findHeaderKeyInsensitive(firstRow, 'Style Id') || findHeaderKeyInsensitive(firstRow, 'SKU');
-      const quantityKey = findHeaderKeyInsensitive(firstRow, 'Quantity');
-      const companyKey = findHeaderKeyInsensitive(firstRow, 'Company');
+      let styleIdKey = findHeaderKeyFromAlternatives(firstRow, ['Style Id', 'Style ID', 'SKU', 'Item', 'Product Code', 'Product', 'StyleId']);
+      let quantityKey = findHeaderKeyFromAlternatives(firstRow, ['Quantity', 'Qty', 'Qty.', 'Count', 'Units', 'Return Qty']);
+      let companyKey = findHeaderKeyFromAlternatives(firstRow, ['Company', 'Company Name', 'Seller', 'Vendor', 'Seller Name', 'CompanyName']);
 
       if (!styleIdKey || !quantityKey || !companyKey) {
-        throw new Error('Required columns not found: Style Id, Quantity, Company');
+        // Fallback: sheet may have title row then headers (e.g. row 0 = title, row 1 = headers)
+        const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+        const altSku = ['Style Id', 'Style ID', 'SKU', 'Item', 'Product Code', 'Product', 'StyleId'];
+        const altQty = ['Quantity', 'Qty', 'Qty.', 'Count', 'Units', 'Return Qty'];
+        const altCompany = ['Company', 'Company Name', 'Seller', 'Vendor', 'Seller Name', 'CompanyName'];
+        const findColIndexByHeaderValue = (row, alternatives) => {
+          const rowArr = Array.isArray(row) ? row : (row && typeof row === 'object' ? Object.values(row) : []);
+          for (let i = 0; i < rowArr.length; i++) {
+            const cell = String(rowArr[i] ?? '').trim().toUpperCase();
+            if (!cell) continue;
+            if (alternatives.some(alt => alt.toUpperCase() === cell)) return i;
+          }
+          return null;
+        };
+        if (rawRows.length >= 2) {
+          for (let headerRowIndex = 0; headerRowIndex < Math.min(3, rawRows.length); headerRowIndex++) {
+            const headerRow = rawRows[headerRowIndex];
+            const sid = findColIndexByHeaderValue(headerRow, altSku);
+            const qty = findColIndexByHeaderValue(headerRow, altQty);
+            const comp = findColIndexByHeaderValue(headerRow, altCompany);
+            if (sid != null && qty != null && comp != null) {
+              styleIdKey = sid;
+              quantityKey = qty;
+              companyKey = comp;
+              data = rawRows.slice(headerRowIndex + 1).map((row) => {
+                const obj = {};
+                (row || []).forEach((val, i) => { obj[i] = val != null ? String(val).trim() : ''; });
+                return obj;
+              });
+              break;
+            }
+          }
+        }
+      }
+
+      if (!styleIdKey || !quantityKey || !companyKey) {
+        throw new Error('Required columns not found. Need: SKU/Style Id, Quantity/Qty, Company/Company Name. Found headers: ' + (Object.keys(firstRow || {}).join(', ') || 'none'));
       }
 
       setUploadProgress({ percent: 50, message: 'Extracting data...' });
@@ -471,7 +518,7 @@ export default function CancelOrder() {
         email: item.email
       }));
 
-      const { data } = await axios.post('/api/cancelled-orders', 
+      const { data } = await axios.post(apiBase, 
         { orders, startDate: uploadDate },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -581,7 +628,7 @@ export default function CancelOrder() {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const { data } = await axios.delete(`/api/cancelled-orders?date=${deleteDate}`, {
+      const { data } = await axios.delete(`${apiBase}?date=${deleteDate}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -602,6 +649,7 @@ export default function CancelOrder() {
   };
 
   // --- Excel Download ---
+  // Same format for both Cancelled Orders and Returns: one sheet per company, columns SKU and Quantity only.
   
   const downloadExcel = () => {
     if (!viewData || Object.keys(viewData).length === 0) return;
@@ -611,50 +659,37 @@ export default function CancelOrder() {
     
     const makeSafeSheetName = (rawName, index) => {
       let name = String(rawName || 'Sheet');
-      // Remove invalid characters
       name = name.replace(/[\\\/?*\[\]:]/g, '-');
-      // Remove leading/trailing quotes
       name = name.replace(/^'+|'+$/g, '');
-      // Default if empty
       if (!name) name = `Sheet${index + 1}`;
-      // Truncate to 31 chars (Excel limit)
       name = name.slice(0, 31);
-      
-      // Ensure uniqueness
       let base = name;
       let suffixIndex = 1;
       while (usedSheetNames.has(name)) {
         const suffix = `_${suffixIndex++}`;
-        // Truncate base to make room for suffix
         name = `${base.slice(0, Math.max(0, 31 - suffix.length))}${suffix}`;
       }
       usedSheetNames.add(name);
       return name;
     };
 
-    // Get companies in the correct order
     const orderedCompanies = getOrderedCompanies();
-    
-    // Filter to only companies that have data in the current view
     const companiesWithData = orderedCompanies.filter(company => viewData[company]);
 
     companiesWithData.forEach((companyName, idx) => {
       const skus = viewData[companyName];
+      if (!skus || typeof skus !== 'object') return;
       const wsData = [['SKU', 'Quantity']];
-      
-      // Sort SKUs alphabetically
       const sortedSKUs = Object.keys(skus).sort();
-      
       sortedSKUs.forEach(sku => {
         wsData.push([sku, skus[sku]]);
       });
-      
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       const sheetName = makeSafeSheetName(companyName, idx);
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
     });
     
-    XLSX.writeFile(wb, `Cancelled_Orders_${filterStartDate}_${filterEndDate}.xlsx`);
+    XLSX.writeFile(wb, `${title.replace(/\s+/g, '_')}_${filterStartDate}_${filterEndDate}.xlsx`);
   };
 
   // --- Render Helpers ---
@@ -903,7 +938,7 @@ export default function CancelOrder() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-900">Upload Cancelled Orders</h3>
+              <h3 className="text-lg font-bold text-gray-900">Upload {title}</h3>
               <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
             
@@ -1101,11 +1136,11 @@ export default function CancelOrder() {
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Delete Cancelled Orders</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Delete {title}</h3>
             <div className="space-y-4">
               <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
                 <p className="text-sm text-red-800 font-bold">⚠️ Permanent Action</p>
-                <p className="text-sm text-red-800">This will permanently delete ALL cancelled orders for the selected date.</p>
+                <p className="text-sm text-red-800">This will permanently delete ALL {title.toLowerCase()} for the selected date.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Date to Delete</label>
