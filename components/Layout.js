@@ -29,7 +29,8 @@ import {
   FaWarehouse,
   FaTruck,
   FaShoppingBag,
-  FaTag
+  FaTag,
+  FaUndo
 } from "react-icons/fa";
 import { SiAmazon } from "react-icons/si";
 
@@ -284,7 +285,12 @@ const Layout = ({ children }) => {
                     { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt, flag: 'isExcelFromPDF' },
                     { href: '/extract-sku?tab=inventory', label: 'SKU Inventory', icon: FaBoxes, flag: 'isSKUInventory' },
                     { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle, flag: 'isCancelledOrders' },
-                  ].filter(item => !item.flag || checkFeature(item.flag))}
+                    { href: '/extract-sku?tab=returns', label: 'Returns', icon: FaUndo, flag: 'isReturns' },
+                  ].filter(item => {
+                    // Always show Cancelled Orders and Returns in sidebar; other items respect flag
+                    if (item.label === 'Cancelled Orders' || item.label === 'Returns') return true;
+                    return !item.flag || checkFeature(item.flag);
+                  })}
                 />
               )}
 
