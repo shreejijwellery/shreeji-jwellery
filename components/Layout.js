@@ -286,9 +286,10 @@ const Layout = ({ children }) => {
                     { href: '/extract-sku?tab=inventory', label: 'SKU Inventory', icon: FaBoxes, flag: 'isSKUInventory' },
                     { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle, flag: 'isCancelledOrders' },
                     { href: '/extract-sku?tab=returns', label: 'Returns', icon: FaUndo, flag: 'isReturns' },
+                    { href: '/extract-sku?tab=customer-returns', label: 'Customer Returns', icon: FaUndo, flag: 'isCustomerReturns' },
                   ].filter(item => {
                     // Always show Cancelled Orders and Returns in sidebar; other items respect flag
-                    if (item.label === 'Cancelled Orders' || item.label === 'Returns') return true;
+                    if (item.label === 'Cancelled Orders' || item.label === 'Returns' || item.label === 'Customer Returns') return true;
                     return !item.flag || checkFeature(item.flag);
                   })}
                 />
