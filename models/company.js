@@ -11,6 +11,7 @@ const CompanySchema = new mongoose.Schema({
         isSKUInventory: { type: Boolean, default: false },
         isCancelledOrders: { type: Boolean, default: false },
         isReturns: { type: Boolean, default: false },
+        isCustomerReturns: { type: Boolean, default: false },
         
         // Billing & Payment Features
         isPartyBills: { type: Boolean, default: false },
