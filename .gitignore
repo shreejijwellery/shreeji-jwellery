@@ -48,3 +48,7 @@ next-env.d.ts
 *_SUMMARY.md
 test-api-fix.sh
 test-production-api.sh
+
+# development helper scripts (MongoDB debugging, not app code)
+check_collections.js
+check_dates.js

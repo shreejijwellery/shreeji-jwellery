@@ -122,6 +122,9 @@ export default function SnapdealSort({
         }
       }
 
+      // Only use CSV sort/labels when CSV was parsed and has required columns (SKU + Origin)
+      const hasValidCsv = csvData.length > 0 && skuKey != null && originKey != null;
+
       setStatus('Reading PDF...');
       const pdf = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
 
@@ -166,7 +169,7 @@ export default function SnapdealSort({
       const isUnknown = (o) => (o || '') === UNKNOWN_ORIGIN;
 
       pageData.sort((a, b) => {
-        if (csvFile) {
+        if (hasValidCsv) {
           // 1) Known origins first, Unknown Origin last
           const aUnknown = isUnknown(a.originName);
           const bUnknown = isUnknown(b.originName);
@@ -226,7 +229,7 @@ export default function SnapdealSort({
         copied.setCropBox(0, cropBottom, cropWidth, cropHeight);
 
         copied.drawText(
-          csvFile
+          hasValidCsv
             ? `Origin: ${pageInfo.originName}`
             : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`,
           { x: 10, y: cropBottom + 10, size: 14, font, color: rgb(0, 0, 0) }
