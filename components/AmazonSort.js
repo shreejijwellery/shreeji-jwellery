@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import Link from 'next/link';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { checkCreditsForPages } from '../utils/credits';
 
 /**
  * Amazon Sort: PDF has 2 or 3 pages per order (label + invoice, or label + invoice + extra details).
@@ -10,6 +12,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
  */
 export default function AmazonSort({
   allowed,
+  hasCredits = true,
   loading,
   setLoading,
   setError,
@@ -148,6 +151,14 @@ export default function AmazonSort({
       const pdf = await pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise;
       const numPages = pdf.numPages;
 
+      const creditCheck = await checkCreditsForPages(numPages);
+      if (!creditCheck.ok) {
+        setError(creditCheck.message || 'You don\'t have enough credits. Purchase credits to continue.');
+        setStatus('');
+        setLoading(false);
+        return;
+      }
+
       const descSkuRegex = /\(([^)]+)\)\s*HSN/gi;
 
       // Walk by order: each order is 2 pages (label + invoice) or 3 pages (label + extra + invoice). Output = 1 page (label) per order.
@@ -265,6 +276,30 @@ export default function AmazonSort({
       }
 
       const outBytes = await outPdf.save();
+      const pageCount = sortedOrderData.length;
+
+      setStatus('Deducting credits...');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const deductRes = await fetch('/api/credits/deduct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ pages: pageCount }),
+      });
+      if (deductRes.status === 402) {
+        const data = await deductRes.json().catch(() => ({}));
+        setError(data?.message || 'You don\'t have enough credits. Purchase credits to continue.');
+        setStatus('');
+        setLoading(false);
+        return;
+      }
+      if (!deductRes.ok) {
+        setError('Credit deduction failed. Please try again.');
+        setStatus('');
+        setLoading(false);
+        return;
+      }
+
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('creditsUpdated'));
       const url = URL.createObjectURL(new Blob([outBytes], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
@@ -286,6 +321,14 @@ export default function AmazonSort({
       {allowed === false && (
         <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
           <p className="text-sm text-yellow-700">This feature is disabled for your company. Please contact your admin.</p>
+        </div>
+      )}
+      {allowed !== false && !hasCredits && (
+        <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-amber-800">You need credits to use this feature. Purchase credits to continue.</p>
+          <Link href="/pricing" className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors">
+            Purchase credits
+          </Link>
         </div>
       )}
       <form onSubmit={handleAmazonSubmit} encType="multipart/form-data" className="space-y-6">
@@ -329,7 +372,7 @@ export default function AmazonSort({
 
         <button
           type="submit"
-          disabled={loading || allowed === false || allowed === null}
+          disabled={loading || allowed === false || allowed === null || !hasCredits}
           className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? (

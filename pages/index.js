@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import PayableDashboard from '../components/worker_dashboard';
+import LandingPage from '../components/LandingPage';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
@@ -9,13 +10,14 @@ import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 const Home = () => {
   const [user, setUser] = useState(null);
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const router = useRouter();
   const { checkFeature, loading: flagsLoading } = useFeatureFlags();
   
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
-      router.push('/login');
+      setHasCheckedAuth(true);
       return;
     }
 
@@ -26,46 +28,44 @@ const Home = () => {
         const fullUser = response.data.user;
         setUser(fullUser);
         localStorage.setItem('user', JSON.stringify(fullUser));
+        setHasCheckedAuth(true);
       })
       .catch(() => {
-        router.push('/login');
+        setHasCheckedAuth(true);
       });
-  }, [router]);
+  }, []);
 
-  if (flagsLoading) {
-    return <div className="p-4">Loading...</div>;
+  // Not logged in: show landing page (no token) or redirect to login (invalid token)
+  if (hasCheckedAuth && !user) {
+    if (typeof window === 'undefined') return <div className="p-4">Loading...</div>;
+    const token = localStorage.getItem('token');
+    if (!token) return <LandingPage />;
+    router.push('/login');
+    return <div className="p-4 flex items-center justify-center min-h-[40vh]">Redirecting...</div>;
+  }
+
+  if (flagsLoading && !user) {
+    return <div className="p-4 flex items-center justify-center min-h-[40vh]">Loading...</div>;
   }
 
   if (!user) {
+    return <div className="p-4 flex items-center justify-center min-h-[40vh]">Loading...</div>;
+  }
+
+  // User can access SKU Management (admin, ADMINISTRATOR, or manager with sort flags)
+  const canAccessSku = (checkPermission(user, PERMISSIONS.EXTRACT_SKU) || user.role === USER_ROLES.MANAGER) &&
+    (checkFeature('isExtractSKU') || checkFeature('isMeeshoSort') || checkFeature('isSnapdealSort') || checkFeature('isAmazonSort'));
+
+  // Home has no content when: dashboard disabled, or dashboard enabled but no Worker Bills (only PayableDashboard is shown)
+  const homeHasNoContent = !checkFeature('isDashboard') ||
+    (checkFeature('isDashboard') && !checkPermission(user, PERMISSIONS.WORKER_BILLS));
+
+  if (canAccessSku && homeHasNoContent) {
+    router.replace('/extract-sku');
     return <div className="p-4">Loading...</div>;
   }
 
-  // Check if Dashboard feature flag is enabled
   if (!checkFeature('isDashboard')) {
-    // If Dashboard is disabled, redirect users who only have SKU permission
-    const hasPermissionsBeyondSKU = () => {
-      if (user.role === USER_ROLES.ADMINISTRATOR) return true;
-      const permissions = user.permissions || [];
-      const nonSKUPermissions = [
-        PERMISSIONS.PARTY_BILLS,
-        PERMISSIONS.WORKER_BILLS,
-        PERMISSIONS.SECTIONS,
-        PERMISSIONS.ITEMS,
-        PERMISSIONS.VENDORS,
-        PERMISSIONS.WORKERS,
-        PERMISSIONS.FINAL_PRODUCT,
-        PERMISSIONS.IN_PROCESS_PRODUCT,
-        PERMISSIONS.PLATTING,
-        PERMISSIONS.PRODUCTION_FLOW
-      ];
-      return nonSKUPermissions.some(perm => permissions.includes(perm));
-    };
-
-    if (!hasPermissionsBeyondSKU() && user.permissions?.includes(PERMISSIONS.EXTRACT_SKU)) {
-      router.push('/extract-sku');
-      return <div className="p-4">Redirecting...</div>;
-    }
-
     return (
       <div className="p-4">
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
@@ -76,7 +76,6 @@ const Home = () => {
     );
   }
 
-  // Dashboard is enabled - show it regardless of permissions
   return (
     <div className="p-4 md:p-6 w-full">
       <div className="max-w-7xl mx-auto">

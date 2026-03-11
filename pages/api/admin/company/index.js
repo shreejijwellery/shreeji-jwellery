@@ -1,7 +1,7 @@
 import connectToDatabase from '../../../../lib/mongodb';
 import Company from '../../../../models/company';
 import { USER_ROLES } from '../../../../lib/constants';
-import { authMiddleware } from '../../common/common.services';
+import { adminAuthMiddleware } from '../../common/common.services';
 
 async function handler(req, res) {
   const { method } = req;
@@ -17,7 +17,9 @@ async function handler(req, res) {
     }
 
     if (method === 'GET') {
-      const companies = await Company.find({}, { companyName: 1, featureFlags: 1 }).lean();
+      const companies = await Company.find({ isDeleted: { $ne: true } })
+        .select('companyName featureFlags creditBalance isBlocked trialCreditsGranted trialCreditsExpiresAt referralCode')
+        .lean();
       // Normalize all feature flags to boolean
       const normalized = companies.map(c => {
         const normalizedFlags = {};
@@ -39,6 +41,6 @@ async function handler(req, res) {
   }
 }
 
-export default authMiddleware(handler);
+export default adminAuthMiddleware(handler);
 
 

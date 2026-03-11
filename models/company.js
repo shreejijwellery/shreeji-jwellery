@@ -1,12 +1,21 @@
 import mongoose from 'mongoose';
 
 const CompanySchema = new mongoose.Schema({
-    companyName: { type: String, required: true }, 
+    companyName: { type: String, required: true },
     address: { type: String, required: false },
     isDeleted: { type: Boolean, default: false },
+    isBlocked: { type: Boolean, default: false },
+    creditBalance: { type: Number, default: 0 },
+    trialCreditsGranted: { type: Number, default: 0 },
+    trialCreditsExpiresAt: { type: Date, default: null },
+    referralCode: { type: String, sparse: true, unique: true },
+    referredByCompanyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', default: null },
     featureFlags: {
         // SKU Management Features
         isExtractSKU: { type: Boolean, default: false },
+        isMeeshoSort: { type: Boolean, default: true },
+        isSnapdealSort: { type: Boolean, default: true },
+        isAmazonSort: { type: Boolean, default: true },
         isExcelFromPDF: { type: Boolean, default: false },
         isSKUInventory: { type: Boolean, default: false },
         isCancelledOrders: { type: Boolean, default: false },

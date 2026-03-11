@@ -265,7 +265,8 @@ const processPDF = async (pdfPath, csvData) => {
       }
     }
 
-    return await pdfDoc.save();
+    const buffer = await pdfDoc.save();
+    return { buffer, pageCount: pageData.length };
   } catch (err) {
     console.error('Error in processPDF:', err);
     throw err;
@@ -305,8 +306,9 @@ async function handler(req, res) {
     if (![USER_ROLES.ADMIN, USER_ROLES.MANAGER].includes(user.role)) {
       return res.status(403).json({ message: 'Insufficient role to use Extract SKU' });
     }
-    if (!company.featureFlags?.isExtractSKU) {
-      return res.status(403).json({ message: 'Extract SKU is disabled for your company' });
+    const canMeesho = company.featureFlags?.isExtractSKU || company.featureFlags?.isMeeshoSort;
+    if (!canMeesho) {
+      return res.status(403).json({ message: 'Meesho Sort is not enabled for your company' });
     }
 
     await ensureUploadsDirectory();
@@ -349,7 +351,23 @@ async function handler(req, res) {
         }
 
         const csvData = await getCSVData(csvPath);
-        const processedPdf = await processPDF(pdfPath, csvData);
+        const { buffer: processedPdf, pageCount } = await processPDF(pdfPath, csvData);
+
+        const CompanyModel = (await import('../../models/company')).default;
+        const { getEffectiveBalance, deductCredits, getCreditsRequiredForPdfPages } = await import('../../lib/creditsService');
+        const companyDoc = await CompanyModel.findById(company._id).lean();
+        const required = await getCreditsRequiredForPdfPages(pageCount);
+        const balance = getEffectiveBalance(companyDoc);
+        if (balance < required) {
+          try { if (pdfPath) fs.unlinkSync(pdfPath); if (csvPath) fs.unlinkSync(csvPath); } catch {}
+          return res.status(402).json({
+            error: 'Insufficient credits',
+            message: `You don't have enough credits. Need ${required} credits for ${pageCount} pages. Purchase credits to continue.`,
+            required,
+            balance,
+          });
+        }
+        await deductCredits(company._id, required, 'consumption', { source: 'processFiles', pages: pageCount }, user._id);
 
         try {
           fs.unlinkSync(pdfPath);

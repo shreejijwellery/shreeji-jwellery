@@ -1,7 +1,8 @@
 import connectToDatabase from '../../../../lib/mongodb';
 import Company from '../../../../models/company';
 import { USER_ROLES } from '../../../../lib/constants';
-import { authMiddleware } from '../../common/common.services';
+import { adminAuthMiddleware } from '../../common/common.services';
+import { logAdminAction } from '../../../../lib/adminAudit';
 
 async function handler(req, res) {
   const { method, query: { id } } = req;
@@ -50,15 +51,20 @@ async function handler(req, res) {
         if (updateResult.modifiedCount === 0) {
           return res.status(500).json({ message: 'No documents were modified' });
         }
-        
+
         const updated = await Company.findById(company._id).lean();
-        
+
+        await logAdminAction(req, 'COMPANY_FLAGS_UPDATE', 'Company', company._id, {
+          companyName: company.companyName,
+          featureFlags: updated?.featureFlags,
+        });
+
         // Normalize all flags to boolean
         const normalized = {};
         Object.keys(updated?.featureFlags || {}).forEach(key => {
           normalized[key] = Boolean(updated.featureFlags[key]);
         });
-        
+
         return res.status(200).json({ featureFlags: normalized });
       } catch (dbError) {
         return res.status(500).json({ message: 'Database update failed', error: String(dbError) });
@@ -72,6 +78,6 @@ async function handler(req, res) {
   }
 }
 
-export default authMiddleware(handler);
+export default adminAuthMiddleware(handler);
 
 

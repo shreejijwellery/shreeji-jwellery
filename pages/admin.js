@@ -1,49 +1,134 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { toast } from 'react-toastify';
 
 const AdminPortal = () => {
   const [user, setUser] = useState(null);
   const [companies, setCompanies] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [savingId, setSavingId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('companies');
+  const [creditAdjust, setCreditAdjust] = useState({});
+  const [creditSettings, setCreditSettings] = useState({ pagesPerCredit: 1, pricePerCredit: 1 });
+  const [creditSettingsSaving, setCreditSettingsSaving] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (stored) setUser(JSON.parse(stored));
   }, []);
 
+  const token = () => localStorage.getItem('token');
+  const headers = () => ({ Authorization: `Bearer ${token()}` });
+
+  const fetchCompanies = async () => {
+    try {
+      if (!token()) return;
+      const { data } = await axios.get('/api/admin/company', { headers: headers() });
+      setCompanies(data?.companies || []);
+    } catch (e) {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      if (!token()) return;
+      const { data } = await axios.get('/api/admin/users', { headers: headers() });
+      setUsers(data?.users || []);
+    } catch (e) {}
+  };
+
+  const fetchAudit = async () => {
+    try {
+      if (!token()) return;
+      const { data } = await axios.get('/api/admin/audit?limit=100', { headers: headers() });
+      setAuditLogs(data?.logs || []);
+    } catch (e) {}
+  };
+
   useEffect(() => {
-    const fetchCompanies = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const { data } = await axios.get('/api/admin/company', { headers: { Authorization: `Bearer ${token}` } });
-        setCompanies(data?.companies || []);
-      } catch (e) {
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchCompanies();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'users') fetchUsers();
+    if (activeTab === 'audit') fetchAudit();
+    if (activeTab === 'creditSettings') {
+      axios.get('/api/admin/credits/settings', { headers: headers() })
+        .then(({ data }) => setCreditSettings({ pagesPerCredit: data?.pagesPerCredit ?? 1, pricePerCredit: data?.pricePerCredit ?? 1 }))
+        .catch(() => {});
+    }
+  }, [activeTab]);
 
   const toggleFlag = async (companyId, nextFlags) => {
     try {
       setSavingId(companyId);
-      const token = localStorage.getItem('token');
-      
-      const { data } = await axios.put(`/api/admin/company/${companyId}`, { featureFlags: nextFlags }, { headers: { Authorization: `Bearer ${token}` } });
-      
-      // Optimistically update, then hard refresh from server to ensure persisted state contains all flags
+      const { data } = await axios.put(`/api/admin/company/${companyId}`, { featureFlags: nextFlags }, { headers: headers() });
       setCompanies(prev => prev.map(c => c._id === companyId ? { ...c, featureFlags: data?.featureFlags || nextFlags } : c));
-      
-      try {
-        const refreshed = await axios.get('/api/admin/company', { headers: { Authorization: `Bearer ${token}` } });
-        setCompanies(refreshed?.data?.companies || []);
-      } catch {}
+      await fetchCompanies();
     } catch (e) {
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const handleAdjustCredits = async (companyId) => {
+    const amount = Number(creditAdjust[companyId]?.amount);
+    const reason = creditAdjust[companyId]?.reason || '';
+    if (!Number.isInteger(amount) || amount === 0) return;
+    try {
+      setSavingId(companyId);
+      await axios.post('/api/admin/credits/adjust', { companyId, amount, reason }, { headers: headers() });
+      setCreditAdjust(prev => ({ ...prev, [companyId]: {} }));
+      await fetchCompanies();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to adjust credits');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleBlock = async (userId, companyId, block) => {
+    try {
+      setSavingId(companyId || userId);
+      await axios.post('/api/admin/block', { userId: userId || undefined, companyId: companyId || undefined, block }, { headers: headers() });
+      if (companyId) await fetchCompanies();
+      if (userId) await fetchUsers();
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const handleCreditAmountChange = (companyId, value) => {
+    setCreditAdjust(prev => {
+      const next = { ...prev };
+      next[companyId] = { ...(next[companyId] || {}), amount: value };
+      return next;
+    });
+  };
+  const handleCreditReasonChange = (companyId, value) => {
+    setCreditAdjust(prev => {
+      const next = { ...prev };
+      next[companyId] = { ...(next[companyId] || {}), reason: value };
+      return next;
+    });
+  };
+
+  const saveCreditSettings = async () => {
+    try {
+      setCreditSettingsSaving(true);
+      const { data } = await axios.put('/api/admin/credits/settings', creditSettings, { headers: headers() });
+      setCreditSettings(data || creditSettings);
+      toast.success('Credit settings saved.');
+    } catch (e) {
+      toast.error(e?.response?.data?.message || 'Failed to save');
+    } finally {
+      setCreditSettingsSaving(false);
     }
   };
 
@@ -55,7 +140,10 @@ const AdminPortal = () => {
     {
       title: 'SKU Management Features',
       flags: [
-        { key: 'isExtractSKU', label: 'Extract SKU' },
+        { key: 'isExtractSKU', label: 'Extract SKU (legacy)' },
+        { key: 'isMeeshoSort', label: 'Meesho Sort' },
+        { key: 'isSnapdealSort', label: 'Snapdeal Sort' },
+        { key: 'isAmazonSort', label: 'Amazon Sort' },
         { key: 'isExcelFromPDF', label: 'Excel from PDF' },
         { key: 'isSKUInventory', label: 'SKU Inventory' },
         { key: 'isCancelledOrders', label: 'Cancelled Orders' },
@@ -107,14 +195,94 @@ const AdminPortal = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Administrator Portal - Company Feature Flags</h1>
-      {loading ? (
+      <h1 className="text-2xl font-bold mb-4">Administrator Portal</h1>
+      <div className="flex gap-2 mb-4 border-b border-gray-200">
+        <button onClick={() => setActiveTab('companies')} className={`px-4 py-2 rounded-t ${activeTab === 'companies' ? 'bg-white border border-b-0' : 'bg-gray-100'}`}>Companies</button>
+        <button onClick={() => setActiveTab('users')} className={`px-4 py-2 rounded-t ${activeTab === 'users' ? 'bg-white border border-b-0' : 'bg-gray-100'}`}>Users</button>
+        <button onClick={() => setActiveTab('audit')} className={`px-4 py-2 rounded-t ${activeTab === 'audit' ? 'bg-white border border-b-0' : 'bg-gray-100'}`}>Audit Log</button>
+        <button onClick={() => setActiveTab('creditSettings')} className={`px-4 py-2 rounded-t ${activeTab === 'creditSettings' ? 'bg-white border border-b-0' : 'bg-gray-100'}`}>Credit settings</button>
+        <a href="/admin-pricing" className="px-4 py-2 rounded-t bg-gray-100 hover:bg-gray-200">Pricing &amp; offers</a>
+      </div>
+
+      {activeTab === 'creditSettings' && (
+        <div className="bg-white border rounded-lg p-6">
+          <h2 className="font-semibold mb-4">Credit rates (used for extraction)</h2>
+          <p className="text-sm text-gray-600 mb-4">Credits required = ceil(output pages ÷ pages per credit). E.g. pages per credit = 1 → 1 credit per page; = 2 → 1 credit per 2 pages.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Output pages per credit</label>
+              <input type="number" step="0.1" min="0.1" className="w-full border rounded px-3 py-2" value={creditSettings.pagesPerCredit} onChange={(e) => setCreditSettings(prev => ({ ...prev, pagesPerCredit: Number(e.target.value) || 1 }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Price per credit (display)</label>
+              <input type="number" step="0.01" min="0" className="w-full border rounded px-3 py-2" value={creditSettings.pricePerCredit} onChange={(e) => setCreditSettings(prev => ({ ...prev, pricePerCredit: Number(e.target.value) ?? 0 }))} />
+            </div>
+          </div>
+          <button onClick={saveCreditSettings} disabled={creditSettingsSaving} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50">Save</button>
+        </div>
+      )}
+
+      {activeTab === 'audit' && (
+        <div className="bg-white border rounded-lg p-4 overflow-x-auto">
+          <h2 className="font-semibold mb-2">Admin audit log</h2>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b"><th className="text-left py-2">Time</th><th className="text-left py-2">Admin</th><th className="text-left py-2">Action</th><th className="text-left py-2">Target</th><th className="text-left py-2">Details</th></tr></thead>
+            <tbody>
+              {auditLogs.map((log) => (
+                <tr key={log._id} className="border-b">
+                  <td className="py-2">{new Date(log.createdAt).toLocaleString()}</td>
+                  <td>{log.adminUserId?.username}</td>
+                  <td>{log.action}</td>
+                  <td>{log.targetType} {log.targetId?.toString?.()}</td>
+                  <td className="max-w-xs truncate">{JSON.stringify(log.details || {})}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {activeTab === 'users' && (
+        <div className="bg-white border rounded-lg p-4 overflow-x-auto">
+          <h2 className="font-semibold mb-2">Users</h2>
+          <table className="w-full text-sm">
+            <thead><tr className="border-b"><th className="text-left py-2">Name</th><th className="text-left py-2">Username</th><th className="text-left py-2">Company</th><th className="text-left py-2">Blocked</th><th className="text-left py-2">Action</th></tr></thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u._id} className="border-b">
+                  <td className="py-2">{u.name}</td>
+                  <td>{u.username}</td>
+                  <td>{u.company?.companyName}</td>
+                  <td>{u.isBlocked ? 'Yes' : 'No'}</td>
+                  <td>
+                    <button onClick={() => handleBlock(u._id, null, !u.isBlocked)} disabled={savingId === u._id} className="text-red-600 hover:underline">{u.isBlocked ? 'Unblock' : 'Block'}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {activeTab === 'companies' && (loading ? (
         <div>Loading companies…</div>
       ) : (
         <div className="space-y-6">
           {companies.map(company => (
             <div key={company._id} className="border border-gray-300 rounded-lg p-6 bg-white shadow-sm">
-              <div className="font-semibold text-xl mb-4 pb-2 border-b border-gray-200">{company.companyName}</div>
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-4 pb-2 border-b border-gray-200">
+                <div className="font-semibold text-xl">{company.companyName}</div>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-sm">Credits: <strong>{(Number(company.creditBalance) ?? 0).toFixed(2)}</strong> {company.trialCreditsGranted != null ? ` (trial: ${(Number(company.trialCreditsGranted) ?? 0).toFixed(2)})` : ''}</span>
+                  <span className={`text-sm px-2 py-0.5 rounded ${company.isBlocked ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>{company.isBlocked ? 'Blocked' : 'Active'}</span>
+                  <div className="flex gap-2 items-center">
+                    <input type="number" placeholder="+/- credits" className="w-24 border rounded px-2 py-1" value={creditAdjust[company._id]?.amount != null ? creditAdjust[company._id].amount : ''} onChange={(e) => handleCreditAmountChange(company._id, e.target.value)} />
+                    <input type="text" placeholder="Reason" className="w-28 border rounded px-2 py-1" value={creditAdjust[company._id]?.reason != null ? creditAdjust[company._id].reason : ''} onChange={(e) => handleCreditReasonChange(company._id, e.target.value)} />
+                    <button onClick={() => handleAdjustCredits(company._id)} disabled={savingId === company._id} className="bg-indigo-600 text-white px-2 py-1 rounded text-sm">Apply</button>
+                  </div>
+                  <button onClick={() => handleBlock(null, company._id, !company.isBlocked)} disabled={savingId === company._id} className={`px-2 py-1 rounded text-sm ${company.isBlocked ? 'bg-green-600' : 'bg-red-600'} text-white`}>{company.isBlocked ? 'Unblock' : 'Block'}</button>
+                </div>
+              </div>
               <div className="space-y-4">
                 {featureFlagGroups.map((group, groupIdx) => (
                   <div key={groupIdx} className="border-l-4 border-blue-500 pl-4">
@@ -139,7 +307,7 @@ const AdminPortal = () => {
             </div>
           ))}
         </div>
-      )}
+      ))}
     </div>
   );
 };

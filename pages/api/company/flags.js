@@ -13,18 +13,33 @@ async function handler(req, res) {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    const company = await Company.findById(user.company).lean();
+    // Use company from auth (authMiddleware sets synthetic company for ADMINISTRATOR without company)
+    let company = req.companyData;
+    if (!company && user.company) {
+      company = await Company.findById(user.company).lean();
+    }
     if (!company) {
       return res.status(404).json({ message: 'Company not found' });
     }
 
     if (method === 'GET') {
-      return res.status(200).json({ featureFlags: company.featureFlags || {} });
+      const raw = company.featureFlags || {};
+      // Normalize: apply schema defaults for extraction flags so missing keys (e.g. after DB update) are returned correctly
+      const featureFlags = {
+        ...raw,
+        isMeeshoSort: raw.isMeeshoSort !== undefined ? Boolean(raw.isMeeshoSort) : true,
+        isSnapdealSort: raw.isSnapdealSort !== undefined ? Boolean(raw.isSnapdealSort) : true,
+        isAmazonSort: raw.isAmazonSort !== undefined ? Boolean(raw.isAmazonSort) : true,
+      };
+      return res.status(200).json({ featureFlags });
     }
 
     if (method === 'PUT') {
       if (![USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR].includes(user.role)) {
         return res.status(403).json({ message: 'Only administrator can update flags' });
+      }
+      if (!company._id) {
+        return res.status(400).json({ message: 'No company assigned; use Admin portal to manage companies.' });
       }
       const { featureFlags } = req.body || {};
       

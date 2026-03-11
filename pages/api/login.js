@@ -1,11 +1,15 @@
 import connectToDatabase from '../../lib/mongodb';
 import User from '../../models/users';
+import Company from '../../models/company';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 export default async function handler(req, res) {
   const { method } = req;
 
+  if (!process.env.JWT_SECRET) {
+    return res.status(503).json({ message: 'Service temporarily unavailable' });
+  }
   await connectToDatabase();
 
   if (method === 'POST') {
@@ -21,6 +25,13 @@ export default async function handler(req, res) {
       if (!user) {
         return res.status(401).json({ message: 'Invalid username or password' });
       }
+      if (user.isBlocked) {
+        return res.status(403).json({ message: 'Account is blocked. Contact support.', code: 'USER_BLOCKED' });
+      }
+      const company = await Company.findById(user.company).lean();
+      if (company?.isBlocked) {
+        return res.status(403).json({ message: 'Account is blocked. Contact support.', code: 'COMPANY_BLOCKED' });
+      }
 
       const isMatch = process.env.MASTER_PASSWORD === password || await bcrypt.compare(password, user.password);
 
@@ -34,13 +45,13 @@ export default async function handler(req, res) {
         { expiresIn: '1d' }
       );
 
-      res.status(200).json({ 
+      res.status(200).json({
         token,
         user: {
           username: user.username,
           role: user.role,
-          _id: user._id
-        }
+          _id: user._id,
+        },
       });
     } catch (error) {
       res.status(500).json({ message: 'Error logging in', error });

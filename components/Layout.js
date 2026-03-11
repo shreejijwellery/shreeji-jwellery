@@ -40,7 +40,13 @@ const Layout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [expandedMenus, setExpandedMenus] = useState({});
-  const { checkFeature, refreshFlags } = useFeatureFlags();
+  const { checkFeature, refreshFlags, loading: flagsLoading } = useFeatureFlags();
+
+  // SKU Management: allow admin, ADMINISTRATOR, or manager when company has Meesho/Snapdeal/Amazon Sort enabled
+  const hasUser = !!user;
+  const canAccessExtract = hasUser && (checkPermission(user, PERMISSIONS.EXTRACT_SKU) || user?.role === USER_ROLES.MANAGER);
+  const hasAnySortFlag = checkFeature('isExtractSKU') || checkFeature('isMeeshoSort') || checkFeature('isSnapdealSort') || checkFeature('isAmazonSort');
+  const showSkuMenu = canAccessExtract && (flagsLoading || hasAnySortFlag);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -56,24 +62,26 @@ const Layout = ({ children }) => {
           setUser(newUser);
           localStorage.setItem('user', JSON.stringify(newUser));
           
-          // Only refresh flags if user actually changed (e.g., after login or user switch)
-          // Compare user IDs to detect actual user change
           const userChanged = !previousUser || previousUser._id !== newUser._id;
-          
           if (userChanged) {
-            // User changed, refresh flags
-            refreshFlags();
-            // Dispatch custom event to trigger flag refresh in other components
             window.dispatchEvent(new Event('userLoggedIn'));
           }
-          // If user didn't change, flags hook will use existing cache automatically
+          // Always refresh flags when app loads so DB flag changes (e.g. admin enabling tabs) show without re-login
+          refreshFlags();
         })
         .catch(error => {
           console.error('Token validation failed:', error);
-          localStorage.removeItem('token');
+          if (error?.response?.status === 403 && (error?.response?.data?.code === 'USER_BLOCKED' || error?.response?.data?.code === 'COMPANY_BLOCKED')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setUser(null);
+            alert(error?.response?.data?.message || 'Account is blocked. Contact support.');
+          } else {
+            localStorage.removeItem('token');
+          }
         });
     } else {
-      if (router.pathname !== '/login' && router.pathname !== '/signup') {
+      if (router.pathname !== '/login' && router.pathname !== '/signup' && router.pathname !== '/') {
         router.push('/login');
       }
     }
@@ -82,6 +90,25 @@ const Layout = ({ children }) => {
 
   // Removed the useEffect that was calling refreshFlags on every route change
   // The flags are cached and will be used automatically by useFeatureFlags hook
+
+  // Refresh user (e.g. after credit deduction) so header balance updates
+  useEffect(() => {
+    const onCreditsUpdated = () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      axios.get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => {
+          const u = res.data?.user;
+          if (u) {
+            setUser(u);
+            localStorage.setItem('user', JSON.stringify(u));
+          }
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('creditsUpdated', onCreditsUpdated);
+    return () => window.removeEventListener('creditsUpdated', onCreditsUpdated);
+  }, []);
 
   // Load sidebar state from localStorage
   useEffect(() => {
@@ -134,6 +161,7 @@ const Layout = ({ children }) => {
     return nonSKUPermissions.some(perm => permissions.includes(perm));
   };
 
+  
   // Check if user has access to Settings (needs Workers, Vendors, Sections, or Items permissions)
   // ADMIN users need explicit permissions, only ADMINISTRATOR bypasses this check
   const hasSettingsAccess = (user) => {
@@ -213,10 +241,38 @@ const Layout = ({ children }) => {
   };
 
   const isAuthPage = router.pathname === '/login' || router.pathname === '/signup';
+  const isLandingPage = router.pathname === '/' && !user;
 
   if (isAuthPage) {
     return (
       <div className="min-h-screen bg-gray-100 font-sans">
+        {children}
+      </div>
+    );
+  }
+
+  if (isLandingPage) {
+    return (
+      <div className="min-h-screen bg-white font-sans">
+        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2 text-slate-900 font-semibold">
+              <FaWarehouse className="text-indigo-600 w-8 h-8" />
+              <span className="hidden sm:inline">OMS Portal</span>
+            </Link>
+            <nav className="flex items-center gap-4">
+              <Link href="/#pricing" className="text-slate-600 hover:text-indigo-600 font-medium text-sm">
+                Pricing
+              </Link>
+              <Link href="/login" className="text-slate-600 hover:text-indigo-600 font-medium text-sm">
+                Sign in
+              </Link>
+              <Link href="/signup" className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors">
+                Sign up
+              </Link>
+            </nav>
+          </div>
+        </header>
         {children}
       </div>
     );
@@ -261,7 +317,7 @@ const Layout = ({ children }) => {
           {/* Navigation */}
           <div className="flex-1 overflow-y-auto py-4 px-3">
             <ul className="space-y-1">
-              {user && checkFeature('isDashboard') && (
+              {user && checkFeature('isDashboard') && checkPermission(user, PERMISSIONS.WORKER_BILLS) && (
                 <NavItem href="/" icon={FaHome} label="Home" />
               )}
               
@@ -272,26 +328,23 @@ const Layout = ({ children }) => {
                 </>
               )}
 
-              {user && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && checkFeature('isExtractSKU') && (
+              {/* SKU Management: only show when company has at least one of Meesho / Snapdeal / Amazon Sort (or legacy isExtractSKU) enabled */}
+              {showSkuMenu && (
                 <NavItem 
                   href="/extract-sku" 
                   icon={FaFileExcel} 
                   label="SKU Management"
                   menuKey="sku"
                   submenu={[
-                    { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaShoppingBag },
-                    { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaTag },
-                    { href: '/extract-sku?tab=amazon', label: 'Amazon Sort', icon: SiAmazon },
+                    { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaShoppingBag, flag: 'isMeeshoSort' },
+                    { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaTag, flag: 'isSnapdealSort' },
+                    { href: '/extract-sku?tab=amazon', label: 'Amazon Sort', icon: SiAmazon, flag: 'isAmazonSort' },
                     { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt, flag: 'isExcelFromPDF' },
                     { href: '/extract-sku?tab=inventory', label: 'SKU Inventory', icon: FaBoxes, flag: 'isSKUInventory' },
                     { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle, flag: 'isCancelledOrders' },
                     { href: '/extract-sku?tab=returns', label: 'Returns', icon: FaUndo, flag: 'isReturns' },
                     { href: '/extract-sku?tab=customer-returns', label: 'Customer Returns', icon: FaUndo, flag: 'isCustomerReturns' },
-                  ].filter(item => {
-                    // Always show Cancelled Orders and Returns in sidebar; other items respect flag
-                    if (item.label === 'Cancelled Orders' || item.label === 'Returns' || item.label === 'Customer Returns') return true;
-                    return !item.flag || checkFeature(item.flag);
-                  })}
+                  ].filter(item => !item.flag || checkFeature(item.flag))}
                 />
               )}
 
@@ -324,6 +377,9 @@ const Layout = ({ children }) => {
                 <NavItem href="/production-flow" icon={FaProjectDiagram} label="Production Flow" />
               )}
               
+              {user && (user.creditBalance !== undefined || user.trialActive) && (
+                <NavItem href="/pricing" icon={FaMoneyBillWave} label="Buy credits" />
+              )}
               {user && (user.role === USER_ROLES.ADMINISTRATOR || hasSettingsAccess(user)) && (
                 <NavItem href="/settings" icon={FaCog} label="Settings" />
               )}
@@ -365,6 +421,15 @@ const Layout = ({ children }) => {
 
           {user && (
             <div className="flex items-center gap-4">
+              {(user.creditBalance !== undefined || user.trialActive) && (
+                <Link
+                  href="/pricing"
+                  className="hidden sm:flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+                >
+                  <span>Credits: {(Number(user.creditBalance) ?? 0).toFixed(2)}</span>
+                  {user.trialActive && <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">Trial</span>}
+                </Link>
+              )}
               <div className="hidden sm:flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
                   <CgProfile size={20} />

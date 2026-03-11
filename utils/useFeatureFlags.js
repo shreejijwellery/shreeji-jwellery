@@ -71,18 +71,9 @@ export const useFeatureFlags = () => {
   // Track if we've already run the initialization effect (prevents re-running on re-renders)
   const hasInitialized = useRef(false);
   
-  // Initialize state from cache synchronously (lazy initializer ensures it only runs once)
-  const [featureFlags, setFeatureFlags] = useState(() => {
-    const cached = getCachedFlagsSync();
-    if (cached) {
-      initializedFromCache.current = true;
-    }
-    return cached || {};
-  });
-  const [loading, setLoading] = useState(() => {
-    const cached = getCachedFlagsSync();
-    return !cached; // Only loading if no cache
-  });
+  // Same initial state on server and client to avoid hydration mismatch (no localStorage on server)
+  const [featureFlags, setFeatureFlags] = useState({});
+  const [loading, setLoading] = useState(true);
 
   /**
    * Save flags to localStorage and global cache

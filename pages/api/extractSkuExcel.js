@@ -185,6 +185,21 @@ async function handler(req, res) {
           XLSX.utils.book_append_sheet(workbook, worksheet, safeName);
         });
 
+        const sheetCount = sortedCompanies.length;
+        const { getEffectiveBalance, deductCredits } = await import('../../lib/creditsService');
+        const required = Math.max(1, sheetCount);
+        const balance = getEffectiveBalance(company);
+        if (balance < required) {
+          try { if (pdfPath) fs.unlinkSync(pdfPath); } catch {}
+          return res.status(402).json({
+            error: 'Insufficient credits',
+            message: `Need ${required} credits for ${sheetCount} sheets. You have ${balance} credits.`,
+            required,
+            balance,
+          });
+        }
+        await deductCredits(company._id, required, 'consumption', { source: 'extractSkuExcel', sheets: sheetCount }, user._id);
+
         const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
         const excelFileName = `${fileName}_extracted.xlsx`;
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

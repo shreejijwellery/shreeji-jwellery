@@ -15,6 +15,7 @@ const Signup = () => {
     permissions: [],
     companyName: '',
     address: '',
+    referralCode: '',
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
@@ -208,6 +209,19 @@ const Signup = () => {
                 onChange={handleChange}
                 className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all duration-300 bg-white/50"
               />
+            </div>
+
+            {/* Referral Code (optional) - both get free credits */}
+            <div className="relative group">
+              <input
+                type="text"
+                name="referralCode"
+                placeholder="Referral code (optional)"
+                value={formData.referralCode}
+                onChange={handleChange}
+                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all duration-300 bg-white/50"
+              />
+              <p className="text-xs text-gray-500 mt-1">Have a referral code? Enter it for free credits.</p>
             </div>
 
             {/* Submit Button */}

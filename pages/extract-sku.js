@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import axios from 'axios';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import * as XLSX from 'xlsx';
@@ -9,6 +10,7 @@ import CancelOrder from '../components/CancelOrder';
 import SnapdealSort from '../components/SnapdealSort';
 import AmazonSort from '../components/AmazonSort';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
+import { checkCreditsForPages } from '../utils/credits';
 import { SiAmazon } from 'react-icons/si';
 import { FaShoppingBag, FaTag } from 'react-icons/fa';
 
@@ -20,8 +22,9 @@ export default function ExtractSKU() {
   const [success, setSuccess] = useState(false);
   const [status, setStatus] = useState('');
   const [selectedTab, setSelectedTab] = useState('sort');
-  const { featureFlags, checkFeature, loading: flagsLoading } = useFeatureFlags();
+  const { featureFlags, checkFeature, loading: flagsLoading, refreshFlags } = useFeatureFlags();
   const [allowed, setAllowed] = useState(null);
+  const [creditBalance, setCreditBalance] = useState(null);
   const [selectedPdfFile, setSelectedPdfFile] = useState(null); // For Meesho Sort
   const [selectedCsvFile, setSelectedCsvFile] = useState(null); // For Meesho Sort
   
@@ -57,7 +60,11 @@ export default function ExtractSKU() {
   const [showDateRangePicker, setShowDateRangePicker] = useState(false); // Date range picker visibility
   const [tempStartDate, setTempStartDate] = useState(''); // Temporary start date
   const [tempEndDate, setTempEndDate] = useState(''); // Temporary end date
-  
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Handle tab query parameter from URL
   useEffect(() => {
@@ -410,8 +417,9 @@ export default function ExtractSKU() {
         if (!token) { setAllowed(false); return; }
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         if (!user || !user.role) { setAllowed(false); return; }
-        if (!['admin', 'manager'].includes(user.role)) { setAllowed(false); return; }
-        setAllowed(checkFeature('isExtractSKU'));
+        if (!['admin', 'manager', 'ADMINISTRATOR'].includes(user.role)) { setAllowed(false); return; }
+        const hasAnySkuFeature = checkFeature('isExtractSKU') || checkFeature('isMeeshoSort') || checkFeature('isSnapdealSort') || checkFeature('isAmazonSort') || checkFeature('isExcelFromPDF') || checkFeature('isSKUInventory') || checkFeature('isCancelledOrders') || checkFeature('isReturns') || checkFeature('isCustomerReturns');
+        setAllowed(!!hasAnySkuFeature);
       } catch (e) {
         setAllowed(false);
       }
@@ -420,6 +428,23 @@ export default function ExtractSKU() {
       init();
     }
   }, [flagsLoading, checkFeature]);
+
+  // Fetch credit balance for extraction tabs (allow use only when credits available)
+  useEffect(() => {
+    const fetchBalance = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) { setCreditBalance(0); return; }
+        const { data } = await axios.get('/api/credits/balance', { headers: { Authorization: `Bearer ${token}` } });
+        setCreditBalance(data?.balance ?? 0);
+      } catch {
+        setCreditBalance(0);
+      }
+    };
+    fetchBalance();
+  }, [selectedTab, success]);
+
+  const hasCredits = creditBalance !== null && Number(creditBalance) > 0;
 
   // Fetch holidays when date range changes
   useEffect(() => {
@@ -484,21 +509,36 @@ export default function ExtractSKU() {
     }
   }, [selectedTab, featureFlags]);
 
+  // Redirect to first allowed tab when current tab is not permitted
+  useEffect(() => {
+    if (flagsLoading || !featureFlags) return;
+    const tabChecks = [
+      { tab: 'sort', ok: () => checkFeature('isExtractSKU') || checkFeature('isMeeshoSort') },
+      { tab: 'snapdeal', ok: () => checkFeature('isExtractSKU') || checkFeature('isSnapdealSort') },
+      { tab: 'amazon', ok: () => checkFeature('isExtractSKU') || checkFeature('isAmazonSort') },
+      { tab: 'excel', ok: () => checkFeature('isExcelFromPDF') },
+      { tab: 'inventory', ok: () => checkFeature('isSKUInventory') },
+      { tab: 'cancelled-orders', ok: () => checkFeature('isCancelledOrders') },
+      { tab: 'returns', ok: () => checkFeature('isReturns') },
+      { tab: 'customer-returns', ok: () => checkFeature('isCustomerReturns') },
+    ];
+    const current = tabChecks.find(t => t.tab === selectedTab);
+    const currentOk = current ? current.ok() : false;
+    if (!currentOk) {
+      const first = tabChecks.find(t => t.ok());
+      if (first) {
+        setSelectedTab(first.tab);
+        router.replace(`/extract-sku?tab=${first.tab}`, undefined, { shallow: true });
+      }
+    }
+  }, [flagsLoading, featureFlags, selectedTab]);
+
   // Removed auto-fetch - now using manual Apply button for better UX
   // This prevents annoying automatic calls when user is selecting dates
 
   useEffect(() => {
-    const refreshFlagsIfNeeded = async () => {
-      try {
-        if (selectedTab !== 'excel') return;
-        const token = localStorage.getItem('token');
-        if (!token) return;
-        const { data } = await axios.get('/api/company/flags', { headers: { Authorization: `Bearer ${token}` } });
-        setFeatureFlags(data?.featureFlags || {});
-      } catch {}
-    };
-    refreshFlagsIfNeeded();
-  }, [selectedTab]);
+    if (selectedTab === 'excel') refreshFlags();
+  }, [selectedTab, refreshFlags]);
 
   const companies = ['Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express'].sort();
 
@@ -646,17 +686,20 @@ export default function ExtractSKU() {
     setError(null);
     setSuccess(false);
     setStatus('Preparing files...');
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     try {
       const pdfFile = event.target.pdf.files[0];
-      const dataFile = event.target.csv.files[0];
-      if (!pdfFile || !dataFile) throw new Error('Please select both PDF and CSV/Excel files');
+      const dataFile = event.target.csv?.files?.[0] || null;
+      if (!pdfFile) throw new Error('Please select a PDF file');
 
-      const isExcel = /\.(xlsx|xls)$/i.test(dataFile.name);
+      const hasCsv = !!dataFile;
+      const isExcel = hasCsv && /\.(xlsx|xls)$/i.test(dataFile.name);
       const [pdfjsLib, pdfArrayBuffer, csvData] = await (async () => {
         const [lib, pdfBuf] = await Promise.all([
           loadPdfJs(),
           readFileAsArrayBuffer(pdfFile)
         ]);
+        if (!hasCsv) return [lib, pdfBuf, []];
         if (isExcel) {
           const dataBuf = await readFileAsArrayBuffer(dataFile);
           setStatus('Parsing Excel...');
@@ -673,6 +716,14 @@ export default function ExtractSKU() {
       setStatus('Reading PDF...');
       const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
       const pdf = await loadingTask.promise;
+
+      // Check credits upfront using dynamic rate (pagesPerCredit) – don't start if insufficient
+      const creditCheck = await checkCreditsForPages(pdf.numPages);
+      if (!creditCheck.ok) {
+        setError(creditCheck.message || `You need ${Number(creditCheck.required).toFixed(2)} credits for this PDF (${pdf.numPages} pages). You have ${Number(creditCheck.balance).toFixed(2)} credits. Purchase credits to continue.`);
+        setStatus('');
+        return;
+      }
 
       const pageData = [];
       for (let i = 1; i <= pdf.numPages; i++) {
@@ -707,27 +758,41 @@ export default function ExtractSKU() {
         throw new Error('No pages with Customer Address found in the PDF. Please check your PDF file.');
       }
 
-      pageData.sort((a, b) => {
-        const qtyA = a.qty || 0; const qtyB = b.qty || 0;
-        if (qtyA !== qtyB) return qtyA - qtyB;
-        const originA = a.originName || ''; const originB = b.originName || '';
-        if (originA !== originB) return originA.localeCompare(originB);
-        const companyA = a.company || ''; const companyB = b.company || '';
-        return companyA.localeCompare(companyB);
-      });
+      // Sort: with CSV = by qty, then origin, then company; without CSV = by SKU, then qty, then company (like Snapdeal/Amazon)
+      if (hasCsv && csvData.length > 0) {
+        pageData.sort((a, b) => {
+          const qtyA = a.qty || 0; const qtyB = b.qty || 0;
+          if (qtyA !== qtyB) return qtyA - qtyB;
+          const originA = a.originName || ''; const originB = b.originName || '';
+          if (originA !== originB) return originA.localeCompare(originB);
+          const companyA = a.company || ''; const companyB = b.company || '';
+          return companyA.localeCompare(companyB);
+        });
+      } else {
+        pageData.sort((a, b) => {
+          const skuA = a.sku || ''; const skuB = b.sku || '';
+          if (skuA !== skuB) return skuA.localeCompare(skuB);
+          const qtyA = a.qty || 0; const qtyB = b.qty || 0;
+          if (qtyA !== qtyB) return qtyA - qtyB;
+          const companyA = a.company || ''; const companyB = b.company || '';
+          return companyA.localeCompare(companyB);
+        });
+      }
 
-      // Count occurrences of each origin (excluding "Unknown Origin")
+      // Count occurrences of each origin (only when CSV provided, for count badge)
       const originCounts = {};
-      const firstOriginIndex = {}; // Track first occurrence index of each origin
-      pageData.forEach((page, index) => {
-        if (page.originName && page.originName !== 'Unknown Origin') {
-          if (!originCounts[page.originName]) {
-            originCounts[page.originName] = 0;
-            firstOriginIndex[page.originName] = index;
+      const firstOriginIndex = {};
+      if (hasCsv && csvData.length > 0) {
+        pageData.forEach((page, index) => {
+          if (page.originName && page.originName !== 'Unknown Origin') {
+            if (!originCounts[page.originName]) {
+              originCounts[page.originName] = 0;
+              firstOriginIndex[page.originName] = index;
+            }
+            originCounts[page.originName]++;
           }
-          originCounts[page.originName]++;
-        }
-      });
+        });
+      }
 
       setStatus('Building output PDF...');
       const sourcePdfDoc = await PDFDocument.load(pdfArrayBuffer);
@@ -738,38 +803,38 @@ export default function ExtractSKU() {
         const page = pageData[i];
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [page.pageNumber - 1]);
         
-        // Check if this is the first page of this origin and origin is not "Unknown Origin"
         const isFirstOfOrigin = firstOriginIndex[page.originName] === i;
         const hasMultiplePages = originCounts[page.originName] > 1;
-        const showCount = isFirstOfOrigin && hasMultiplePages && page.originName !== 'Unknown Origin';
+        const showCount = hasCsv && csvData.length > 0 && isFirstOfOrigin && hasMultiplePages && page.originName !== 'Unknown Origin';
         
-        // Get page dimensions
-        const { width, height } = copied.getSize();
+        const { width } = copied.getSize();
         
-        // Draw origin name on the left bottom
-        // PDF coordinates: (0,0) is bottom-left, y increases upward
-        // Use same approach as working processFiles.js
-        copied.drawText(`Origin : ${page.originName}`, { 
-          x: 50, 
-          y: 50, 
-          size: 14, 
-          font: helveticaBoldFont,
-          color: rgb(0, 0, 0)
-        });
+        if (hasCsv && csvData.length > 0) {
+          copied.drawText(`Origin : ${page.originName}`, { 
+            x: 50, 
+            y: 50, 
+            size: 14, 
+            font: helveticaBoldFont,
+            color: rgb(0, 0, 0)
+          });
+        } else {
+          copied.drawText(`SKU: ${page.sku} | Qty: ${page.qty}`, { 
+            x: 50, 
+            y: 50, 
+            size: 14, 
+            font: helveticaBoldFont,
+            color: rgb(0, 0, 0)
+          });
+        }
         
-        // Draw count on the right bottom corner if applicable
         if (showCount) {
           const count = originCounts[page.originName];
           const countText = `(${count})`;
-          const countFontSize = 24; // Bigger font for count
-          
-          // Calculate width of count text to position it from right
+          const countFontSize = 24;
           const countWidth = helveticaBoldFont.widthOfTextAtSize(countText, countFontSize);
-          
-          // Position at right bottom corner (same y level as origin name)
           copied.drawText(countText, {
-            x: width - countWidth - 50, // 50px margin from right
-            y: 50, // Same y level as origin name (50 points from bottom)
+            x: width - countWidth - 50,
+            y: 50,
             size: countFontSize,
             font: helveticaBoldFont,
             color: rgb(0, 0, 0)
@@ -779,6 +844,30 @@ export default function ExtractSKU() {
         outPdf.addPage(copied);
       }
       const outBytes = await outPdf.save();
+      const pageCount = pageData.length;
+
+      // Deduct credits for client-side Meesho processing (same as server: 1 credit per page)
+      setStatus('Deducting credits...');
+      const deductRes = await fetch('/api/credits/deduct', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ pages: pageCount }),
+      });
+      if (deductRes.status === 402) {
+        const data = await deductRes.json().catch(() => ({}));
+        setError(data?.message || `Insufficient credits. Need ${pageCount} credits for ${pageCount} pages.`);
+        setStatus('');
+        return;
+      }
+      if (!deductRes.ok) {
+        setError('Credit deduction failed. Please try again.');
+        setStatus('');
+        return;
+      }
+
       const url = window.URL.createObjectURL(new Blob([outBytes], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url; link.setAttribute('download', 'sorted_output.pdf');
@@ -786,6 +875,7 @@ export default function ExtractSKU() {
 
       setSuccess(true);
       setStatus('Done. File downloaded.');
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('creditsUpdated'));
       // Reset file selections after successful processing
       setSelectedPdfFile(null);
       setSelectedCsvFile(null);
@@ -802,7 +892,18 @@ export default function ExtractSKU() {
         const csv = event.target.csv.files[0];
         formData.append('pdf', pdf);
         formData.append('csv', csv);
-        const response = await fetch('/api/processFiles', { method: 'POST', body: formData });
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/processFiles', {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        });
+        if (response.status === 402) {
+          const data = await response.json().catch(() => ({}));
+          setError(data?.message || 'Insufficient credits. Buy more credits to continue.');
+          setStatus('');
+          return;
+        }
         if (!response.ok) throw new Error('Server fallback failed');
         const blob = await response.blob();
         const url = window.URL.createObjectURL(new Blob([blob]));
@@ -1381,6 +1482,16 @@ export default function ExtractSKU() {
   };
 
 
+  if (!mounted) {
+    return (
+      <div className="p-4 md:p-6 w-full">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm flex items-center justify-center">
+          <div className="text-gray-500">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 w-full">
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm">
@@ -1411,8 +1522,10 @@ export default function ExtractSKU() {
         <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-sm">
           <div className="px-4">
             <nav className="flex space-x-8" aria-label="Tabs">
+            {(checkFeature('isExtractSKU') || checkFeature('isMeeshoSort')) && (
             <button
               onClick={() => setSelectedTab('sort')}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'sort'
                   ? 'border-blue-400 text-blue-400'
@@ -1424,8 +1537,11 @@ export default function ExtractSKU() {
                 <span>Meesho Sort</span>
               </div>
             </button>
+            )}
+            {(checkFeature('isExtractSKU') || checkFeature('isSnapdealSort')) && (
             <button
               onClick={() => setSelectedTab('snapdeal')}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'snapdeal'
                   ? 'border-blue-400 text-blue-400'
@@ -1437,11 +1553,14 @@ export default function ExtractSKU() {
                 <span>Snapdeal Sort</span>
               </div>
             </button>
+            )}
+            {(checkFeature('isExtractSKU') || checkFeature('isAmazonSort')) && (
             <button
               onClick={() => setSelectedTab('amazon')}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'amazon'
-                  ? 'border-orange-400 text-orange-400'
+                  ? 'border-blue-400 text-blue-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
               }`}
             >
@@ -1450,14 +1569,16 @@ export default function ExtractSKU() {
                 <span>Amazon Sort</span>
               </div>
             </button>
+            )}
+            {checkFeature('isExcelFromPDF') && (
             <button
               onClick={() => setSelectedTab('excel')}
-              disabled={!flagsLoading && (!featureFlags || featureFlags.isExcelFromPDF !== true)}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'excel'
                   ? 'border-blue-400 text-blue-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!flagsLoading && (!featureFlags || featureFlags.isExcelFromPDF !== true) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1466,14 +1587,16 @@ export default function ExtractSKU() {
                 <span>Generate Excel</span>
               </div>
             </button>
+            )}
+            {checkFeature('isSKUInventory') && (
             <button
               onClick={() => setSelectedTab('inventory')}
-              disabled={!flagsLoading && !checkFeature('isSKUInventory')}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'inventory'
                   ? 'border-blue-400 text-blue-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!flagsLoading && !checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1482,14 +1605,16 @@ export default function ExtractSKU() {
                 <span>SKU Inventory</span>
               </div>
             </button>
+            )}
+            {checkFeature('isCancelledOrders') && (
             <button
               onClick={() => setSelectedTab('cancelled-orders')}
-              disabled={!flagsLoading && !checkFeature('isCancelledOrders')}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'cancelled-orders'
                   ? 'border-red-400 text-red-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!flagsLoading && !checkFeature('isCancelledOrders') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1498,14 +1623,16 @@ export default function ExtractSKU() {
                 <span>Cancelled Orders</span>
               </div>
             </button>
+            )}
+            {checkFeature('isReturns') && (
             <button
               onClick={() => setSelectedTab('returns')}
-              disabled={!flagsLoading && !checkFeature('isReturns')}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'returns'
                   ? 'border-amber-400 text-amber-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!flagsLoading && !checkFeature('isReturns') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1514,14 +1641,16 @@ export default function ExtractSKU() {
                 <span>Returns</span>
               </div>
             </button>
+            )}
+            {checkFeature('isCustomerReturns') && (
             <button
               onClick={() => setSelectedTab('customer-returns')}
-              disabled={!flagsLoading && !checkFeature('isCustomerReturns')}
+              disabled={loading}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'customer-returns'
                   ? 'border-amber-400 text-amber-400'
                   : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!flagsLoading && !checkFeature('isCustomerReturns') ? 'opacity-50 cursor-not-allowed' : ''}`}
+              }`}
             >
               <div className="flex items-center space-x-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1530,6 +1659,7 @@ export default function ExtractSKU() {
                 <span>Customer Returns</span>
               </div>
             </button>
+            )}
             </nav>
           </div>
         </div>
@@ -1571,9 +1701,17 @@ export default function ExtractSKU() {
 
         {selectedTab === 'sort' && (
           <div className="p-8">
-            {allowed === false && (
+            {!flagsLoading && !checkFeature('isExtractSKU') && !checkFeature('isMeeshoSort') && (
               <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                <p className="text-sm text-yellow-700">This feature is disabled for your company. Please contact your admin.</p>
+                <p className="text-sm text-yellow-700">Meesho Sort is not enabled for your account. Contact your admin to enable it.</p>
+              </div>
+            )}
+            {!flagsLoading && (checkFeature('isExtractSKU') || checkFeature('isMeeshoSort')) && !hasCredits && (
+              <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-amber-800">You need credits to use this feature. Purchase credits to continue.</p>
+                <Link href="/pricing" className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors">
+                  Purchase credits
+                </Link>
               </div>
             )}
             <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-6">
@@ -1640,7 +1778,7 @@ export default function ExtractSKU() {
               </div>
               <div>
                 <label htmlFor="csv" className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload CSV or Excel File
+                  Upload CSV or Excel File (optional – without it, sorted by SKU)
                 </label>
                 <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
                   selectedCsvFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400'
@@ -1691,7 +1829,6 @@ export default function ExtractSKU() {
                   id="csv"
                   name="csv"
                   accept=".csv,.xlsx,.xls"
-                  required
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     setSelectedCsvFile(file || null);
@@ -1728,7 +1865,7 @@ export default function ExtractSKU() {
 
               <button
                 type="submit"
-                disabled={loading || allowed === false || allowed === null || !selectedPdfFile || !selectedCsvFile}
+                disabled={loading || (!checkFeature('isExtractSKU') && !checkFeature('isMeeshoSort')) || !hasCredits || !selectedPdfFile}
                 className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? (
@@ -1749,7 +1886,8 @@ export default function ExtractSKU() {
 
         {selectedTab === 'snapdeal' && (
           <SnapdealSort
-            allowed={allowed}
+            allowed={!flagsLoading && (checkFeature('isExtractSKU') || checkFeature('isSnapdealSort'))}
+            hasCredits={hasCredits}
             loading={loading}
             setLoading={setLoading}
             setError={setError}
@@ -1766,7 +1904,8 @@ export default function ExtractSKU() {
 
         {selectedTab === 'amazon' && (
           <AmazonSort
-            allowed={allowed}
+            allowed={!flagsLoading && (checkFeature('isExtractSKU') || checkFeature('isAmazonSort'))}
+            hasCredits={hasCredits}
             loading={loading}
             setLoading={setLoading}
             setError={setError}
@@ -1967,6 +2106,14 @@ export default function ExtractSKU() {
                   <p className="text-sm text-yellow-700">Excel generation is disabled for your company. Please contact your admin.</p>
                 </div>
               )}
+              {checkFeature('isExcelFromPDF') && !hasCredits && (
+                <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-amber-800">You need credits to use this feature. Purchase credits to continue.</p>
+                  <Link href="/pricing" className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors">
+                    Purchase credits
+                  </Link>
+                </div>
+              )}
               <div>
                 <label htmlFor="pdf_excel" className="block text-sm font-medium text-gray-700 mb-2">
                   Upload PDF File
@@ -1996,7 +2143,7 @@ export default function ExtractSKU() {
               </div>
               <button
                 type="submit"
-                disabled={loading || !checkFeature('isExcelFromPDF')}
+                disabled={loading || !checkFeature('isExcelFromPDF') || !hasCredits}
                 className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? (
