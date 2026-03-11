@@ -32,7 +32,24 @@ export default function SnapdealSort({
       
       const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
       if (PRODUCTNameIndex > -1) {
-        name = lines[PRODUCTNameIndex + 1]?.trim()?.split('  ')?.[0]?.trim()?.split('|')?.[1]?.trim();
+        // Find the next line (after PRODUCTNameIndex) that has the same number of elements when split with "  "
+        const baseLine = lines[PRODUCTNameIndex];
+        if (baseLine) {
+          const fieldsCount = baseLine.split('  ').length;
+          // Search ahead for the next line with the same fields count
+          for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
+            const arr = lines[j]?.split('  ');
+            if (arr && arr.length === fieldsCount) {
+              // The last element should be the quantity
+              name = arr[0]?.trim();
+              if(name?.includes('|')){
+                name = name?.split('|')?.[1]?.trim();
+              }
+              break;
+            }
+          }
+        }
+        // name = lines[PRODUCTNameIndex + 1]?.trim()?.split('  ')?.[0]?.trim()?.split('|')?.[1]?.trim();
       }
     }
     return name || `Page_${i}`;
@@ -41,16 +58,29 @@ export default function SnapdealSort({
   function extractSnapdealQuantity(lines) {
     const QtyIndex = lines.findIndex(line => line.includes('QUANTITY'));
     if (QtyIndex === -1) return 0;
-
     let qty = 0;
     const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
     if (SKUIndex > -1) {
-      const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.[1]?.trim();
+      const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.pop()?.trim();
       qty = Number(numberWithSpace);
     } else {
+
       const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
       if (PRODUCTNameIndex > -1) {
-        qty = Number(lines[PRODUCTNameIndex + 3]);
+        // Try to extract the quantity from the "QUANTITY" line with similar logic as elsewhere
+        const baseLine = lines[PRODUCTNameIndex];
+        if (baseLine) {
+          const fieldsCount = baseLine.split('  ').length;
+          // Search ahead for the next line with the same fields count
+          for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
+            const arr = lines[j]?.split('  ');
+            if (arr && arr.length === fieldsCount) {
+              // The last element should be the quantity
+              qty = Number(arr[arr.length - 1]);
+              break;
+            }
+          }
+        }
       }
     }
     return qty;
