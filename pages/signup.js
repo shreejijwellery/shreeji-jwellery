@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import { HTTP } from '../actions/actions_creators';
@@ -21,6 +21,14 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+
+  // Pre-fill referral code from URL (e.g. /signup?referralCode=ABC123)
+  useEffect(() => {
+    const code = router.query.referralCode;
+    if (code && typeof code === 'string') {
+      setFormData(prev => ({ ...prev, referralCode: code.trim().toUpperCase() }));
+    }
+  }, [router.query.referralCode]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -59,7 +67,8 @@ const Signup = () => {
       }, 1000);
     } catch (error) {
       console.error('Error signing up:', error);
-      toast.error('Error creating account. Please try again.');
+      const message = error?.response?.data?.message || 'Error creating account. Please try again.';
+      toast.error(message);
       setIsLoading(false);
     }
   };
@@ -211,7 +220,7 @@ const Signup = () => {
               />
             </div>
 
-            {/* Referral Code (optional) - both get free credits */}
+            {/* Referral Code (optional) - referrer earns 10% of your first purchase (up to 200 credits) */}
             <div className="relative group">
               <input
                 type="text"
@@ -221,7 +230,7 @@ const Signup = () => {
                 onChange={handleChange}
                 className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all duration-300 bg-white/50"
               />
-              <p className="text-xs text-gray-500 mt-1">Have a referral code? Enter it for free credits.</p>
+              <p className="text-xs text-gray-500 mt-1">Have a referral code? The person who referred you earns 10% of your first purchase as credits (up to 200).</p>
             </div>
 
             {/* Submit Button */}

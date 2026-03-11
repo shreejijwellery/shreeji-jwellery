@@ -4,9 +4,8 @@ import Company from '../../models/company';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { isUserNameAvailable } from './common/common.services';
-import { TRIAL_CREDITS, TRIAL_DAYS, REFERRAL_CREDITS_REFERRER, REFERRAL_CREDITS_REFERRED } from '../../lib/creditConfig';
+import { TRIAL_CREDITS, TRIAL_DAYS } from '../../lib/creditConfig';
 import CreditTransaction from '../../models/CreditTransaction';
-import { addCredits } from '../../lib/creditsService';
 
 function generateReferralCode() {
   return crypto.randomBytes(6).toString('base64url').replace(/[-_]/g, 'x').slice(0, 8).toUpperCase();
@@ -32,8 +31,12 @@ export default async function handler(req, res) {
       }
 
       let referrerCompany = null;
-      if (referralCode && typeof referralCode === 'string') {
-        referrerCompany = await Company.findOne({ referralCode: referralCode.trim().toUpperCase(), isDeleted: { $ne: true } });
+      const codeTrimmed = referralCode && typeof referralCode === 'string' ? referralCode.trim().toUpperCase() : '';
+      if (codeTrimmed) {
+        referrerCompany = await Company.findOne({ referralCode: codeTrimmed, isDeleted: { $ne: true }, isBlocked: { $ne: true } });
+        if (!referrerCompany) {
+          return res.status(400).json({ message: 'Invalid referral code. Please check and try again or leave it blank.' });
+        }
       }
 
       const trialExpiresAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
@@ -62,10 +65,7 @@ export default async function handler(req, res) {
           metadata: { trialDays: TRIAL_DAYS, expiresAt: trialExpiresAt },
         });
 
-        if (referrerCompany) {
-          await addCredits(company._id, REFERRAL_CREDITS_REFERRED, 'referral', { referredBy: referrerCompany._id }, null);
-          await addCredits(referrerCompany._id, REFERRAL_CREDITS_REFERRER, 'referral_bonus', { referredCompany: company._id }, null);
-        }
+        // Referral credits are granted when the referred user makes their first purchase (see Razorpay webhook).
       }
 
       const newUser = new User({
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
         trialCredits: TRIAL_CREDITS,
         trialExpiresAt: trialExpiresAt.toISOString(),
         referralCode: company?.referralCode,
-        referralCredits: referrerCompany ? REFERRAL_CREDITS_REFERRED : 0,
+        referredByCode: !!referrerCompany, // Referral credits granted on first purchase
       });
     } catch (error) {
       res.status(500).json({

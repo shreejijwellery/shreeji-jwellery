@@ -51,7 +51,7 @@ export default function LandingPage() {
                 Sign in
               </Link>
             </div>
-            <p className="mt-4 text-sm text-slate-400">50 free credits for 7 days · Refer friends for bonus credits</p>
+            <p className="mt-4 text-sm text-slate-400">50 free credits for 7 days · Refer friends—earn 10% of their first purchase (up to 200 credits)</p>
           </div>
         </div>
       </section>
@@ -85,7 +85,7 @@ export default function LandingPage() {
               {
                 icon: FaGift,
                 title: 'Free trial to start',
-                description: 'New accounts get free credits. Try it risk-free. Refer a friend and you both earn extra credits.',
+                description: 'New accounts get free credits. Try it risk-free. Refer a friend—earn 10% of their first purchase as credits (up to 200).',
               },
               {
                 icon: FaShoppingBag,
@@ -95,7 +95,7 @@ export default function LandingPage() {
               {
                 icon: FaCheck,
                 title: 'Simple pricing',
-                description: 'Buy credit packs as you need them. No subscriptions. Use credits for PDF pages or Excel sheets—clear and fair.',
+                description: 'Buy credit packs as you need them. No subscriptions. Use credits for PDF pages—clear and fair.',
               },
             ].map((item) => (
               <div

@@ -10,6 +10,8 @@ const CompanySchema = new mongoose.Schema({
     trialCreditsExpiresAt: { type: Date, default: null },
     referralCode: { type: String, sparse: true, unique: true },
     referredByCompanyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', default: null },
+    /** Set true when referral credits are granted after first purchase (so we only grant once). */
+    referralCreditsGranted: { type: Boolean, default: false },
     featureFlags: {
         // SKU Management Features
         isExtractSKU: { type: Boolean, default: false },

@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import connectToDatabase from '../../../../lib/mongodb';
+import Company from '../../../../models/company';
 import { addCredits } from '../../../../lib/creditsService';
+import { REFERRAL_BONUS_PERCENT, REFERRAL_BONUS_CAP_CREDITS } from '../../../../lib/creditConfig';
 import { getActivePacks, recordPromoUsage } from '../../../../lib/pricingHelpers';
 
 export const config = {
@@ -91,6 +93,24 @@ async function handler(req, res) {
         orderId: paymentEntity?.order_id || payload?.payload?.order?.entity?.id,
         packId,
       });
+
+      // Grant referral bonus to referrer only on referred user's first purchase: 10% of plan price as credits, cap 200
+      const company = await Company.findById(companyId).lean();
+      if (company?.referredByCompanyId && !company.referralCreditsGranted) {
+        try {
+          const planPrice = Number(pack.price) || 0;
+          const referrerCredits = Math.min(
+            REFERRAL_BONUS_CAP_CREDITS,
+            Math.round(planPrice * REFERRAL_BONUS_PERCENT)
+          );
+          if (referrerCredits > 0) {
+            await addCredits(company.referredByCompanyId.toString(), referrerCredits, 'referral_bonus', { referredCompany: companyId, planPrice, packId }, null);
+          }
+          await Company.findByIdAndUpdate(companyId, { referralCreditsGranted: true });
+        } catch (refErr) {
+          console.error('Failed to grant referral credits:', refErr);
+        }
+      }
 
       if (notes.promoCodeId) {
         try {

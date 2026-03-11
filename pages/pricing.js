@@ -3,6 +3,7 @@ import axios from 'axios';
 import Link from 'next/link';
 import Script from 'next/script';
 import { toast } from 'react-toastify';
+import { FaCopy, FaShareAlt } from 'react-icons/fa';
 
 export default function Pricing() {
   const [packs, setPacks] = useState([]);
@@ -173,12 +174,15 @@ export default function Pricing() {
               Credit Packs
             </h1>
             <p className="mt-4 text-lg text-slate-300 max-w-2xl mx-auto">
-              Use credits for PDF extraction (Meesho, Snapdeal, Amazon) and Excel generation. Pay only for what you use.
+              Use credits for PDF extraction (Meesho, Snapdeal, Amazon). Pay only for what you use.
             </p>
             <p className="mt-2 text-sm text-slate-400">
               {Number(creditConfig.pagesPerCredit) === 1
                 ? '1 credit = 1 page of output. Secure payments. Credits never expire.'
                 : `1 credit = ${Number(creditConfig.pagesPerCredit)} pages of output. Secure payments. Credits never expire.`}
+            </p>
+            <p className="mt-3 text-sm text-slate-400">
+              New accounts get 50 free credits for 7 days. Refer a friend—earn 10% of their first purchase as credits (up to 200).
             </p>
           </div>
         </div>
@@ -237,9 +241,9 @@ export default function Pricing() {
           ) : (
             <>
             <p className="text-center text-slate-600 mb-8">
-              Usage: 1 credit = {Number(creditConfig.pagesPerCredit) || 1} page(s) of PDF output (rate set by administrator).
+              Usage: 1 credit = {Number(creditConfig.pagesPerCredit) || 1} page(s) of PDF output.
             </p>
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
               {packs.map((pack) => {
                 const displayPrice = getDisplayPrice(pack);
                 const originalPrice = getOriginalPrice(pack);
@@ -284,6 +288,11 @@ export default function Pricing() {
                     <p className="mt-1 text-sm text-slate-500">
                       {sym}{(Number(displayPrice) / pack.credits).toFixed(2)} per credit
                     </p>
+                    {pack.currency === 'INR' && Number(displayPrice) > 0 && (
+                      <p className="mt-1 text-sm text-slate-500">
+                        ≈ {Math.round((Number(pack.credits) * (Number(creditConfig.pagesPerCredit) || 1)) / displayPrice).toLocaleString()} pages per ₹1
+                      </p>
+                    )}
                     <div className="mt-8">
                       {isLoggedIn ? (
                         <button
@@ -310,19 +319,89 @@ export default function Pricing() {
             </>
           )}
 
-          {/* Trial CTA */}
-          <div className="mt-16 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
-            <h2 className="text-lg font-semibold text-slate-900">New here?</h2>
-            <p className="mt-2 text-slate-600">
-              New accounts get <strong>50 credits free</strong> for 7 days. Refer a friend and you both get extra credits.
-            </p>
-            <Link
-              href="/signup"
-              className="mt-4 inline-block rounded-lg bg-slate-800 px-5 py-2.5 font-medium text-white hover:bg-slate-700"
-            >
-              Sign up →
-            </Link>
-          </div>
+          {/* Refer a friend – for logged-in users */}
+          {isLoggedIn && userInfo?.referralCode && (
+            <div className="mt-16 rounded-2xl border border-slate-200 bg-slate-50 p-8">
+              <h2 className="text-lg font-semibold text-slate-900">Refer a friend</h2>
+              <p className="mt-2 text-slate-600">
+                Share your referral code. When they make their first purchase, you earn <strong>10% of the plan amount as credits</strong> (up to 200).
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <code className="flex-1 min-w-0 rounded-lg bg-slate-200 px-4 py-2.5 text-sm font-mono text-slate-800 break-all">
+                  {userInfo.referralCode}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(userInfo.referralCode);
+                    toast.success('Referral code copied');
+                  }}
+                  className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-700 whitespace-nowrap"
+                >
+                  Copy code
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = typeof window !== 'undefined'
+                      ? `${window.location.origin}/signup?referralCode=${encodeURIComponent(userInfo.referralCode)}`
+                      : '';
+                    if (url) {
+                      navigator.clipboard.writeText(url);
+                      toast.success('Signup link copied');
+                    }
+                  }}
+                  className="rounded-lg border border-slate-300 bg-white p-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                  title="Copy signup link"
+                >
+                  <FaCopy className="w-5 h-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const url = typeof window !== 'undefined'
+                      ? `${window.location.origin}/signup?referralCode=${encodeURIComponent(userInfo.referralCode)}`
+                      : '';
+                    if (typeof navigator !== 'undefined' && navigator.share && url) {
+                      try {
+                        await navigator.share({
+                          title: 'Join and get free credits',
+                          text: 'Sign up with my referral code—50 free credits for 7 days.',
+                          url,
+                        });
+                        toast.success('Shared');
+                      } catch (e) {
+                        if (e.name !== 'AbortError') toast.error('Share failed');
+                      }
+                    } else if (url) {
+                      navigator.clipboard.writeText(url);
+                      toast.success('Signup link copied');
+                    }
+                  }}
+                  className="rounded-lg border border-slate-300 bg-white p-2.5 text-slate-600 hover:bg-slate-100 hover:text-slate-800"
+                  title="Share signup link"
+                >
+                  <FaShareAlt className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Trial CTA – only for guests */}
+          {!isLoggedIn && (
+            <div className="mt-16 rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center">
+              <h2 className="text-lg font-semibold text-slate-900">New here?</h2>
+              <p className="mt-2 text-slate-600">
+                New accounts get <strong>50 credits free</strong> for 7 days. Refer a friend—earn 10% of their first purchase as credits (up to 200).
+              </p>
+              <Link
+                href="/signup"
+                className="mt-4 inline-block rounded-lg bg-slate-800 px-5 py-2.5 font-medium text-white hover:bg-slate-700"
+              >
+                Sign up →
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </>
