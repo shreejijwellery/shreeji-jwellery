@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
@@ -201,7 +202,7 @@ const AdminPortal = () => {
         <button onClick={() => setActiveTab('users')} className={`px-4 py-2 rounded-t ${activeTab === 'users' ? 'bg-white border border-b-0' : 'bg-gray-100'}`}>Users</button>
         <button onClick={() => setActiveTab('audit')} className={`px-4 py-2 rounded-t ${activeTab === 'audit' ? 'bg-white border border-b-0' : 'bg-gray-100'}`}>Audit Log</button>
         <button onClick={() => setActiveTab('creditSettings')} className={`px-4 py-2 rounded-t ${activeTab === 'creditSettings' ? 'bg-white border border-b-0' : 'bg-gray-100'}`}>Credit settings</button>
-        <a href="/admin-pricing" className="px-4 py-2 rounded-t bg-gray-100 hover:bg-gray-200">Pricing &amp; offers</a>
+        <Link href="/admin-pricing" className="px-4 py-2 rounded-t bg-gray-100 hover:bg-gray-200">Pricing &amp; offers</Link>
       </div>
 
       {activeTab === 'creditSettings' && (
