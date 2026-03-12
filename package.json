@@ -9,6 +9,9 @@
     "start": "next start",
     "export": "next export",
     "lint": "next lint",
+    "test": "node --test __tests__/lib/",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e",
     "tauri": "tauri dev",
     "tauri:build": "tauri build"
   },
@@ -46,6 +49,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tauri-apps/api": "^2.0.3",
     "@tauri-apps/cli": "^2.0.4",
     "@types/node": "^20",
