@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { FaShoppingBag, FaBolt, FaShieldAlt, FaGift, FaFilePdf, FaCheck } from 'react-icons/fa';
+import { FaShoppingBag, FaBolt, FaShieldAlt, FaGift, FaFilePdf, FaCheck, FaWhatsapp } from 'react-icons/fa';
 import OMSLogo from './OMSLogo';
 
 export default function LandingPage() {
@@ -279,10 +279,31 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="py-8 bg-slate-900 text-slate-400 text-center text-sm">
-        <div className="max-w-6xl mx-auto px-4 flex flex-wrap justify-center gap-6">
-          <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-          <Link href="/login" className="hover:text-white transition-colors">Sign in</Link>
-          <Link href="/signup" className="hover:text-white transition-colors">Sign up</Link>
+        <div className="max-w-6xl mx-auto px-4 flex flex-col items-center gap-4">
+          <div className="flex flex-wrap justify-center gap-6">
+            <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+            <Link href="/login" className="hover:text-white transition-colors">Sign in</Link>
+            <Link href="/signup" className="hover:text-white transition-colors">Sign up</Link>
+            <a
+              href="https://wa.me/919978105288"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 hover:text-white transition-colors"
+              aria-label="Chat on WhatsApp"
+            >
+              <FaWhatsapp className="w-4 h-4 text-green-400" />
+              WhatsApp
+            </a>
+            <a
+              href="https://techshekhada.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white transition-colors"
+            >
+              techshekhada.com
+            </a>
+          </div>
+          <p className="text-slate-500 text-xs">OMS Portal by <a href="https://techshekhada.com" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white">Tech Shekhada</a></p>
         </div>
       </footer>
     </div>

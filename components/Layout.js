@@ -30,7 +30,8 @@ import {
   FaTruck,
   FaShoppingBag,
   FaTag,
-  FaUndo
+  FaUndo,
+  FaWhatsapp
 } from "react-icons/fa";
 import { SiAmazon } from "react-icons/si";
 
@@ -187,28 +188,26 @@ const Layout = ({ children }) => {
       return (
         <li className="sidebar-menu-item group">
           <div
-            className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors duration-200 ${
-              isActive ? 'bg-blue-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+            className={`flex items-center justify-between px-4 py-3 rounded-xl transition-colors duration-200 ${
+              isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
             }`}
           >
             <div className="flex items-center gap-3">
               <Icon className="text-lg flex-shrink-0" />
               <span className={`font-medium ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>{label}</span>
             </div>
-            {/* Chevron is decorative; no click needed */}
             <span className={`sidebar-chevron text-sm ${sidebarCollapsed ? 'hidden group-hover:inline' : 'inline'}`}>
               <FaChevronRight />
             </span>
           </div>
-          {/* Submenu appears on hover when sidebar is collapsed */}
           <div className="sidebar-submenu">
-            <ul className="ml-4 space-y-1 border-l-2 border-gray-700 pl-2">
+            <ul className="ml-4 space-y-1 border-l-2 border-slate-700 pl-2">
               {submenu.filter(item => !item.flag || checkFeature(item.flag)).map((item, idx) => (
                 <li key={idx}>
                   <Link href={item.href}>
                     <div
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors duration-200 ${
-                        router.pathname === item.href ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                        router.pathname === item.href ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                       }`}
                     >
                       {item.icon && <item.icon className="text-sm" />}
@@ -223,13 +222,12 @@ const Layout = ({ children }) => {
       );
     }
 
-    // No submenu
     return (
       <li className="sidebar-menu-item">
         <Link href={href}>
           <div
-            className={`flex items-center px-4 py-3 rounded-lg transition-colors duration-200 ${
-              isActive ? 'bg-blue-600 text-white shadow-md' : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+            className={`flex items-center px-4 py-3 rounded-xl transition-colors duration-200 ${
+              isActive ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
             }`}
           >
             <Icon className="text-lg flex-shrink-0" />
@@ -254,50 +252,53 @@ const Layout = ({ children }) => {
   if (isLandingPage) {
     return (
       <div className="min-h-screen bg-white font-sans">
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200">
+        <header className="sticky top-0 z-50 bg-white border-b border-slate-200/80 shadow-sm">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2.5 text-slate-900 font-semibold">
+            <Link href="/" className="flex items-center gap-2.5 text-slate-800 hover:text-indigo-600 transition-colors">
               <img src="/logo-icon.svg" alt="" className="w-9 h-9 flex-shrink-0" />
-              <span className="hidden sm:inline text-lg font-bold tracking-tight" style={{ letterSpacing: '-0.02em' }}>OMS Portal</span>
+              <span className="hidden sm:inline text-lg font-bold tracking-tight text-slate-900" style={{ letterSpacing: '-0.02em' }}>OMS Portal</span>
             </Link>
-            <nav className="flex items-center gap-4">
-              <Link href="/#pricing" className="text-slate-600 hover:text-indigo-600 font-medium text-sm">
+            <nav className="flex items-center gap-1 sm:gap-2">
+              <Link href="/#pricing" className="px-3 py-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 text-sm font-medium transition-colors">
                 Pricing
               </Link>
-              <Link href="/login" className="text-slate-600 hover:text-indigo-600 font-medium text-sm">
+              <a href="https://wa.me/919978105288" target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 text-sm font-medium inline-flex items-center gap-1.5 transition-colors" aria-label="Chat on WhatsApp">
+                <FaWhatsapp className="w-4 h-4 text-green-600" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </a>
+              <span className="w-px h-5 bg-slate-200 mx-1 hidden sm:block" aria-hidden="true" />
+              <Link href="/login" className="px-3 py-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 text-sm font-medium transition-colors">
                 Sign in
               </Link>
-              <Link href="/signup" className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors">
+              <Link href="/signup" className="ml-1 sm:ml-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 shadow-sm hover:shadow transition-colors">
                 Sign up
               </Link>
             </nav>
           </div>
         </header>
         {children}
+        {/* Floating WhatsApp */}
+        <a href="https://wa.me/919978105288" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all" aria-label="Chat on WhatsApp">
+          <FaWhatsapp className="w-8 h-8" />
+        </a>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 font-sans overflow-hidden">
+    <div className="flex h-screen bg-slate-50 font-sans overflow-hidden">
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-40 bg-black bg-opacity-50 md:hidden" onClick={() => setMobileMenuOpen(false)}></div>
       )}
 
-      {/* Sidebar */}
-      <aside className={`group fixed inset-y-0 left-0 z-50 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-700 bg-opacity-80 backdrop-blur-lg transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${
+      {/* Sidebar - matches landing palette (slate/indigo) */}
+      <aside className={`group fixed inset-y-0 left-0 z-50 bg-slate-900 backdrop-blur-lg transform transition-all duration-300 ease-in-out md:relative md:translate-x-0 ${
         mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
       } ${sidebarCollapsed ? 'w-20 hover:w-64 md:w-20 md:hover:w-64' : 'w-64 md:w-64'}`}>
-        {/* Decorative floating icons */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <FaBoxes className="absolute top-8 left-4 text-purple-300 opacity-20 text-5xl animate-float" />
-          <FaWarehouse className="absolute bottom-12 right-6 text-indigo-300 opacity-20 text-6xl animate-float-delayed" />
-          <FaTruck className="absolute top-1/2 left-1/2 text-pink-300 opacity-20 text-7xl animate-float" />
-        </div>
         <div className="flex flex-col h-full relative z-10">
-            {/* Logo / Brand */}
-            <div className="h-16 flex items-center justify-center px-4 bg-gradient-to-r from-indigo-600 to-purple-600 border-b border-gray-800 cursor-pointer" onClick={toggleSidebar}>
+            {/* Logo / Brand - same gradient as landing hero */}
+            <div className="h-16 flex items-center justify-center px-4 bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 border-b border-slate-700/50 cursor-pointer" onClick={toggleSidebar}>
               {/* Expanded view */}
               {!sidebarCollapsed && (
                 <div className="flex items-center gap-3">
@@ -386,14 +387,14 @@ const Layout = ({ children }) => {
 
           {/* User Info Footer */}
           {user && (
-            <div className={`p-4 border-t border-gray-800 ${sidebarCollapsed ? 'hidden group-hover:block' : 'block'}`}>
+            <div className={`p-4 border-t border-slate-700/50 ${sidebarCollapsed ? 'hidden group-hover:block' : 'block'}`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold">
                   {user.name?.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{user.name}</p>
-                  <p className="text-xs text-gray-400 truncate">{user.role}</p>
+                  <p className="text-xs text-slate-400 truncate">{user.role}</p>
                 </div>
               </div>
             </div>
@@ -403,16 +404,16 @@ const Layout = ({ children }) => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
-        <header className="h-16 bg-white shadow-sm flex items-center justify-between px-4 md:px-6 z-10 flex-shrink-0">
+        {/* Top Header - matches landing header style */}
+        <header className="h-16 bg-white border-b border-slate-200/80 shadow-sm flex items-center justify-between px-4 md:px-6 z-10 flex-shrink-0">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-md text-gray-600 hover:bg-gray-100 focus:outline-none"
+              className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 focus:outline-none transition-colors"
             >
               {mobileMenuOpen ? <FaTimes size={24} /> : <FaBars size={24} />}
             </button>
-            <h2 className="text-xl font-semibold text-gray-800">
+            <h2 className="text-xl font-semibold text-slate-800 tracking-tight">
               {/* Dynamic Title could go here */}
             </h2>
           </div>
@@ -422,25 +423,25 @@ const Layout = ({ children }) => {
               {(user.creditBalance !== undefined || user.trialActive) && (
                 <Link
                   href="/pricing"
-                  className="hidden sm:flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+                  className="hidden sm:flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
                 >
                   <span>Credits: {(Number(user.creditBalance) ?? 0).toFixed(2)}</span>
-                  {user.trialActive && <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">Trial</span>}
+                  {user.trialActive && <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-md">Trial</span>}
                 </Link>
               )}
               <div className="hidden sm:flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
                   <CgProfile size={20} />
                 </div>
-                <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                <span className="text-sm font-medium text-slate-700">{user.name}</span>
               </div>
               
-              <div className="h-6 w-px bg-gray-300 mx-1 hidden sm:block"></div>
+              <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
 
               <div className="flex items-center gap-2">
                 <button 
                   onClick={() => router.push('/profile')}
-                  className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                  className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors"
                   title="Profile"
                 >
                   <CgProfile size={20} />
@@ -449,7 +450,7 @@ const Layout = ({ children }) => {
                 {user.role === USER_ROLES.ADMIN && (
                   <button 
                     onClick={() => router.push('/user-permissions')}
-                    className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                    className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors"
                     title="User Permissions"
                   >
                     <FaUsersCog size={20} />
@@ -459,7 +460,7 @@ const Layout = ({ children }) => {
                 {user.role === USER_ROLES.ADMINISTRATOR && (
                   <button 
                     onClick={() => router.push('/admin')}
-                    className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors"
+                    className="p-2 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors"
                     title="Admin"
                   >
                     <FaUsersCog size={20} />
@@ -468,7 +469,7 @@ const Layout = ({ children }) => {
                 
                 <button
                   onClick={handleLogout}
-                  className="ml-2 px-4 py-2 bg-red-50 text-red-600 text-sm font-medium rounded-lg hover:bg-red-100 transition-colors"
+                  className="ml-2 px-4 py-2 bg-red-50 text-red-600 text-sm font-medium rounded-xl hover:bg-red-100 transition-colors"
                 >
                   Logout
                 </button>
@@ -478,10 +479,14 @@ const Layout = ({ children }) => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-gray-50">
+        <main className="flex-1 overflow-auto bg-slate-50">
           {children}
         </main>
       </div>
+      {/* Floating WhatsApp */}
+      <a href="https://wa.me/919978105288" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all" aria-label="Chat on WhatsApp">
+        <FaWhatsapp className="w-8 h-8" />
+      </a>
     </div>
   );
 };

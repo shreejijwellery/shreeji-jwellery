@@ -1494,170 +1494,152 @@ export default function ExtractSKU() {
 
   return (
     <div className="p-4 md:p-6 w-full">
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b border-gray-200">
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">SKU Management Tools</h1>
-                <p className="mt-1 text-sm text-gray-500">Process, manage, and export SKU data efficiently</p>
-              </div>
-              {status && (
-                <div className="flex items-center space-x-2 text-sm">
-                  {loading && (
-                    <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  )}
-                  <span className="text-gray-600">{status}</span>
-                </div>
-              )}
+      <div className="min-h-screen bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        {/* Header - matches landing typography */}
+        <div className="bg-white border-b border-slate-200/80 px-4 sm:px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">SKU Management Tools</h1>
+              <p className="mt-1 text-sm text-slate-600">Process, manage, and export SKU data efficiently</p>
             </div>
+            {status && (
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                {loading && (
+                  <svg className="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                <span>{status}</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Tabs Navigation */}
-        <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-sm">
+        {/* Tabs - same gradient as landing hero */}
+        <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 border-b border-slate-700/50 sticky top-0 z-10">
           <div className="px-4">
-            <nav className="flex space-x-8" aria-label="Tabs">
+            <nav className="flex gap-1 overflow-x-auto" aria-label="Tabs">
             {(checkFeature('isExtractSKU') || checkFeature('isMeeshoSort')) && (
             <button
               onClick={() => setSelectedTab('sort')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'sort'
-                  ? 'border-blue-400 text-blue-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'sort' ? 'text-pink-400' : 'text-gray-400'}`} title="Meesho" />
-                <span>Meesho Sort</span>
-              </div>
+              <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'sort' ? 'text-white' : 'text-slate-400'}`} title="Meesho" />
+              <span>Meesho Sort</span>
             </button>
             )}
             {(checkFeature('isExtractSKU') || checkFeature('isSnapdealSort')) && (
             <button
               onClick={() => setSelectedTab('snapdeal')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'snapdeal'
-                  ? 'border-blue-400 text-blue-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <FaTag className={`w-5 h-5 ${selectedTab === 'snapdeal' ? 'text-red-400' : 'text-gray-400'}`} title="Snapdeal" />
-                <span>Snapdeal Sort</span>
-              </div>
+              <FaTag className={`w-5 h-5 ${selectedTab === 'snapdeal' ? 'text-white' : 'text-slate-400'}`} title="Snapdeal" />
+              <span>Snapdeal Sort</span>
             </button>
             )}
             {(checkFeature('isExtractSKU') || checkFeature('isAmazonSort')) && (
             <button
               onClick={() => setSelectedTab('amazon')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'amazon'
-                  ? 'border-blue-400 text-blue-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <SiAmazon className={`w-5 h-5 ${selectedTab === 'amazon' ? 'text-orange-400' : 'text-gray-400'}`} title="Amazon" />
-                <span>Amazon Sort</span>
-              </div>
+              <SiAmazon className={`w-5 h-5 ${selectedTab === 'amazon' ? 'text-white' : 'text-slate-400'}`} title="Amazon" />
+              <span>Amazon Sort</span>
             </button>
             )}
             {checkFeature('isExcelFromPDF') && (
             <button
               onClick={() => setSelectedTab('excel')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'excel'
-                  ? 'border-blue-400 text-blue-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Generate Excel</span>
-              </div>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Generate Excel</span>
             </button>
             )}
             {checkFeature('isSKUInventory') && (
             <button
               onClick={() => setSelectedTab('inventory')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'inventory'
-                  ? 'border-blue-400 text-blue-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                <span>SKU Inventory</span>
-              </div>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              <span>SKU Inventory</span>
             </button>
             )}
             {checkFeature('isCancelledOrders') && (
             <button
               onClick={() => setSelectedTab('cancelled-orders')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'cancelled-orders'
-                  ? 'border-red-400 text-red-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span>Cancelled Orders</span>
-              </div>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>Cancelled Orders</span>
             </button>
             )}
             {checkFeature('isReturns') && (
             <button
               onClick={() => setSelectedTab('returns')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'returns'
-                  ? 'border-amber-400 text-amber-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Returns</span>
-              </div>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Returns</span>
             </button>
             )}
             {checkFeature('isCustomerReturns') && (
             <button
               onClick={() => setSelectedTab('customer-returns')}
               disabled={loading}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+              className={`py-3 px-4 rounded-t-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 shrink-0 ${
                 selectedTab === 'customer-returns'
-                  ? 'border-amber-400 text-amber-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                  ? 'bg-indigo-600/90 text-white border-b-2 border-indigo-400'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800/50 border-b-2 border-transparent'
               }`}
             >
-              <div className="flex items-center space-x-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span>Customer Returns</span>
-              </div>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Customer Returns</span>
             </button>
             )}
             </nav>
@@ -1665,10 +1647,10 @@ export default function ExtractSKU() {
         </div>
 
         {/* Main Content */}
-        <div className={selectedTab === 'inventory' ? '' : 'px-4 py-6'}>
+        <div className={selectedTab === 'inventory' ? '' : 'px-4 sm:px-6 py-6'}>
         {/* Alert Messages */}
         {error && (
-          <div className={`mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
+          <div className={`mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-xl shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1683,7 +1665,7 @@ export default function ExtractSKU() {
         )}
         
         {success && (
-          <div className={`mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-md shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
+          <div className={`mb-6 bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-xl shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1697,30 +1679,30 @@ export default function ExtractSKU() {
           </div>
         )}
 
-        <div className={`bg-white ${selectedTab === 'inventory' ? '' : 'rounded-lg shadow-lg'} overflow-hidden`}>
+        <div className={`bg-white ${selectedTab === 'inventory' ? '' : 'rounded-xl border border-slate-200/80 shadow-sm'} overflow-hidden`}>
 
         {selectedTab === 'sort' && (
-          <div className="p-8">
+          <div className="p-6 sm:p-8">
             {!flagsLoading && !checkFeature('isExtractSKU') && !checkFeature('isMeeshoSort') && (
-              <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                <p className="text-sm text-yellow-700">Meesho Sort is not enabled for your account. Contact your admin to enable it.</p>
+              <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl">
+                <p className="text-sm text-amber-800">Meesho Sort is not enabled for your account. Contact your admin to enable it.</p>
               </div>
             )}
             {!flagsLoading && (checkFeature('isExtractSKU') || checkFeature('isMeeshoSort')) && !hasCredits && (
-              <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-amber-800">You need credits to use this feature. Purchase credits to continue.</p>
-                <Link href="/pricing" className="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-medium rounded-lg hover:bg-amber-700 transition-colors">
+                <Link href="/pricing" className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors">
                   Purchase credits
                 </Link>
               </div>
             )}
             <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-6">
               <div>
-                <label htmlFor="pdf" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="pdf" className="block text-sm font-medium text-slate-700 mb-2">
                   Upload PDF File
                 </label>
-                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
-                  selectedPdfFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400'
+                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-xl transition-colors ${
+                  selectedPdfFile ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-indigo-400 bg-slate-50/50'
                 }`}>
                   <div className="space-y-1 text-center w-full">
                     {selectedPdfFile ? (
@@ -1743,22 +1725,22 @@ export default function ExtractSKU() {
                             </div>
                           </div>
                         </div>
-                        <label htmlFor="pdf" className="mt-2 block text-xs text-gray-500 cursor-pointer hover:text-blue-600">
+                        <label htmlFor="pdf" className="mt-2 block text-xs text-slate-500 cursor-pointer hover:text-indigo-600">
                           Click to change file
                         </label>
                       </>
                     ) : (
                       <>
-                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <svg className="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                           <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                        <div className="flex text-sm text-gray-600">
-                          <label htmlFor="pdf" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                        <div className="flex text-sm text-slate-600">
+                          <label htmlFor="pdf" className="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500">
                             <span>Upload a file</span>
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
-                        <p className="text-xs text-gray-500">PDF up to 25MB</p>
+                        <p className="text-xs text-slate-500">PDF up to 25MB</p>
                       </>
                     )}
                   </div>
@@ -1777,11 +1759,11 @@ export default function ExtractSKU() {
                 />
               </div>
               <div>
-                <label htmlFor="csv" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="csv" className="block text-sm font-medium text-slate-700 mb-2">
                   Upload CSV or Excel File (optional – without it, sorted by SKU)
                 </label>
-                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-lg transition-colors ${
-                  selectedCsvFile ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400'
+                <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-xl transition-colors ${
+                  selectedCsvFile ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-indigo-400 bg-slate-50/50'
                 }`}>
                   <div className="space-y-1 text-center w-full">
                     {selectedCsvFile ? (
@@ -1804,22 +1786,22 @@ export default function ExtractSKU() {
                             </div>
                           </div>
                         </div>
-                        <label htmlFor="csv" className="mt-2 block text-xs text-gray-500 cursor-pointer hover:text-blue-600">
+                        <label htmlFor="csv" className="mt-2 block text-xs text-slate-500 cursor-pointer hover:text-indigo-600">
                           Click to change file
                         </label>
                       </>
                     ) : (
                       <>
-                        <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                        <svg className="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
                           <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                        <div className="flex text-sm text-gray-600">
-                          <label htmlFor="csv" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500">
+                        <div className="flex text-sm text-slate-600">
+                          <label htmlFor="csv" className="relative cursor-pointer rounded-md font-medium text-indigo-600 hover:text-indigo-500">
                             <span>Upload a file</span>
                           </label>
                           <p className="pl-1">or drag and drop</p>
                         </div>
-                        <p className="text-xs text-gray-500">CSV or Excel (.xlsx, .xls)</p>
+                        <p className="text-xs text-slate-500">CSV or Excel (.xlsx, .xls)</p>
                       </>
                     )}
                   </div>
@@ -1838,12 +1820,12 @@ export default function ExtractSKU() {
               </div>
               {/* Selected Files Summary */}
               {(selectedPdfFile || selectedCsvFile) && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs font-medium text-blue-700 mb-2">Ready to process:</p>
+                <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <p className="text-xs font-medium text-indigo-700 mb-2">Ready to process:</p>
                   <div className="space-y-1 text-xs">
                     {selectedPdfFile && (
-                      <div className="flex items-center gap-2 text-blue-900">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center gap-2 text-indigo-900">
+                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
                         <span className="font-medium">PDF:</span>
@@ -1851,8 +1833,8 @@ export default function ExtractSKU() {
                       </div>
                     )}
                     {selectedCsvFile && (
-                      <div className="flex items-center gap-2 text-blue-900">
-                        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="flex items-center gap-2 text-indigo-900">
+                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
                         <span className="font-medium">CSV:</span>
@@ -1866,7 +1848,7 @@ export default function ExtractSKU() {
               <button
                 type="submit"
                 disabled={loading || (!checkFeature('isExtractSKU') && !checkFeature('isMeeshoSort')) || !hasCredits || !selectedPdfFile}
-                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow"
               >
                 {loading ? (
                   <>
