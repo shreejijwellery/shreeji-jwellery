@@ -1,0 +1,12 @@
+# Allow all crawlers
+User-agent: *
+Allow: /
+
+# Public pages we want indexed
+Allow: /
+Allow: /login
+Allow: /signup
+Allow: /pricing
+
+# Add your live domain below so crawlers can find the sitemap (e.g. https://yourdomain.com/sitemap.xml)
+# Sitemap: https://oms.techshekhada.com/sitemap.xml

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { toast } from 'react-toastify';
 import { FaCopy, FaShareAlt } from 'react-icons/fa';
+import SEO from '../components/SEO';
 
 export default function Pricing() {
   const [packs, setPacks] = useState([]);
@@ -164,6 +165,7 @@ export default function Pricing() {
 
   return (
     <>
+      <SEO title="Pricing" description="Credit packs and pricing for Smart PDF Sort. Pay per use, no subscription. Free trial available." canonicalPath="/pricing" />
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
         {/* Hero */}

@@ -256,9 +256,9 @@ const Layout = ({ children }) => {
       <div className="min-h-screen bg-white font-sans">
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-slate-200">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 text-slate-900 font-semibold">
-              <FaWarehouse className="text-indigo-600 w-8 h-8" />
-              <span className="hidden sm:inline">OMS Portal</span>
+            <Link href="/" className="flex items-center gap-2.5 text-slate-900 font-semibold">
+              <img src="/logo-icon.svg" alt="" className="w-9 h-9 flex-shrink-0" />
+              <span className="hidden sm:inline text-lg font-bold tracking-tight" style={{ letterSpacing: '-0.02em' }}>OMS Portal</span>
             </Link>
             <nav className="flex items-center gap-4">
               <Link href="/#pricing" className="text-slate-600 hover:text-indigo-600 font-medium text-sm">
@@ -300,16 +300,14 @@ const Layout = ({ children }) => {
             <div className="h-16 flex items-center justify-center px-4 bg-gradient-to-r from-indigo-600 to-purple-600 border-b border-gray-800 cursor-pointer" onClick={toggleSidebar}>
               {/* Expanded view */}
               {!sidebarCollapsed && (
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center animate-bounce-slow">
-                    <FaWarehouse className="text-white text-2xl" />
-                  </div>
-                  <span className="text-xl font-bold text-white">OMS Portal</span>
+                <div className="flex items-center gap-3">
+                  <img src="/logo-icon-white.svg" alt="" className="w-10 h-10 flex-shrink-0" />
+                  <span className="text-xl font-bold text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>OMS Portal</span>
                 </div>
               )}
               {/* Collapsed view */}
               {sidebarCollapsed && (
-                <FaWarehouse className="text-white text-2xl mx-auto" />
+                <img src="/logo-icon-white.svg" alt="" className="w-10 h-10 mx-auto flex-shrink-0" />
               )}
 
             </div>

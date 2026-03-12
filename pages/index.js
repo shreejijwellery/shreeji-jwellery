@@ -1,12 +1,16 @@
 import Link from 'next/link';
 import PayableDashboard from '../components/worker_dashboard';
 import LandingPage from '../components/LandingPage';
+import SEO from '../components/SEO';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
+
+const LANDING_TITLE = 'Smart PDF sorting for Meesho, Snapdeal & Amazon';
+const LANDING_DESCRIPTION = 'Sort order PDFs in seconds. Credit-based, secure, built for Indian sellers. Start with free credits—no card required.';
 
 const Home = () => {
   const [user, setUser] = useState(null);
@@ -35,20 +39,32 @@ const Home = () => {
       });
   }, []);
 
-  // Not logged in: show landing page (no token) or redirect to login (invalid token)
-  if (hasCheckedAuth && !user) {
-    if (typeof window === 'undefined') return <div className="p-4">Loading...</div>;
-    const token = localStorage.getItem('token');
-    if (!token) return <LandingPage />;
+  // Initial render (server + first client paint): show landing so HTML matches (avoids hydration error)
+  if (!hasCheckedAuth) {
+    return (
+      <>
+        <SEO title={LANDING_TITLE} description={LANDING_DESCRIPTION} canonicalPath="/" />
+        <LandingPage />
+      </>
+    );
+  }
+
+  // Auth checked, no user: show landing (no token) or redirect (invalid token)
+  if (!user) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    if (!token) {
+      return (
+        <>
+          <SEO title={LANDING_TITLE} description={LANDING_DESCRIPTION} canonicalPath="/" />
+          <LandingPage />
+        </>
+      );
+    }
     router.push('/login');
     return <div className="p-4 flex items-center justify-center min-h-[40vh]">Redirecting...</div>;
   }
 
-  if (flagsLoading && !user) {
-    return <div className="p-4 flex items-center justify-center min-h-[40vh]">Loading...</div>;
-  }
-
-  if (!user) {
+  if (flagsLoading) {
     return <div className="p-4 flex items-center justify-center min-h-[40vh]">Loading...</div>;
   }
 
