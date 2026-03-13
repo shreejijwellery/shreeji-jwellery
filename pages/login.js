@@ -154,16 +154,16 @@ const Login = () => {
       {/* Login Card */}
       <div className="relative z-10 w-full max-w-md px-6">
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20 animate-slide-up">
-          {/* Logo/Brand */}
-          <div className="text-center mb-8">
+          {/* Logo/Brand - click to go to landing */}
+          <Link href="/" className="block text-center mb-8 no-underline group">
             <div className="flex justify-center mb-4">
-              <img src="/logo-icon.svg" alt="" className="w-16 h-16 animate-bounce-slow" />
+              <img src="/logo-icon.svg" alt="SellerOS" className="w-16 h-16 animate-bounce-slow group-hover:opacity-90 transition-opacity" />
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent tracking-tight" style={{ letterSpacing: '-0.02em' }}>
-              OMS Portal
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent tracking-tight group-hover:opacity-90 transition-opacity" style={{ letterSpacing: '-0.02em' }}>
+              SellerOS
             </h1>
             <p className="text-gray-600 mt-2">Welcome back! Please login to continue</p>
-          </div>
+          </Link>
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -243,7 +243,7 @@ const Login = () => {
 
         {/* Footer Text */}
         <p className="text-center text-gray-500 text-sm mt-6">
-          © 2026 OMS Portal by Tech Shekhada. All rights reserved.
+          © 2026 SellerOS by Tech Shekhada. All rights reserved.
         </p>
       </div>
 
