@@ -165,7 +165,7 @@ export default function Pricing() {
 
   return (
     <>
-      <SEO title="Pricing" description="Credit packs and pricing for Smart PDF Sort. Pay per use, no subscription. Free trial available." canonicalPath="/pricing" />
+      <SEO title="Pricing" description="Credit packs and pricing for SellerOS. Pay per use, no subscription. Free trial available." canonicalPath="/pricing" />
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
         {/* Hero */}

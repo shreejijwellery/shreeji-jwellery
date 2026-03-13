@@ -5,7 +5,7 @@ import ToastContainerWrapper from '../components/ToastContainer';
 import 'tailwindcss/tailwind.css';
 import { useEffect } from 'react';
 
-const DEFAULT_TITLE = 'Smart PDF Sort – Meesho, Snapdeal & Amazon order sorting';
+const DEFAULT_TITLE = 'SellerOS – Smart PDF sorting for Meesho, Snapdeal & Amazon';
 const DEFAULT_DESCRIPTION = 'Sort order PDFs for Meesho, Snapdeal and Amazon in seconds. Credit-based, secure, built for Indian sellers. Start with free credits.';
 
 function MyApp({ Component, pageProps }) {

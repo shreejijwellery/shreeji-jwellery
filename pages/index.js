@@ -9,7 +9,7 @@ import { toast } from 'react-toastify';
 import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
 
-const LANDING_TITLE = 'Smart PDF sorting for Meesho, Snapdeal & Amazon';
+const LANDING_TITLE = 'SellerOS – Smart PDF sorting for Meesho, Snapdeal & Amazon';
 const LANDING_DESCRIPTION = 'Sort order PDFs in seconds. Credit-based, secure, built for Indian sellers. Start with free credits—no card required.';
 
 const Home = () => {
