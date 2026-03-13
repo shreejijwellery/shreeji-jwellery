@@ -8,5 +8,5 @@ Allow: /login
 Allow: /signup
 Allow: /pricing
 
-# Add your live domain below so crawlers can find the sitemap (e.g. https://yourdomain.com/sitemap.xml)
-# Sitemap: https://selleros.techshekhada.com/sitemap.xml
+# Sitemap – crawlers use this to discover pages (NEXT_PUBLIC_SITE_URL should match this domain)
+Sitemap: https://selleros.techshekhada.com/sitemap.xml

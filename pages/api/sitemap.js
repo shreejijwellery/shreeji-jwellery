@@ -2,7 +2,7 @@
  * Sitemap XML for SEO. Use rewrite in next.config so /sitemap.xml serves this.
  * Set NEXT_PUBLIC_SITE_URL in .env to your production URL (e.g. https://yoursite.com)
  */
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://your-domain.com';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://selleros.techshekhada.com';
 
 const publicPages = [
   { path: '', priority: '1.0', changefreq: 'weekly' },

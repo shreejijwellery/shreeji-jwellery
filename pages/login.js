@@ -131,7 +131,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 relative overflow-hidden">
-      <SEO title="Sign in" description="Sign in to Smart PDF Sort. Sort order PDFs for Meesho, Snapdeal and Amazon." canonicalPath="/login" />
+      <SEO title="Sign in" description="Sign in to SellerOS. Sort order PDFs for Meesho, Snapdeal and Amazon." canonicalPath="/login" />
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Floating Boxes */}
