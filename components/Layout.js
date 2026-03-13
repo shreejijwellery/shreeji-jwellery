@@ -43,11 +43,12 @@ const Layout = ({ children }) => {
   const [expandedMenus, setExpandedMenus] = useState({});
   const { checkFeature, refreshFlags, loading: flagsLoading } = useFeatureFlags();
 
-  // SKU Management: allow admin, ADMINISTRATOR, or manager when company has Meesho/Snapdeal/Amazon Sort enabled
+  // SKU Management: allow admin, ADMINISTRATOR, or manager when company has Meesho/Snapdeal/Amazon Sort enabled.
+  // Only show menu after flags have loaded so we don't flash the menu and then hide it when user has no sort flags.
   const hasUser = !!user;
   const canAccessExtract = hasUser && (checkPermission(user, PERMISSIONS.EXTRACT_SKU) || user?.role === USER_ROLES.MANAGER);
   const hasAnySortFlag = checkFeature('isExtractSKU') || checkFeature('isMeeshoSort') || checkFeature('isSnapdealSort') || checkFeature('isAmazonSort');
-  const showSkuMenu = canAccessExtract && (flagsLoading || hasAnySortFlag);
+  const showSkuMenu = canAccessExtract && !flagsLoading && hasAnySortFlag;
 
   useEffect(() => {
     const token = localStorage.getItem('token');
