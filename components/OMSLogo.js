@@ -1,5 +1,5 @@
 /**
- * OMS Portal logo: icon + optional wordmark.
+ * SellerOS logo: icon + optional wordmark.
  * variant: 'default' (indigo) | 'white' (for dark backgrounds) | 'dark' (slate text)
  */
 export default function OMSLogo({ variant = 'default', showWordmark = true, className = '', iconClassName = '' }) {
@@ -18,7 +18,7 @@ export default function OMSLogo({ variant = 'default', showWordmark = true, clas
       />
       {showWordmark && (
         <span className={`font-bold text-2xl tracking-tight ${wordmarkColor}`} style={{ letterSpacing: '-0.02em' }}>
-          OMS Portal
+          SellerOS
         </span>
       )}
     </div>

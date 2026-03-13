@@ -303,7 +303,7 @@ export default function LandingPage() {
               techshekhada.com
             </a>
           </div>
-          <p className="text-slate-500 text-xs">OMS Portal by <a href="https://techshekhada.com" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white">Tech Shekhada</a></p>
+          <p className="text-slate-500 text-xs">SellerOS by <a href="https://techshekhada.com" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white">Tech Shekhada</a></p>
         </div>
       </footer>
     </div>

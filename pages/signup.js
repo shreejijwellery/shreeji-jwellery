@@ -99,15 +99,15 @@ const Signup = () => {
       {/* Signup Card */}
       <div className="relative z-10 w-full max-w-md px-6">
         <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 border border-white/20 animate-slide-up">
-          {/* Logo/Brand */}
+          {/* Logo/Brand - click icon to go to landing */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4 animate-bounce-slow">
+            <Link href="/" className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl mb-4 animate-bounce-slow no-underline hover:opacity-90 transition-opacity" aria-label="Go to home">
               <FaUserPlus className="text-white text-3xl" />
-            </div>
+            </Link>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
               Create Account
             </h1>
-            <p className="text-gray-600 mt-2">Join OMS Portal today</p>
+            <p className="text-gray-600 mt-2">Join SellerOS today</p>
           </div>
 
           {/* Signup Form */}
@@ -271,7 +271,7 @@ const Signup = () => {
 
         {/* Footer Text */}
         <p className="text-center text-gray-500 text-sm mt-6">
-          © 2026 OMS Portal by Tech Shekhada. All rights reserved.
+          © 2026 SellerOS by Tech Shekhada. All rights reserved.
         </p>
       </div>
 

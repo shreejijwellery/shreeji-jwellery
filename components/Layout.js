@@ -256,7 +256,7 @@ const Layout = ({ children }) => {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5 text-slate-800 hover:text-indigo-600 transition-colors">
               <img src="/logo-icon.svg" alt="" className="w-9 h-9 flex-shrink-0" />
-              <span className="hidden sm:inline text-lg font-bold tracking-tight text-slate-900" style={{ letterSpacing: '-0.02em' }}>OMS Portal</span>
+              <span className="hidden sm:inline text-lg font-bold tracking-tight text-slate-900" style={{ letterSpacing: '-0.02em' }}>SellerOS</span>
             </Link>
             <nav className="flex items-center gap-1 sm:gap-2">
               <Link href="/#pricing" className="px-3 py-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 text-sm font-medium transition-colors">
@@ -303,7 +303,7 @@ const Layout = ({ children }) => {
               {!sidebarCollapsed && (
                 <div className="flex items-center gap-3">
                   <img src="/logo-icon-white.svg" alt="" className="w-10 h-10 flex-shrink-0" />
-                  <span className="text-xl font-bold text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>OMS Portal</span>
+                  <span className="text-xl font-bold text-white tracking-tight" style={{ letterSpacing: '-0.02em' }}>SellerOS</span>
                 </div>
               )}
               {/* Collapsed view */}
