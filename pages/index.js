@@ -9,8 +9,8 @@ import { toast } from 'react-toastify';
 import { checkPermission, PERMISSIONS, USER_ROLES } from '../lib/constants';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
 
-const LANDING_TITLE = 'SellerOS – Smart PDF sorting for Meesho, Snapdeal & Amazon';
-const LANDING_DESCRIPTION = 'Sort order PDFs in seconds. Credit-based, secure, built for Indian sellers. Start with free credits—no card required.';
+const LANDING_TITLE = 'SellerOS – PDF crop, label crop & sorting for Meesho, Flipkart, Amazon, Snapdeal sellers';
+const LANDING_DESCRIPTION = 'PDF crop, label crop and order PDF sorting for Meesho, Flipkart, Amazon, Snapdeal. Sort order PDFs in seconds. Built for Indian sellers. Free credits—no card required.';
 
 const Home = () => {
   const [user, setUser] = useState(null);

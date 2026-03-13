@@ -5,8 +5,8 @@ import ToastContainerWrapper from '../components/ToastContainer';
 import 'tailwindcss/tailwind.css';
 import { useEffect } from 'react';
 
-const DEFAULT_TITLE = 'SellerOS – Smart PDF sorting for Meesho, Snapdeal & Amazon';
-const DEFAULT_DESCRIPTION = 'Sort order PDFs for Meesho, Snapdeal and Amazon in seconds. Credit-based, secure, built for Indian sellers. Start with free credits.';
+const DEFAULT_TITLE = 'SellerOS – PDF crop, label crop & sorting for Meesho, Flipkart, Amazon, Snapdeal sellers';
+const DEFAULT_DESCRIPTION = 'PDF crop, label crop and order PDF sorting for Meesho, Flipkart, Amazon, Snapdeal. Sort order PDFs in seconds. Built for Indian sellers. Free credits.';
 
 function MyApp({ Component, pageProps }) {
   useEffect(() => {
