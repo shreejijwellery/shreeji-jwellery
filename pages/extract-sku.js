@@ -671,6 +671,28 @@ export default function ExtractSKU() {
     }
   }
 
+  function downloadSampleExcel() {
+    const rows = [
+      ['SKU', 'Origin'],
+      ['SKU001', 'Warehouse A'],
+      ['SKU002', 'Warehouse B'],
+      ['SKU003', 'Warehouse A'],
+      ['SKU004', 'Warehouse B'],
+      ['SKU005', 'Warehouse C'],
+    ];
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Origin');
+    const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'meesho-origin-sample.xlsx');
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   function readFileAsArrayBufferPromise(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1759,9 +1781,20 @@ export default function ExtractSKU() {
                 />
               </div>
               <div>
-                <label htmlFor="csv" className="block text-sm font-medium text-slate-700 mb-2">
-                  Upload CSV or Excel File (optional – without it, sorted by SKU)
-                </label>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+                  <label htmlFor="csv" className="block text-sm font-medium text-slate-700">
+                    Upload CSV or Excel File (optional – without it, sorted by SKU)
+                  </label>
+                  <span className="text-sm text-slate-500">Required columns: <strong>SKU</strong>, <strong>Origin</strong>.</span>
+                </div>
+                <p className="text-sm text-slate-600 mb-2">
+                  Download sample format:{' '}
+                  <a href="/samples/meesho-origin-sample.csv" download="meesho-origin-sample.csv" className="text-indigo-600 hover:text-indigo-700 font-medium underline">CSV</a>
+                  {' · '}
+                  <button type="button" onClick={downloadSampleExcel} className="text-indigo-600 hover:text-indigo-700 font-medium underline bg-none border-none cursor-pointer p-0">
+                    Excel
+                  </button>
+                </p>
                 <div className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dashed rounded-xl transition-colors ${
                   selectedCsvFile ? 'border-emerald-500 bg-emerald-50' : 'border-slate-300 hover:border-indigo-400 bg-slate-50/50'
                 }`}>
@@ -1881,6 +1914,8 @@ export default function ExtractSKU() {
             parseCSV={parseCSV}
             findHeaderKeyInsensitive={findHeaderKeyInsensitive}
             reconstructLinesFromTextItems={reconstructLinesFromTextItems}
+            sampleCsvUrl="/samples/meesho-origin-sample.csv"
+            onDownloadSampleExcel={downloadSampleExcel}
           />
         )}
 

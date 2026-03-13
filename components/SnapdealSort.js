@@ -17,6 +17,8 @@ export default function SnapdealSort({
   parseCSV,
   findHeaderKeyInsensitive,
   reconstructLinesFromTextItems,
+  sampleCsvUrl = '/samples/meesho-origin-sample.csv',
+  onDownloadSampleExcel,
 }) {
   const [selectedSnapdealPdfFile, setSelectedSnapdealPdfFile] = useState(null);
   const [selectedSnapdealCsvFile, setSelectedSnapdealCsvFile] = useState(null);
@@ -335,9 +337,24 @@ export default function SnapdealSort({
           </div>
         </div>
         <div>
-          <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700 mb-2">
-            Upload CSV (Optional)
-          </label>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+            <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700">
+              Upload CSV or Excel (Optional)
+            </label>
+            <span className="text-sm text-gray-500">Required columns: <strong>SKU</strong>, <strong>Origin</strong>.</span>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">
+            Download sample format:{' '}
+            <a href={sampleCsvUrl} download="origin-sample.csv" className="text-blue-600 hover:text-blue-700 font-medium underline">CSV</a>
+            {onDownloadSampleExcel && (
+              <>
+                {' · '}
+                <button type="button" onClick={onDownloadSampleExcel} className="text-blue-600 hover:text-blue-700 font-medium underline bg-none border-none cursor-pointer p-0">
+                  Excel
+                </button>
+              </>
+            )}
+          </p>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-green-400 transition-colors">
             <div className="space-y-1 text-center">
               <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
