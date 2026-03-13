@@ -926,7 +926,12 @@ export default function ExtractSKU() {
           setStatus('');
           return;
         }
-        if (!response.ok) throw new Error('Server fallback failed');
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          setError(data?.error || data?.message || 'Server fallback failed');
+          setStatus('');
+          return;
+        }
         const blob = await response.blob();
         const url = window.URL.createObjectURL(new Blob([blob]));
         const link = document.createElement('a');
@@ -1912,6 +1917,7 @@ export default function ExtractSKU() {
             readFileAsArrayBuffer={readFileAsArrayBuffer}
             readFileAsText={readFileAsText}
             parseCSV={parseCSV}
+            parseExcel={parseExcel}
             findHeaderKeyInsensitive={findHeaderKeyInsensitive}
             reconstructLinesFromTextItems={reconstructLinesFromTextItems}
             sampleCsvUrl="/samples/meesho-origin-sample.csv"

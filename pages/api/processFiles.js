@@ -389,7 +389,8 @@ async function handler(req, res) {
         } catch (cleanupError) {
           console.error('Error cleaning up after processing error:', cleanupError);
         }
-        res.status(500).json({ error: 'Error processing the PDF' });
+        const message = error?.message || 'Error processing the PDF';
+        return res.status(500).json({ error: message });
       }
     });
   } catch (error) {
