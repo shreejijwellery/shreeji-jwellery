@@ -322,8 +322,21 @@ async function handler(req, res) {
       maxFieldsSize: 50 * 1024 * 1024
     });
 
+    const unlinkSafe = (filePath) => {
+      if (!filePath) return;
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {
+        // ignore ENOENT and other errors
+      }
+    };
+
     form.parse(req, async (err, fields, files) => {
       if (err) {
+        const pdfF = files?.pdf?.[0] || files?.pdf;
+        const csvF = files?.csv?.[0] || files?.csv;
+        if (pdfF?.filepath) unlinkSafe(pdfF.filepath);
+        if (csvF?.filepath) unlinkSafe(csvF.filepath);
         if (err.message && err.message.toLowerCase().includes('max file size')) {
           return res.status(413).json({ error: 'File too large for free plan. Please upload <= 25MB.' });
         }
@@ -337,6 +350,8 @@ async function handler(req, res) {
         const csvFile = files.csv?.[0] || files.csv;
 
         if (!pdfFile || !csvFile) {
+          if (pdfFile?.filepath) unlinkSafe(pdfFile.filepath);
+          if (csvFile?.filepath) unlinkSafe(csvFile.filepath);
           return res.status(400).json({ error: 'Missing required files' });
         }
 
@@ -347,6 +362,10 @@ async function handler(req, res) {
           fs.renameSync(pdfFile.filepath, pdfPath);
           fs.renameSync(csvFile.filepath, csvPath);
         } catch (fileError) {
+          unlinkSafe(pdfPath);
+          unlinkSafe(csvPath);
+          if (pdfFile?.filepath) unlinkSafe(pdfFile.filepath);
+          if (csvFile?.filepath) unlinkSafe(csvFile.filepath);
           return res.status(500).json({ error: 'Error saving uploaded files' });
         }
 

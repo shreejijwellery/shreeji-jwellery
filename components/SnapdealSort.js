@@ -59,34 +59,29 @@ export default function SnapdealSort({
   }
 
   function extractSnapdealQuantity(lines) {
-    const QtyIndex = lines.findIndex(line => line.includes('QUANTITY'));
-    if (QtyIndex === -1) return 0;
-    let qty = 0;
+    let qty = NaN;
+    // Try SUBORDER CODE row first (quantity is last column on next line)
     const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
     if (SKUIndex > -1) {
       const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.pop()?.trim();
       qty = Number(numberWithSpace);
-    } else {
-
+    }
+    // If no valid quantity from SUBORDER CODE, try PRODUCT NAME row (next line with same field count; last element is quantity)
+    if (Number.isNaN(qty) && lines.findIndex(line => line.includes('PRODUCT NAME')) > -1) {
       const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
-      if (PRODUCTNameIndex > -1) {
-        // Try to extract the quantity from the "QUANTITY" line with similar logic as elsewhere
-        const baseLine = lines[PRODUCTNameIndex];
-        if (baseLine) {
-          const fieldsCount = baseLine.split('  ').length;
-          // Search ahead for the next line with the same fields count
-          for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
-            const arr = lines[j]?.split('  ');
-            if (arr && arr.length === fieldsCount) {
-              // The last element should be the quantity
-              qty = Number(arr[arr.length - 1]);
-              break;
-            }
+      const baseLine = lines[PRODUCTNameIndex];
+      if (baseLine) {
+        const fieldsCount = baseLine.split('  ').length;
+        for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
+          const arr = lines[j]?.split('  ');
+          if (arr && arr.length === fieldsCount) {
+            qty = Number(arr[arr.length - 1]);
+            break;
           }
         }
       }
     }
-    return qty;
+    return Number.isNaN(qty) ? 0 : (qty || 0);
   }
 
   function extractSnapdealCompany(lines) {
