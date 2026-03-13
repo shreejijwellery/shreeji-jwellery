@@ -76,7 +76,7 @@ const Signup = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 relative overflow-hidden py-12">
-      <SEO title="Sign up" description="Create a free SellerOS account. Sort order PDFs for Meesho, Snapdeal and Amazon. 50 free credits for 7 days." canonicalPath="/signup" />
+      <SEO title="Sign up" description="Create a free SellerOS account. PDF crop, label crop for Meesho, Flipkart, Amazon, Snapdeal. 50 free credits for 7 days." canonicalPath="/signup" />
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Floating Icons */}

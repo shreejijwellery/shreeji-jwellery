@@ -6,6 +6,7 @@ export default function Document() {
       <Head>
         <meta charSet="utf-8" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
         <link rel="alternate icon" href="/favicon.ico" />
       </Head>
       <body>
