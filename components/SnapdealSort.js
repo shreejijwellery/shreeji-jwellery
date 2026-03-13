@@ -15,8 +15,11 @@ export default function SnapdealSort({
   readFileAsArrayBuffer,
   readFileAsText,
   parseCSV,
+  parseExcel,
   findHeaderKeyInsensitive,
   reconstructLinesFromTextItems,
+  sampleCsvUrl = '/samples/meesho-origin-sample.csv',
+  onDownloadSampleExcel,
 }) {
   const [selectedSnapdealPdfFile, setSelectedSnapdealPdfFile] = useState(null);
   const [selectedSnapdealCsvFile, setSelectedSnapdealCsvFile] = useState(null);
@@ -56,34 +59,29 @@ export default function SnapdealSort({
   }
 
   function extractSnapdealQuantity(lines) {
-    const QtyIndex = lines.findIndex(line => line.includes('QUANTITY'));
-    if (QtyIndex === -1) return 0;
-    let qty = 0;
+    let qty = NaN;
+    // Try SUBORDER CODE row first (quantity is last column on next line)
     const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
     if (SKUIndex > -1) {
       const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.pop()?.trim();
       qty = Number(numberWithSpace);
-    } else {
-
+    }
+    // If no valid quantity from SUBORDER CODE, try PRODUCT NAME row (next line with same field count; last element is quantity)
+    if (Number.isNaN(qty) && lines.findIndex(line => line.includes('PRODUCT NAME')) > -1) {
       const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
-      if (PRODUCTNameIndex > -1) {
-        // Try to extract the quantity from the "QUANTITY" line with similar logic as elsewhere
-        const baseLine = lines[PRODUCTNameIndex];
-        if (baseLine) {
-          const fieldsCount = baseLine.split('  ').length;
-          // Search ahead for the next line with the same fields count
-          for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
-            const arr = lines[j]?.split('  ');
-            if (arr && arr.length === fieldsCount) {
-              // The last element should be the quantity
-              qty = Number(arr[arr.length - 1]);
-              break;
-            }
+      const baseLine = lines[PRODUCTNameIndex];
+      if (baseLine) {
+        const fieldsCount = baseLine.split('  ').length;
+        for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
+          const arr = lines[j]?.split('  ');
+          if (arr && arr.length === fieldsCount) {
+            qty = Number(arr[arr.length - 1]);
+            break;
           }
         }
       }
     }
-    return qty;
+    return Number.isNaN(qty) ? 0 : (qty || 0);
   }
 
   function extractSnapdealCompany(lines) {
@@ -102,24 +100,26 @@ export default function SnapdealSort({
       const csvFile = event.target.csv_snapdeal?.files?.[0] || null;
       if (!pdfFile) throw new Error('Please select a PDF file');
 
-      const [pdfjsLib, pdfArrayBuffer, csvText] = await Promise.all([
+      const isExcel = csvFile && /\.(xlsx|xls)$/i.test(csvFile.name);
+      const csvDataPromise = !csvFile
+        ? Promise.resolve([])
+        : isExcel
+          ? readFileAsArrayBuffer(csvFile).then((buf) => (parseExcel ? parseExcel(buf) : []))
+          : readFileAsText(csvFile).then((text) => parseCSV(text));
+
+      const [pdfjsLib, pdfArrayBuffer, csvData] = await Promise.all([
         loadPdfJs(),
         readFileAsArrayBuffer(pdfFile),
-        csvFile ? readFileAsText(csvFile) : Promise.resolve(null),
+        csvDataPromise,
       ]);
 
-      let csvData = [];
       let skuKey = null;
       let originKey = null;
-
-      if (csvText) {
-        csvData = parseCSV(csvText);
-        if (csvData.length) {
-          skuKey = findHeaderKeyInsensitive(csvData[0], 'SKU');
-          originKey =
-            findHeaderKeyInsensitive(csvData[0], 'Origin') ||
-            findHeaderKeyInsensitive(csvData[0], 'origin');
-        }
+      if (csvData.length) {
+        skuKey = findHeaderKeyInsensitive(csvData[0], 'SKU');
+        originKey =
+          findHeaderKeyInsensitive(csvData[0], 'Origin') ||
+          findHeaderKeyInsensitive(csvData[0], 'origin');
       }
 
       // Only use CSV sort/labels when CSV was parsed and has required columns (SKU + Origin)
@@ -192,6 +192,23 @@ export default function SnapdealSort({
         }
       });
 
+      // Total qty per origin/SKU and first-page index (for badge on first page only, like Meesho)
+      const originTotalQty = {};
+      const firstOriginIndex = {};
+      const skuTotalQty = {};
+      const firstSkuIndex = {};
+      pageData.forEach((p, index) => {
+        const qty = Number(p.qty) || 0;
+        if (hasValidCsv && p.originName && p.originName !== 'Unknown Origin') {
+          if (firstOriginIndex[p.originName] === undefined) firstOriginIndex[p.originName] = index;
+          originTotalQty[p.originName] = (originTotalQty[p.originName] || 0) + qty;
+        } else if (!hasValidCsv) {
+          const sku = p.sku || '';
+          if (firstSkuIndex[sku] === undefined) firstSkuIndex[sku] = index;
+          skuTotalQty[sku] = (skuTotalQty[sku] || 0) + qty;
+        }
+      });
+
       setStatus('Building output PDF...');
 
       const sourcePdfDoc = await PDFDocument.load(pdfArrayBuffer);
@@ -200,10 +217,11 @@ export default function SnapdealSort({
 
       const { width, height } = sourcePdfDoc.getPage(0).getSize();
 
-      for (const pageInfo of pageData) {
+      for (let i = 0; i < pageData.length; i++) {
+        const pageInfo = pageData[i];
         const page = await pdf.getPage(pageInfo.pageNumber);
         const textContent = await page.getTextContent();
-        const pageText = (textContent.items || []).map(i => i.str || '').join(' ').toUpperCase();
+        const pageText = (textContent.items || []).map(it => it.str || '').join(' ').toUpperCase();
 
         const hasInvoice = pageText.includes('TAX INVOICE');
         const hasLabel =
@@ -214,10 +232,10 @@ export default function SnapdealSort({
 
         let minY = height;
         for (const item of textContent.items || []) {
-          if(item.str && Number(item.str) === pageInfo.pageNumber) {
+          if (item.str && Number(item.str) === pageInfo.pageNumber) {
             continue;
           }
-          if ( item.transform?.length >= 6 && item.transform[4] < cropWidth) {
+          if (item.transform?.length >= 6 && item.transform[4] < cropWidth) {
             minY = Math.min(minY, item.transform[5]);
           }
         }
@@ -228,12 +246,36 @@ export default function SnapdealSort({
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
         copied.setCropBox(0, cropBottom, cropWidth, cropHeight);
 
-        copied.drawText(
-          hasValidCsv
-            ? `Origin: ${pageInfo.originName}`
-            : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`,
-          { x: 10, y: cropBottom + 10, size: 14, font, color: rgb(0, 0, 0) }
-        );
+        const labelText = hasValidCsv
+          ? `Origin: ${pageInfo.originName}`
+          : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`;
+        copied.drawText(labelText, {
+          x: 10,
+          y: cropBottom + 10,
+          size: 14,
+          font,
+          color: rgb(0, 0, 0),
+        });
+
+        // On first page of each origin (with CSV) or each SKU (no CSV), show total qty badge
+        const isFirstOfOrigin = hasValidCsv && firstOriginIndex[pageInfo.originName] === i && pageInfo.originName !== 'Unknown Origin';
+        const isFirstOfSku = !hasValidCsv && firstSkuIndex[pageInfo.sku || ''] === i;
+        const totalQty = isFirstOfOrigin
+          ? originTotalQty[pageInfo.originName]
+          : isFirstOfSku
+            ? skuTotalQty[pageInfo.sku || '']
+            : null;
+        if (totalQty != null) {
+          const totalText = `Total Qty: ${totalQty}`;
+          const totalWidth = font.widthOfTextAtSize(totalText, 14);
+          copied.drawText(totalText, {
+            x: cropWidth - totalWidth - 20,
+            y: cropBottom + 10,
+            size: 14,
+            font,
+            color: rgb(0, 0, 1),
+          });
+        }
 
         outPdf.addPage(copied);
       }
@@ -335,9 +377,24 @@ export default function SnapdealSort({
           </div>
         </div>
         <div>
-          <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700 mb-2">
-            Upload CSV (Optional)
-          </label>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+            <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700">
+              Upload CSV or Excel (Optional)
+            </label>
+            <span className="text-sm text-gray-500">Required columns: <strong>SKU</strong>, <strong>Origin</strong>.</span>
+          </div>
+          <p className="text-sm text-gray-600 mb-2">
+            Download sample format:{' '}
+            <a href={sampleCsvUrl} download="origin-sample.csv" className="text-blue-600 hover:text-blue-700 font-medium underline">CSV</a>
+            {onDownloadSampleExcel && (
+              <>
+                {' · '}
+                <button type="button" onClick={onDownloadSampleExcel} className="text-blue-600 hover:text-blue-700 font-medium underline bg-none border-none cursor-pointer p-0">
+                  Excel
+                </button>
+              </>
+            )}
+          </p>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-green-400 transition-colors">
             <div className="space-y-1 text-center">
               <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
@@ -350,7 +407,7 @@ export default function SnapdealSort({
                     type="file"
                     id="csv_snapdeal"
                     name="csv_snapdeal"
-                    accept=".csv"
+                    accept=".csv,.xlsx,.xls"
                     onChange={(e) => {
                       const file = e.target.files[0] || null;
                       setSelectedSnapdealCsvFile(file);
@@ -361,7 +418,7 @@ export default function SnapdealSort({
                 </label>
                 <p className="pl-1">or drag and drop</p>
               </div>
-              <p className="text-xs text-gray-500">CSV file</p>
+              <p className="text-xs text-gray-500">CSV or Excel (.xlsx, .xls)</p>
               {selectedSnapdealCsvFile && (
                 <div className="mt-3 flex items-center gap-2 text-green-900 bg-green-50 p-2 rounded">
                   <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

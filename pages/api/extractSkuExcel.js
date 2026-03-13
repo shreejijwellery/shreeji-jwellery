@@ -64,8 +64,17 @@ async function handler(req, res) {
       maxFileSize: 25 * 1024 * 1024
     });
 
+    const unlinkSafe = (filePath) => {
+      if (!filePath) return;
+      try {
+        fs.unlinkSync(filePath);
+      } catch (e) {}
+    };
+
     form.parse(req, async (err, fields, files) => {
       if (err) {
+        const pdfF = files?.pdf?.[0] || files?.pdf || files?.file || files?.upload;
+        if (pdfF?.filepath) unlinkSafe(pdfF.filepath);
         if (err.message && err.message.toLowerCase().includes('max file size')) {
           return res.status(413).json({ error: 'File too large. Please upload <= 25MB.' });
         }
@@ -83,6 +92,8 @@ async function handler(req, res) {
         try {
           fs.renameSync(pdfFile.filepath, pdfPath);
         } catch (fileError) {
+          unlinkSafe(pdfPath);
+          if (pdfFile?.filepath) unlinkSafe(pdfFile.filepath);
           return res.status(500).json({ error: 'Error saving uploaded file' });
         }
 
