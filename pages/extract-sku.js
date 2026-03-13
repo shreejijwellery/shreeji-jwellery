@@ -540,6 +540,17 @@ export default function ExtractSKU() {
     if (selectedTab === 'excel') refreshFlags();
   }, [selectedTab, refreshFlags]);
 
+  // Clear sort-related state when switching to another tab (so the new tab doesn't show previous tab's messages/files)
+  useEffect(() => {
+    if (!mounted) return;
+    setError(null);
+    setSuccess(false);
+    setStatus('');
+    setSelectedPdfFile(null);
+    setSelectedCsvFile(null);
+    setLoading(false);
+  }, [selectedTab, mounted]);
+
   const companies = ['Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express'].sort();
 
   function extractSKU(lines) {
