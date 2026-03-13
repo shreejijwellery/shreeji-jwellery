@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { isUserNameAvailable } from './common/common.services';
 import { TRIAL_CREDITS, TRIAL_DAYS } from '../../lib/creditConfig';
 import CreditTransaction from '../../models/CreditTransaction';
+import { notifySignup } from '../../lib/notifyAlerts';
 
 function generateReferralCode() {
   return crypto.randomBytes(6).toString('base64url').replace(/[-_]/g, 'x').slice(0, 8).toUpperCase();
@@ -78,6 +79,15 @@ export default async function handler(req, res) {
         company: company._id,
       });
       await newUser.save();
+
+      notifySignup({
+        companyName: company?.companyName,
+        userName: name,
+        username,
+        mobileNumber,
+        address: company?.address || address,
+        referralCode: codeTrimmed || undefined,
+      }).catch((err) => console.error('[signup] alert error:', err?.message));
 
       res.status(201).json({
         message: 'User created successfully',

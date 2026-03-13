@@ -4,6 +4,7 @@ import Company from '../../../../models/company';
 import { addCredits } from '../../../../lib/creditsService';
 import { REFERRAL_BONUS_PERCENT, REFERRAL_BONUS_CAP_CREDITS } from '../../../../lib/creditConfig';
 import { getActivePacks, recordPromoUsage } from '../../../../lib/pricingHelpers';
+import { notifyPurchase } from '../../../../lib/notifyAlerts';
 
 export const config = {
   api: {
@@ -94,8 +95,22 @@ async function handler(req, res) {
         packId,
       });
 
-      // Grant referral bonus to referrer only on referred user's first purchase: 10% of plan price as credits, cap 200
       const company = await Company.findById(companyId).lean();
+      const amountPaid = paymentEntity?.amount != null && (paymentEntity?.currency || 'INR') === 'INR'
+        ? paymentEntity.amount / 100
+        : paymentEntity?.amount;
+      notifyPurchase({
+        companyName: company?.companyName,
+        companyId,
+        address: company?.address,
+        packName: pack.name,
+        credits,
+        amountPaid,
+        currency: pack.currency || paymentEntity?.currency || 'INR',
+        paymentId: paymentEntity?.id,
+      }).catch((err) => console.error('[webhook] purchase alert error:', err?.message));
+
+      // Grant referral bonus to referrer only on referred user's first purchase: 10% of plan price as credits, cap 200
       if (company?.referredByCompanyId && !company.referralCreditsGranted) {
         try {
           const planPrice = Number(pack.price) || 0;
