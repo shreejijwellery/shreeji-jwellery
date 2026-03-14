@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-toastify';
 import { HTTP } from '../actions/actions_creators';
 import Link from 'next/link';
 import SEO from '../components/SEO';
 import { FaUser, FaLock, FaPhone, FaBuilding, FaMapMarkerAlt, FaArrowRight, FaTruck, FaBoxes, FaWarehouse, FaUserPlus, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { isValidIndianMobile } from '../lib/mobileValidation';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -21,7 +22,23 @@ const Signup = () => {
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const usernameCheckTimeoutRef = useRef(null);
   const router = useRouter();
+
+  // Username format: 3–30 chars, alphanumeric and underscore only
+  const usernameFormatRegex = /^[a-zA-Z0-9_]{3,30}$/;
+  const validateUsernameFormat = (value) => value.trim().length >= 3 && usernameFormatRegex.test(value.trim());
+
+  // Password: min 8 chars, at least one letter and one number
+  const getPasswordError = (value) => {
+    if (!value) return '';
+    if (value.length < 8) return 'Password must be at least 8 characters';
+    if (!/[a-zA-Z]/.test(value)) return 'Password must contain at least one letter';
+    if (!/\d/.test(value)) return 'Password must contain at least one number';
+    return '';
+  };
+  const validatePassword = (value) => !getPasswordError(value);
 
   // Pre-fill referral code from URL (e.g. /signup?referralCode=ABC123)
   useEffect(() => {
@@ -31,30 +48,142 @@ const Signup = () => {
     }
   }, [router.query.referralCode]);
 
+  const checkUsernameAvailable = useCallback(async (username) => {
+    const trimmed = username.trim();
+    if (!trimmed || trimmed.length < 3) return;
+    setUsernameChecking(true);
+    setErrors((prev) => ({ ...prev, username: '' }));
+    try {
+      const res = await fetch(`/api/check-username?username=${encodeURIComponent(trimmed)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        setErrors((prev) => ({ ...prev, username: data?.message || 'Could not check username' }));
+        return;
+      }
+      if (!data.available) {
+        setErrors((prev) => ({ ...prev, username: 'Username already exists' }));
+      }
+    } catch {
+      setErrors((prev) => ({ ...prev, username: 'Could not check username. Try again.' }));
+    } finally {
+      setUsernameChecking(false);
+    }
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Mobile: allow only digits, max 12 (so 91 + 10 digits is allowed)
+    if (name === 'mobileNumber') {
+      const digitsOnly = value.replace(/\D/g, '').slice(0, 12);
+      setFormData({ ...formData, [name]: digitsOnly });
+      if (errors.mobileNumber) setErrors((prev) => ({ ...prev, mobileNumber: '' }));
+      if (digitsOnly.length >= 10) {
+        if (!isValidIndianMobile(digitsOnly)) {
+          setErrors((prev) => ({ ...prev, mobileNumber: 'Invalid mobile number. Use 10 digits starting with 6–9 (e.g. 9876543210).' }));
+        }
+      }
+      return;
+    }
+
     setFormData({ ...formData, [name]: value });
-    // Clear error for this field when user starts typing
     if (errors[name]) {
-      setErrors({ ...errors, [name]: '' });
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+
+    // Username: clear error on type; debounce availability check
+    if (name === 'username') {
+      if (usernameCheckTimeoutRef.current) clearTimeout(usernameCheckTimeoutRef.current);
+      const trimmed = value.trim();
+      if (trimmed.length > 0 && trimmed.length < 3) {
+        setErrors((prev) => ({ ...prev, username: 'Username must be at least 3 characters' }));
+      } else if (trimmed.length >= 3 && !usernameFormatRegex.test(trimmed)) {
+        setErrors((prev) => ({ ...prev, username: 'Use only letters, numbers and underscore (3–30 characters)' }));
+      } else if (trimmed.length >= 3) {
+        usernameCheckTimeoutRef.current = setTimeout(() => checkUsernameAvailable(trimmed), 500);
+      }
+    }
+
+    // Password: validate as user types
+    if (name === 'password') {
+      const err = getPasswordError(value);
+      setErrors((prev) => ({ ...prev, password: err }));
+    }
+
+    // Company name: at least 3 characters
+    if (name === 'companyName') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0 && trimmed.length < 3) {
+        setErrors((prev) => ({ ...prev, companyName: 'Company name must be at least 3 characters' }));
+      } else if (errors.companyName) {
+        setErrors((prev) => ({ ...prev, companyName: '' }));
+      }
     }
   };
 
-  const validateMobileNumber = (mobileNumber) => {
-    const regex = /^[6-9]\d{9}$/;
-    return regex.test(mobileNumber);
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    if (name === 'mobileNumber') {
+      if (value.trim()) {
+        if (!isValidIndianMobile(value)) {
+          setErrors((prev) => ({ ...prev, mobileNumber: 'Invalid mobile number. Use 10 digits starting with 6–9 (e.g. 9876543210).' }));
+        }
+      }
+    }
+    if (name === 'username') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0 && trimmed.length < 3) {
+        setErrors((prev) => ({ ...prev, username: 'Username must be at least 3 characters' }));
+      } else if (trimmed.length >= 3 && !usernameFormatRegex.test(trimmed)) {
+        setErrors((prev) => ({ ...prev, username: 'Use only letters, numbers and underscore (3–30 characters)' }));
+      } else if (trimmed.length >= 3) {
+        checkUsernameAvailable(trimmed);
+      }
+    }
+    if (name === 'password') {
+      const err = getPasswordError(value);
+      setErrors((prev) => ({ ...prev, password: err }));
+    }
+    if (name === 'companyName') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0 && trimmed.length < 3) {
+        setErrors((prev) => ({ ...prev, companyName: 'Company name must be at least 3 characters' }));
+      }
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (usernameCheckTimeoutRef.current) clearTimeout(usernameCheckTimeoutRef.current);
+    };
+  }, []);
+
+  const validateMobileNumber = (mobileNumber) => isValidIndianMobile(mobileNumber);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
 
     if (!validateMobileNumber(formData.mobileNumber)) {
-      newErrors.mobileNumber = 'Invalid mobile number. It should be 10 digits starting with 6-9.';
+      newErrors.mobileNumber = 'Invalid mobile number. Use 10 digits starting with 6–9 (e.g. 9876543210).';
+    }
+    if (!formData.username.trim()) {
+      newErrors.username = 'Username is required';
+    } else if (!validateUsernameFormat(formData.username)) {
+      newErrors.username = formData.username.trim().length < 3
+        ? 'Username must be at least 3 characters'
+        : 'Use only letters, numbers and underscore (3–30 characters)';
+    }
+    const passwordErr = getPasswordError(formData.password);
+    if (passwordErr) {
+      newErrors.password = passwordErr;
+    }
+    if (formData.companyName.trim().length < 3) {
+      newErrors.companyName = 'Company name must be at least 3 characters';
     }
 
     if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
+      setErrors((prev) => ({ ...prev, ...newErrors }));
       return;
     }
 
@@ -128,83 +257,122 @@ const Signup = () => {
               />
             </div>
 
-            {/* Mobile Number Input */}
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <FaPhone className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+            {/* Mobile Number Input - wrapper keeps icon aligned when error message shows */}
+            <div className="group">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaPhone className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={12}
+                  name="mobileNumber"
+                  placeholder="Mobile Number (e.g. 9876543210)"
+                  value={formData.mobileNumber}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 outline-none transition-all duration-300 bg-white/50 ${
+                    errors.mobileNumber
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-100'
+                  }`}
+                />
               </div>
-              <input
-                type="text"
-                name="mobileNumber"
-                placeholder="Mobile Number"
-                value={formData.mobileNumber}
-                onChange={handleChange}
-                required
-                className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 outline-none transition-all duration-300 bg-white/50 ${
-                  errors.mobileNumber
-                    ? 'border-red-500 focus:border-red-500 focus:ring-red-100'
-                    : 'border-gray-200 focus:border-purple-500 focus:ring-purple-100'
-                }`}
-              />
               {errors.mobileNumber && (
                 <p className="text-red-500 text-sm mt-1 ml-1">{errors.mobileNumber}</p>
               )}
             </div>
 
-            {/* Username Input */}
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <FaUser className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+            {/* Username Input - wrapper keeps icon aligned when error/checking message shows */}
+            <div className="group">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaUser className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  name="username"
+                  placeholder="Username (3–30 characters, letters, numbers, underscore)"
+                  value={formData.username}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 outline-none transition-all duration-300 bg-white/50 ${
+                    errors.username
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-100'
+                  }`}
+                />
               </div>
-              <input
-                type="text"
-                name="username"
-                placeholder="Username"
-                value={formData.username}
-                onChange={handleChange}
-                required
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all duration-300 bg-white/50"
-              />
+              {usernameChecking && (
+                <p className="text-gray-500 text-sm mt-1 ml-1">Checking availability...</p>
+              )}
+              {errors.username && !usernameChecking && (
+                <p className="text-red-500 text-sm mt-1 ml-1">{errors.username}</p>
+              )}
             </div>
 
-            {/* Password Input */}
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <FaLock className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+            {/* Password Input - wrapper keeps icon aligned when error shows */}
+            <div className="group">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaLock className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  placeholder="Password (min 8 chars, letter + number)"
+                  value={formData.password}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  className={`w-full pl-12 pr-12 py-3 border-2 rounded-xl focus:ring-4 outline-none transition-all duration-300 bg-white/50 ${
+                    errors.password
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-100'
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-purple-500 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
               </div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                placeholder="Password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all duration-300 bg-white/50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-purple-500 transition-colors"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
+              {errors.password && (
+                <p className="text-red-500 text-sm mt-1 ml-1">{errors.password}</p>
+              )}
             </div>
 
-            {/* Company Name Input */}
-            <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <FaBuilding className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+            {/* Company Name Input - wrapper keeps icon aligned when error shows */}
+            <div className="group">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <FaBuilding className="text-gray-400 group-focus-within:text-purple-500 transition-colors" />
+                </div>
+                <input
+                  type="text"
+                  name="companyName"
+                  placeholder="Company Name (min 3 characters)"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  required
+                  className={`w-full pl-12 pr-4 py-3 border-2 rounded-xl focus:ring-4 outline-none transition-all duration-300 bg-white/50 ${
+                    errors.companyName
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-100'
+                      : 'border-gray-200 focus:border-purple-500 focus:ring-purple-100'
+                  }`}
+                />
               </div>
-              <input
-                type="text"
-                name="companyName"
-                placeholder="Company Name"
-                value={formData.companyName}
-                onChange={handleChange}
-                required
-                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all duration-300 bg-white/50"
-              />
+              {errors.companyName && (
+                <p className="text-red-500 text-sm mt-1 ml-1">{errors.companyName}</p>
+              )}
             </div>
 
             {/* Address Input */}

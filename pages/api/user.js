@@ -3,6 +3,7 @@ import connectToDatabase from '../../lib/mongodb';
 import User from '../../models/users';
 import bcrypt from 'bcryptjs';
 import { authMiddleware, isUserNameAvailable } from './common/common.services';
+import { normalizeIndianMobile } from '../../lib/mobileValidation';
 
 const handler = async (req, res) => {
   const { method } = req;
@@ -20,8 +21,16 @@ const handler = async (req, res) => {
         if(name){
             updates.name = name;
         }
-        if(mobileNumber){
-            updates.mobileNumber = mobileNumber;
+        if (mobileNumber) {
+          const normalized = normalizeIndianMobile(mobileNumber);
+          if (!normalized) {
+            return res.status(400).json({ message: 'Invalid mobile number. Use a valid 10-digit Indian number.' });
+          }
+          const existing = await User.findOne({ mobileNumber: normalized, isDeleted: { $ne: true } });
+          if (existing) {
+            return res.status(400).json({ message: 'This mobile number is already registered by another account.' });
+          }
+          updates.mobileNumber = normalized;
         }
         if(username){
            const isUserNameAvailable1 = await isUserNameAvailable(username);
@@ -69,8 +78,16 @@ const handler = async (req, res) => {
         if(name){
             updates.name = name;
         }
-        if(mobileNumber){
-            updates.mobileNumber = mobileNumber;
+        if (mobileNumber) {
+          const normalized = normalizeIndianMobile(mobileNumber);
+          if (!normalized) {
+            return res.status(400).json({ message: 'Invalid mobile number. Use a valid 10-digit Indian number.' });
+          }
+          const existing = await User.findOne({ mobileNumber: normalized, isDeleted: { $ne: true }, _id: { $ne: _id } });
+          if (existing) {
+            return res.status(400).json({ message: 'This mobile number is already registered by another account.' });
+          }
+          updates.mobileNumber = normalized;
         }
         if(username){
             const isUserNameAvailable1 = await isUserNameAvailable(username, _id);

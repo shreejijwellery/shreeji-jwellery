@@ -7,6 +7,7 @@ import { isUserNameAvailable } from './common/common.services';
 import { TRIAL_CREDITS, TRIAL_DAYS } from '../../lib/creditConfig';
 import CreditTransaction from '../../models/CreditTransaction';
 import { notifySignup } from '../../lib/notifyAlerts';
+import { normalizeIndianMobile, isValidIndianMobile } from '../../lib/mobileValidation';
 
 function generateReferralCode() {
   return crypto.randomBytes(6).toString('base64url').replace(/[-_]/g, 'x').slice(0, 8).toUpperCase();
@@ -25,6 +26,15 @@ export default async function handler(req, res) {
     }
 
     try {
+      const normalizedMobile = normalizeIndianMobile(mobileNumber);
+      if (!normalizedMobile) {
+        return res.status(400).json({ message: 'Invalid mobile number. Use a valid 10-digit Indian number (e.g. 9876543210).' });
+      }
+      const existingByMobile = await User.findOne({ mobileNumber: normalizedMobile, isDeleted: { $ne: true } });
+      if (existingByMobile) {
+        return res.status(400).json({ message: 'This mobile number is already registered. Use a different number or sign in.' });
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10);
       const isUsernameAvailable = await isUserNameAvailable(username);
       if (!isUsernameAvailable) {
@@ -71,7 +81,7 @@ export default async function handler(req, res) {
 
       const newUser = new User({
         name,
-        mobileNumber,
+        mobileNumber: normalizedMobile,
         username,
         password: hashedPassword,
         role,
@@ -84,7 +94,7 @@ export default async function handler(req, res) {
         companyName: company?.companyName,
         userName: name,
         username,
-        mobileNumber,
+        mobileNumber: normalizedMobile,
         address: company?.address || address,
         referralCode: codeTrimmed || undefined,
       }).catch((err) => console.error('[signup] alert error:', err?.message));
@@ -97,7 +107,10 @@ export default async function handler(req, res) {
         referredByCode: !!referrerCompany, // Referral credits granted on first purchase
       });
     } catch (error) {
-      res.status(500).json({
+      if (error.code === 11000 && error.keyPattern?.mobileNumber) {
+        return res.status(400).json({ message: 'This mobile number is already registered. Use a different number or sign in.' });
+      }
+      return res.status(500).json({
         message: process.env.NODE_ENV === 'production' ? 'Registration failed. Please try again.' : `Error creating user: ${String(error?.message)}`,
         ...(process.env.NODE_ENV !== 'production' && { error: String(error?.message) }),
       });
