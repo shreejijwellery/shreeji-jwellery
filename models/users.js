@@ -3,7 +3,7 @@ import { USER_ROLES } from '../lib/constants';
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  mobileNumber: { type: String, required: true },
+  mobileNumber: { type: String, required: true, unique: true }, // one account per mobile (normalize before save)
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, required: true, enum : Object.values(USER_ROLES) },
