@@ -10,9 +10,11 @@ async function handler(req, res) {
 
   const users = await User.find({ isDeleted: { $ne: true } })
     .select('name username mobileNumber company signupIp signupUserAgent signupFingerprint createdAt')
-    .populate('company', 'companyName')
+    .populate('company', 'companyName address')
     .sort({ createdAt: -1 })
     .lean();
+
+  const normalize = (s) => (typeof s === 'string' ? s.trim().toLowerCase() : '').slice(0, 500);
 
   const usersWithContext = users.map((u) => ({
     _id: u._id,
@@ -20,6 +22,7 @@ async function handler(req, res) {
     username: u.username,
     mobileNumber: u.mobileNumber,
     companyName: u.company?.companyName ?? '',
+    companyAddress: u.company?.address ?? '',
     signupIp: u.signupIp ?? null,
     signupUserAgent: u.signupUserAgent ?? null,
     signupFingerprint: u.signupFingerprint ?? null,
@@ -28,37 +31,60 @@ async function handler(req, res) {
 
   const ipMap = new Map();
   const fpMap = new Map();
+  const nameMap = new Map();
+  const companyNameMap = new Map();
+  const addressMap = new Map();
+
+  const userSummary = (u) => ({ name: u.name, username: u.username, mobileNumber: u.mobileNumber, companyName: u.companyName, companyAddress: u.companyAddress });
+
   usersWithContext.forEach((u) => {
     if (u.signupIp) {
       if (!ipMap.has(u.signupIp)) ipMap.set(u.signupIp, []);
-      ipMap.get(u.signupIp).push({ name: u.name, username: u.username, mobileNumber: u.mobileNumber, companyName: u.companyName });
+      ipMap.get(u.signupIp).push(userSummary(u));
     }
     if (u.signupFingerprint) {
       if (!fpMap.has(u.signupFingerprint)) fpMap.set(u.signupFingerprint, []);
-      fpMap.get(u.signupFingerprint).push({ name: u.name, username: u.username, mobileNumber: u.mobileNumber, companyName: u.companyName });
+      fpMap.get(u.signupFingerprint).push(userSummary(u));
+    }
+    const nameKey = normalize(u.name);
+    if (nameKey) {
+      if (!nameMap.has(nameKey)) nameMap.set(nameKey, []);
+      nameMap.get(nameKey).push(userSummary(u));
+    }
+    const companyKey = normalize(u.companyName);
+    if (companyKey) {
+      if (!companyNameMap.has(companyKey)) companyNameMap.set(companyKey, []);
+      companyNameMap.get(companyKey).push(userSummary(u));
+    }
+    const addressKey = normalize(u.companyAddress);
+    if (addressKey) {
+      if (!addressMap.has(addressKey)) addressMap.set(addressKey, []);
+      addressMap.get(addressKey).push(userSummary(u));
     }
   });
 
-  const sameIpGroups = [];
-  ipMap.forEach((userList, ip) => {
-    if (userList.length > 1) {
-      sameIpGroups.push({ ip, count: userList.length, users: userList });
-    }
-  });
-  sameIpGroups.sort((a, b) => b.count - a.count);
+  const buildGroups = (map, labelKey) => {
+    const out = [];
+    map.forEach((userList, key) => {
+      if (userList.length > 1) out.push({ [labelKey]: key, count: userList.length, users: userList });
+    });
+    out.sort((a, b) => b.count - a.count);
+    return out;
+  };
 
-  const sameFingerprintGroups = [];
-  fpMap.forEach((userList, fingerprint) => {
-    if (userList.length > 1) {
-      sameFingerprintGroups.push({ fingerprint, count: userList.length, users: userList });
-    }
-  });
-  sameFingerprintGroups.sort((a, b) => b.count - a.count);
+  const sameIpGroups = buildGroups(ipMap, 'ip');
+  const sameFingerprintGroups = buildGroups(fpMap, 'fingerprint');
+  const sameNameGroups = buildGroups(nameMap, 'name');
+  const sameCompanyNameGroups = buildGroups(companyNameMap, 'companyName');
+  const sameAddressGroups = buildGroups(addressMap, 'address');
 
   return res.status(200).json({
     usersWithContext,
     sameIpGroups,
     sameFingerprintGroups,
+    sameNameGroups,
+    sameCompanyNameGroups,
+    sameAddressGroups,
   });
 }
 

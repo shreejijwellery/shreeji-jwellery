@@ -14,7 +14,14 @@ const AdminPortal = () => {
   const [creditAdjust, setCreditAdjust] = useState({});
   const [creditSettings, setCreditSettings] = useState({ pagesPerCredit: 1, pricePerCredit: 1 });
   const [creditSettingsSaving, setCreditSettingsSaving] = useState(false);
-  const [signupContext, setSignupContext] = useState({ usersWithContext: [], sameIpGroups: [], sameFingerprintGroups: [] });
+  const [signupContext, setSignupContext] = useState({
+    usersWithContext: [],
+    sameIpGroups: [],
+    sameFingerprintGroups: [],
+    sameNameGroups: [],
+    sameCompanyNameGroups: [],
+    sameAddressGroups: [],
+  });
   const [signupContextLoading, setSignupContextLoading] = useState(false);
 
   useEffect(() => {
@@ -65,9 +72,12 @@ const AdminPortal = () => {
         usersWithContext: data?.usersWithContext ?? [],
         sameIpGroups: data?.sameIpGroups ?? [],
         sameFingerprintGroups: data?.sameFingerprintGroups ?? [],
+        sameNameGroups: data?.sameNameGroups ?? [],
+        sameCompanyNameGroups: data?.sameCompanyNameGroups ?? [],
+        sameAddressGroups: data?.sameAddressGroups ?? [],
       });
     } catch (e) {
-      setSignupContext({ usersWithContext: [], sameIpGroups: [], sameFingerprintGroups: [] });
+      setSignupContext({ usersWithContext: [], sameIpGroups: [], sameFingerprintGroups: [], sameNameGroups: [], sameCompanyNameGroups: [], sameAddressGroups: [] });
     } finally {
       setSignupContextLoading(false);
     }
@@ -286,6 +296,57 @@ const AdminPortal = () => {
                   </div>
                 </div>
               )}
+              {signupContext.sameNameGroups?.length > 0 && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-purple-900 mb-2">Same user name ({signupContext.sameNameGroups.length} names with multiple accounts)</h3>
+                  <div className="space-y-3">
+                    {signupContext.sameNameGroups.map((g, i) => (
+                      <div key={i} className="bg-white rounded p-3 border border-purple-100">
+                        <div className="text-sm font-medium text-purple-800 mb-1">&quot;{g.name}&quot; — {g.count} user(s)</div>
+                        <ul className="text-sm text-gray-700 list-disc list-inside">
+                          {g.users.map((u, j) => (
+                            <li key={j}>{u.name} (@{u.username}, {u.mobileNumber}, {u.companyName})</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {signupContext.sameCompanyNameGroups?.length > 0 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-emerald-900 mb-2">Same company name ({signupContext.sameCompanyNameGroups.length} company names with multiple users)</h3>
+                  <div className="space-y-3">
+                    {signupContext.sameCompanyNameGroups.map((g, i) => (
+                      <div key={i} className="bg-white rounded p-3 border border-emerald-100">
+                        <div className="text-sm font-medium text-emerald-800 mb-1">&quot;{g.companyName}&quot; — {g.count} user(s)</div>
+                        <ul className="text-sm text-gray-700 list-disc list-inside">
+                          {g.users.map((u, j) => (
+                            <li key={j}>{u.name} (@{u.username}, {u.mobileNumber}, {u.companyName})</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {signupContext.sameAddressGroups?.length > 0 && (
+                <div className="bg-slate-100 border border-slate-300 rounded-lg p-4">
+                  <h3 className="font-semibold text-slate-900 mb-2">Same company address ({signupContext.sameAddressGroups.length} addresses with multiple users)</h3>
+                  <div className="space-y-3">
+                    {signupContext.sameAddressGroups.map((g, i) => (
+                      <div key={i} className="bg-white rounded p-3 border border-slate-200">
+                        <div className="text-sm font-medium text-slate-800 mb-1 truncate max-w-2xl" title={g.address}>&quot;{g.address}&quot; — {g.count} user(s)</div>
+                        <ul className="text-sm text-gray-700 list-disc list-inside">
+                          {g.users.map((u, j) => (
+                            <li key={j}>{u.name} (@{u.username}, {u.mobileNumber}, {u.companyName})</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="bg-white border rounded-lg p-4 overflow-x-auto">
                 <h3 className="font-semibold mb-2">All users (with signup context when available)</h3>
                 <table className="w-full text-sm">
@@ -295,6 +356,7 @@ const AdminPortal = () => {
                       <th className="text-left py-2">Username</th>
                       <th className="text-left py-2">Mobile</th>
                       <th className="text-left py-2">Company</th>
+                      <th className="text-left py-2">Address</th>
                       <th className="text-left py-2">Signup IP</th>
                       <th className="text-left py-2">Fingerprint</th>
                       <th className="text-left py-2">User-Agent (snippet)</th>
@@ -308,6 +370,7 @@ const AdminPortal = () => {
                         <td>{u.username}</td>
                         <td>{u.mobileNumber}</td>
                         <td>{u.companyName}</td>
+                        <td className="max-w-[10rem] truncate text-gray-600" title={u.companyAddress || ''}>{u.companyAddress || '—'}</td>
                         <td className="font-mono text-xs">{u.signupIp || '—'}</td>
                         <td className="font-mono text-xs max-w-[8rem] truncate" title={u.signupFingerprint || ''}>{u.signupFingerprint || '—'}</td>
                         <td className="max-w-[12rem] truncate text-xs text-gray-600" title={u.signupUserAgent || ''}>{u.signupUserAgent ? u.signupUserAgent.slice(0, 60) + (u.signupUserAgent.length > 60 ? '…' : '') : '—'}</td>
