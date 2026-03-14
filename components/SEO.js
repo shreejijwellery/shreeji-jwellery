@@ -11,6 +11,7 @@ export default function SEO({
   canonicalPath = '',
   noIndex = false,
 }) {
+  
   const fullTitle = title ? `${title} | SellerOS` : 'SellerOS – PDF crop, label crop & sorting for Meesho, Flipkart, Amazon, Snapdeal sellers';
   const fullDescription = description || 'PDF crop, label crop and order PDF sorting for Meesho, Flipkart, Amazon, Snapdeal. Sort order PDFs in seconds. Built for Indian sellers. Free credits.';
   const canonical = SITE_URL && canonicalPath ? `${SITE_URL.replace(/\/$/, '')}${canonicalPath.startsWith('/') ? canonicalPath : `/${canonicalPath}`}` : null;
