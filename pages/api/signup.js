@@ -7,7 +7,8 @@ import { isUserNameAvailable } from './common/common.services';
 import { TRIAL_CREDITS, TRIAL_DAYS } from '../../lib/creditConfig';
 import CreditTransaction from '../../models/CreditTransaction';
 import { notifySignup } from '../../lib/notifyAlerts';
-import { normalizeIndianMobile, isValidIndianMobile } from '../../lib/mobileValidation';
+import { normalizeIndianMobile } from '../../lib/mobileValidation';
+import { getClientIp } from '../../lib/getClientIp';
 
 function generateReferralCode() {
   return crypto.randomBytes(6).toString('base64url').replace(/[-_]/g, 'x').slice(0, 8).toUpperCase();
@@ -19,7 +20,7 @@ export default async function handler(req, res) {
   await connectToDatabase();
 
   if (method === 'POST') {
-    const { name, mobileNumber, username, password, role, permissions, companyName, address, referralCode } = req.body;
+    const { name, mobileNumber, username, password, role, permissions, companyName, address, referralCode, fingerprint } = req.body;
 
     if (!name || !mobileNumber || !username || !password || !role || !permissions || !companyName) {
       return res.status(400).json({ message: 'All fields are required' });
@@ -79,7 +80,11 @@ export default async function handler(req, res) {
         // Referral credits are granted when the referred user makes their first purchase (see Razorpay webhook).
       }
 
-      const newUser = new User({
+      const signupIp = getClientIp(req);
+      const signupUserAgent = typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : null;
+      const signupFingerprint = typeof fingerprint === 'string' && fingerprint.length > 0 ? fingerprint.slice(0, 128) : null;
+
+      const userPayload = {
         name,
         mobileNumber: normalizedMobile,
         username,
@@ -87,7 +92,12 @@ export default async function handler(req, res) {
         role,
         permissions,
         company: company._id,
-      });
+      };
+      if (signupIp) userPayload.signupIp = signupIp;
+      if (signupUserAgent) userPayload.signupUserAgent = signupUserAgent;
+      if (signupFingerprint) userPayload.signupFingerprint = signupFingerprint;
+
+      const newUser = new User(userPayload);
       await newUser.save();
 
       notifySignup({
