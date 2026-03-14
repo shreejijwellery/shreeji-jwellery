@@ -6,6 +6,7 @@ import Link from 'next/link';
 import SEO from '../components/SEO';
 import { FaUser, FaLock, FaPhone, FaBuilding, FaMapMarkerAlt, FaArrowRight, FaTruck, FaBoxes, FaWarehouse, FaUserPlus, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { isValidIndianMobile } from '../lib/mobileValidation';
+import { getDeviceFingerprint } from '../utils/deviceFingerprint';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -190,7 +191,8 @@ const Signup = () => {
     setErrors({});
     setIsLoading(true);
     try {
-      const response = await HTTP('POST', '/signup', formData);
+      const payload = { ...formData, fingerprint: getDeviceFingerprint() };
+      const response = await HTTP('POST', '/signup', payload);
       toast.success('Account created successfully!');
       setTimeout(() => {
         router.push('/login');

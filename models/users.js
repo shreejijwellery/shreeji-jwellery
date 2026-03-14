@@ -11,6 +11,10 @@ const UserSchema = new mongoose.Schema({
   isDeleted: { type: Boolean, default: false },
   isBlocked: { type: Boolean, default: false },
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
+  // Signup context (for abuse / same-device analysis only)
+  signupIp: { type: String, required: false },
+  signupUserAgent: { type: String, required: false },
+  signupFingerprint: { type: String, required: false },
 });
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);
