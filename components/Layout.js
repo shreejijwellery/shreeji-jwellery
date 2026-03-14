@@ -50,48 +50,69 @@ const Layout = ({ children }) => {
   const hasAnySortFlag = checkFeature('isExtractSKU') || checkFeature('isMeeshoSort') || checkFeature('isSnapdealSort') || checkFeature('isAmazonSort');
   const showSkuMenu = canAccessExtract && !flagsLoading && hasAnySortFlag;
 
+  // Run once on mount: validate token and refresh flags so DB flag changes show without re-login.
+  // Must not depend on [router] or the effect would run on every route change and call refreshFlags()
+  // on each navigation, defeating the feature-flags cache and causing unnecessary API calls.
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      axios
-        .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
-        .then(response => {
-          delete response.data?.user?.password;
-          const newUser = response.data.user;
-          const previousUserStr = localStorage.getItem('user');
-          const previousUser = previousUserStr ? JSON.parse(previousUserStr) : null;
-          
-          setUser(newUser);
-          localStorage.setItem('user', JSON.stringify(newUser));
-          
-          const userChanged = !previousUser || previousUser._id !== newUser._id;
-          if (userChanged) {
-            window.dispatchEvent(new Event('userLoggedIn'));
-          }
-          // Always refresh flags when app loads so DB flag changes (e.g. admin enabling tabs) show without re-login
-          refreshFlags();
-        })
-        .catch(error => {
-          console.error('Token validation failed:', error);
-          if (error?.response?.status === 403 && (error?.response?.data?.code === 'USER_BLOCKED' || error?.response?.data?.code === 'COMPANY_BLOCKED')) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            setUser(null);
-            alert(error?.response?.data?.message || 'Account is blocked. Contact support.');
-          } else {
-            localStorage.removeItem('token');
-          }
-        });
-    } else {
-      if (router.pathname !== '/login' && router.pathname !== '/signup' && router.pathname !== '/') {
-        router.push('/login');
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+    if (!token) return;
+    axios
+      .get('/api/validateToken', { headers: { Authorization: `Bearer ${token}` } })
+      .then(response => {
+        delete response.data?.user?.password;
+        const newUser = response.data.user;
+        const previousUserStr = localStorage.getItem('user');
+        const previousUser = previousUserStr ? JSON.parse(previousUserStr) : null;
 
-  // Removed the useEffect that was calling refreshFlags on every route change
-  // The flags are cached and will be used automatically by useFeatureFlags hook
+        setUser(newUser);
+        localStorage.setItem('user', JSON.stringify(newUser));
+
+        const userChanged = !previousUser || previousUser._id !== newUser._id;
+        if (userChanged) {
+          window.dispatchEvent(new Event('userLoggedIn'));
+        }
+        // Refresh flags once on load so DB flag changes (e.g. admin enabling tabs) show without re-login.
+        // Caching in useFeatureFlags prevents further refetches on navigation.
+        refreshFlags();
+      })
+      .catch(error => {
+        console.error('Token validation failed:', error);
+        if (error?.response?.status === 403 && (error?.response?.data?.code === 'USER_BLOCKED' || error?.response?.data?.code === 'COMPANY_BLOCKED')) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+          alert(error?.response?.data?.message || 'Account is blocked. Contact support.');
+        } else {
+          localStorage.removeItem('token');
+        }
+      });
+    // Intentionally run once on mount only; refreshFlags is from hook and stable in practice.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Redirect to login when not authenticated. Depends only on pathname so we don't re-run token/flag logic on every route change.
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) return;
+    if (router.pathname !== '/login' && router.pathname !== '/signup' && router.pathname !== '/') {
+      router.push('/login');
+    }
+  }, [router.pathname, router]);
+
+  // When login page finishes (token + user in localStorage), sync Layout user state so sidebar shows authenticated menu instead of Signup/Login
+  useEffect(() => {
+    const onUserLoggedIn = () => {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        try {
+          setUser(JSON.parse(stored));
+        } catch (_) {}
+      }
+      refreshFlags();
+    };
+    window.addEventListener('userLoggedIn', onUserLoggedIn);
+    return () => window.removeEventListener('userLoggedIn', onUserLoggedIn);
+  }, [refreshFlags]);
 
   // Refresh user (e.g. after credit deduction) so header balance updates
   useEffect(() => {
