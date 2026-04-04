@@ -32,7 +32,7 @@ import {
   FaTag,
   FaUndo
 } from "react-icons/fa";
-import { SiAmazon } from "react-icons/si";
+import { SiAmazon, SiFlipkart } from "react-icons/si";
 
 const Layout = ({ children }) => {
   const router = useRouter();
@@ -280,6 +280,7 @@ const Layout = ({ children }) => {
                   menuKey="sku"
                   submenu={[
                     { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaShoppingBag },
+                    { href: '/extract-sku?tab=flipkart', label: 'Flipkart Sort', icon: SiFlipkart },
                     { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaTag },
                     { href: '/extract-sku?tab=amazon', label: 'Amazon Sort', icon: SiAmazon },
                     { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt, flag: 'isExcelFromPDF' },
