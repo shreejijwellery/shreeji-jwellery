@@ -8,8 +8,9 @@ import 'react-calendar/dist/Calendar.css';
 import CancelOrder from '../components/CancelOrder';
 import SnapdealSort from '../components/SnapdealSort';
 import AmazonSort from '../components/AmazonSort';
+import FlipkartSort from '../components/FlipkartSort';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
-import { SiAmazon } from 'react-icons/si';
+import { SiAmazon, SiFlipkart } from 'react-icons/si';
 import { FaShoppingBag, FaTag } from 'react-icons/fa';
 
 
@@ -1425,6 +1426,19 @@ export default function ExtractSKU() {
               </div>
             </button>
             <button
+              onClick={() => setSelectedTab('flipkart')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'flipkart'
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <SiFlipkart className={`w-5 h-5 ${selectedTab === 'flipkart' ? 'text-blue-400' : 'text-gray-400'}`} title="Flipkart" />
+                <span>Flipkart Sort</span>
+              </div>
+            </button>
+            <button
               onClick={() => setSelectedTab('snapdeal')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                 selectedTab === 'snapdeal'
@@ -1774,6 +1788,23 @@ export default function ExtractSKU() {
             setStatus={setStatus}
             loadPdfJs={loadPdfJs}
             readFileAsArrayBuffer={readFileAsArrayBuffer}
+            reconstructLinesFromTextItems={reconstructLinesFromTextItems}
+          />
+        )}
+
+        {selectedTab === 'flipkart' && (
+          <FlipkartSort
+            allowed={allowed}
+            loading={loading}
+            setLoading={setLoading}
+            setError={setError}
+            setSuccess={setSuccess}
+            setStatus={setStatus}
+            loadPdfJs={loadPdfJs}
+            readFileAsArrayBuffer={readFileAsArrayBuffer}
+            readFileAsText={readFileAsText}
+            parseCSV={parseCSV}
+            findHeaderKeyInsensitive={findHeaderKeyInsensitive}
             reconstructLinesFromTextItems={reconstructLinesFromTextItems}
           />
         )}
