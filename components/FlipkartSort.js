@@ -151,10 +151,13 @@ export default function FlipkartSort({
         
         const sku = extractFlipkartSKU(lines);
         const qty = extractFlipkartQuantity(lines);
-        let originName = 'Unknown Origin';
-        if (skuKey && sku) {
-          const originRow = csvData.find(row => String(row[skuKey]).trim() === String(sku).trim());
-          if (originRow && originKey) originName = originRow[originKey] || 'Unknown Origin';
+        let originName = null; 
+        if (dataFile) {
+          originName = 'Unknown Origin'; // If file exists, default to Unknown
+          if (skuKey && sku) {
+            const originRow = csvData.find(row => String(row[skuKey]).trim() === String(sku).trim());
+            if (originRow && originKey) originName = originRow[originKey] || 'Unknown Origin';
+          }
         }
         const company = extractFlipkartCompany(lines);
         pageData.push({ pageNumber: i, sku, qty, originName, company });
@@ -165,14 +168,13 @@ export default function FlipkartSort({
       }
 
       // Multi-Product Sorting:
-      // Single-item orders (Qty=1) get Priority 0
-      // Multi-item orders (Qty>1) get Priority 1
+      // Single-item orders (Qty=1) get Priority 0, Multi-item orders (Qty>1) get Priority 1
       pageData.sort((a, b) => {
         const priorityA = (a.qty > 1) ? 1 : 0;
         const priorityB = (b.qty > 1) ? 1 : 0;
         if (priorityA !== priorityB) return priorityA - priorityB;
 
-        // Secondary Sort: Origin Name
+        // Secondary Sort: Origin Name (if available), otherwise SKU
         const originA = a.originName || ''; 
         const originB = b.originName || '';
         if (originA !== originB) return originA.localeCompare(originB);
@@ -232,18 +234,20 @@ export default function FlipkartSort({
           height: origHeight
         });
 
-        const isFirstOfOrigin = firstOriginIndex[pageInfo.originName] === i;
-        const hasMultiplePages = originCounts[pageInfo.originName] > 1;
-        const showCount = isFirstOfOrigin && hasMultiplePages && pageInfo.originName !== 'Unknown Origin';
+        const isFirstOfOrigin = pageInfo.originName ? firstOriginIndex[pageInfo.originName] === i : false;
+        const hasMultiplePages = pageInfo.originName ? originCounts[pageInfo.originName] > 1 : false;
+        const showCount = isFirstOfOrigin && hasMultiplePages && pageInfo.originName !== null;
 
         // 4. DRAW TEXT (Standard (10, 22) to land INSIDE the white label box)
-        newPage.drawText(`O:- ${pageInfo.originName}`, { 
-          x: 12, 
-          y: 50, 
-          size: 10, 
-          font: helveticaBoldFont,
-          color: rgb(0, 0, 0)
-        });
+        if (pageInfo.originName) {
+          newPage.drawText(`O:- ${pageInfo.originName}`, { 
+            x: 12, 
+            y: 50, 
+            size: 10, 
+            font: helveticaBoldFont,
+            color: rgb(0, 0, 0)
+          });
+        }
         
         if (showCount) {
           const count = originCounts[pageInfo.originName];
