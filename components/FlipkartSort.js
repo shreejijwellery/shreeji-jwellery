@@ -43,6 +43,23 @@ export default function FlipkartSort({
   }
 
   function extractFlipkartQuantity(lines) {
+    // 1. Check for "TOTAL QTY" (common in multi-product labels)
+    const totalQtyIndex = lines.findIndex(line => 
+      line.toUpperCase().includes('TOTAL QTY') || 
+      line.toUpperCase().includes('TOTAL QUANTITY')
+    );
+    if (totalQtyIndex !== -1) {
+      const line = lines[totalQtyIndex];
+      const match = line.match(/(?:TOTAL QTY|TOTAL QUANTITY)\s*:?\s*(\d+)/i);
+      if (match) return parseInt(match[1], 10);
+      
+      // Check next line if same line match failed
+      const nextLine = lines[totalQtyIndex+1] || '';
+      const nextMatch = nextLine.match(/(\d+)/);
+      if (nextMatch) return parseInt(nextMatch[1], 10);
+    }
+
+    // 2. Standard Logic
     const QtyIndex = lines.findIndex(line => 
       line.toUpperCase().includes('QTY') || 
       line.toUpperCase().includes('QUANTITY')
@@ -52,11 +69,9 @@ export default function FlipkartSort({
     const line = lines[QtyIndex];
     const nextLine = lines[QtyIndex + 1] || '';
     
-    // Check same line
     const sameLineMatch = line.match(/(?:Qty|Quantity)\s*:?\s*(\d+)/i);
     if (sameLineMatch) return parseInt(sameLineMatch[1], 10);
     
-    // Check next line
     const nextLineMatch = nextLine.match(/(\d+)/);
     if (nextLineMatch) return parseInt(nextLineMatch[1], 10);
   
@@ -149,13 +164,27 @@ export default function FlipkartSort({
         throw new Error('No valid shipping labels found in the PDF.');
       }
 
-      // Sort logic
+      // Multi-Product Sorting:
+      // Single-item orders (Qty=1) get Priority 0
+      // Multi-item orders (Qty>1) get Priority 1
       pageData.sort((a, b) => {
-        const qtyA = a.qty || 0; const qtyB = b.qty || 0;
-        if (qtyA !== qtyB) return qtyA - qtyB;
-        const originA = a.originName || ''; const originB = b.originName || '';
+        const priorityA = (a.qty > 1) ? 1 : 0;
+        const priorityB = (b.qty > 1) ? 1 : 0;
+        if (priorityA !== priorityB) return priorityA - priorityB;
+
+        // Secondary Sort: Origin Name
+        const originA = a.originName || ''; 
+        const originB = b.originName || '';
         if (originA !== originB) return originA.localeCompare(originB);
-        const companyA = a.company || ''; const companyB = b.company || '';
+
+        // Tertiary Sort: SKU
+        const skuA = String(a.sku || ''); 
+        const skuB = String(b.sku || '');
+        if (skuA !== skuB) return skuA.localeCompare(skuB);
+
+        // Quaternary Sort: Company
+        const companyA = a.company || ''; 
+        const companyB = b.company || '';
         return companyA.localeCompare(companyB);
       });
 
