@@ -179,36 +179,57 @@ export default function FlipkartSort({
       
       for (let i = 0; i < pageData.length; i++) {
         const pageInfo = pageData[i];
-        const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
+        
+        // --- FINAL ULTRA-TIGHT CROPPING FIX ---
+        // 1. Get original size and embed page
+        const originalPage = sourcePdfDoc.getPage(pageInfo.pageNumber - 1);
+        const { width: origWidth, height: origHeight } = originalPage.getSize();
+        const embeddedLabel = await outPdf.embedPage(originalPage);
+        
+        // 2. ULTRA-TIGHT DIMENSIONS (Exactly the label box)
+        const targetWidth = 240;
+        const targetHeight = 362; 
+        const newPage = outPdf.addPage([targetWidth, targetHeight]);
+        
+        // 3. HORIZONTAL & VERTICAL SCOOT (Removing top/bottom white space)
+        const xShift = -(origWidth - targetWidth) / 2;
+        // We scoot it UP by adding 21 to the negative shift. 
+        const yShift = -(origHeight - targetHeight) + 21;
+        
+        newPage.drawPage(embeddedLabel, {
+          x: xShift,
+          y: yShift,
+          width: origWidth,
+          height: origHeight
+        });
+
         const isFirstOfOrigin = firstOriginIndex[pageInfo.originName] === i;
         const hasMultiplePages = originCounts[pageInfo.originName] > 1;
         const showCount = isFirstOfOrigin && hasMultiplePages && pageInfo.originName !== 'Unknown Origin';
 
-        const { width, height } = copied.getSize();
-        
-        copied.drawText(`O: ${pageInfo.originName}`, { 
-          x: 190, 
-          y: height+160, 
+        // 4. DRAW TEXT (Standard (10, 22) to land INSIDE the white label box)
+        newPage.drawText(`O:- ${pageInfo.originName}`, { 
+          x: 12, 
+          y: 50, 
           size: 10, 
           font: helveticaBoldFont,
           color: rgb(0, 0, 0)
         });
         
         if (showCount) {
-          const count= originCounts[pageInfo.originName];
+          const count = originCounts[pageInfo.originName];
           const countText = `(${count})`;
-          const countFontSize = 24;
+          const countFontSize = 15; 
           const countWidth = helveticaBoldFont.widthOfTextAtSize(countText, countFontSize);
-          copied.drawText(countText, {
-            x: 150+width,
-            y: height+160,
-            size: 15,
+          
+          newPage.drawText(countText, {
+            x: targetWidth - countWidth - 10,
+            y: 50,
+            size: countFontSize,
             font: helveticaBoldFont,
             color: rgb(0, 0, 0)
           });
         }
-        
-        outPdf.addPage(copied);
       }
       
       const outBytes = await outPdf.save();
