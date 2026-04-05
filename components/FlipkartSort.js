@@ -43,6 +43,23 @@ export default function FlipkartSort({
   }
 
   function extractFlipkartQuantity(lines) {
+    // 1. Check for "TOTAL QTY" (common in multi-product labels)
+    const totalQtyIndex = lines.findIndex(line => 
+      line.toUpperCase().includes('TOTAL QTY') || 
+      line.toUpperCase().includes('TOTAL QUANTITY')
+    );
+    if (totalQtyIndex !== -1) {
+      const line = lines[totalQtyIndex];
+      const match = line.match(/(?:TOTAL QTY|TOTAL QUANTITY)\s*:?\s*(\d+)/i);
+      if (match) return parseInt(match[1], 10);
+      
+      // Check next line if same line match failed
+      const nextLine = lines[totalQtyIndex+1] || '';
+      const nextMatch = nextLine.match(/(\d+)/);
+      if (nextMatch) return parseInt(nextMatch[1], 10);
+    }
+
+    // 2. Standard Logic
     const QtyIndex = lines.findIndex(line => 
       line.toUpperCase().includes('QTY') || 
       line.toUpperCase().includes('QUANTITY')
@@ -52,11 +69,9 @@ export default function FlipkartSort({
     const line = lines[QtyIndex];
     const nextLine = lines[QtyIndex + 1] || '';
     
-    // Check same line
     const sameLineMatch = line.match(/(?:Qty|Quantity)\s*:?\s*(\d+)/i);
     if (sameLineMatch) return parseInt(sameLineMatch[1], 10);
     
-    // Check next line
     const nextLineMatch = nextLine.match(/(\d+)/);
     if (nextLineMatch) return parseInt(nextLineMatch[1], 10);
   
@@ -149,13 +164,27 @@ export default function FlipkartSort({
         throw new Error('No valid shipping labels found in the PDF.');
       }
 
-      // Sort logic
+      // Multi-Product Sorting:
+      // Single-item orders (Qty=1) get Priority 0
+      // Multi-item orders (Qty>1) get Priority 1
       pageData.sort((a, b) => {
-        const qtyA = a.qty || 0; const qtyB = b.qty || 0;
-        if (qtyA !== qtyB) return qtyA - qtyB;
-        const originA = a.originName || ''; const originB = b.originName || '';
+        const priorityA = (a.qty > 1) ? 1 : 0;
+        const priorityB = (b.qty > 1) ? 1 : 0;
+        if (priorityA !== priorityB) return priorityA - priorityB;
+
+        // Secondary Sort: Origin Name
+        const originA = a.originName || ''; 
+        const originB = b.originName || '';
         if (originA !== originB) return originA.localeCompare(originB);
-        const companyA = a.company || ''; const companyB = b.company || '';
+
+        // Tertiary Sort: SKU
+        const skuA = String(a.sku || ''); 
+        const skuB = String(b.sku || '');
+        if (skuA !== skuB) return skuA.localeCompare(skuB);
+
+        // Quaternary Sort: Company
+        const companyA = a.company || ''; 
+        const companyB = b.company || '';
         return companyA.localeCompare(companyB);
       });
 
@@ -179,36 +208,57 @@ export default function FlipkartSort({
       
       for (let i = 0; i < pageData.length; i++) {
         const pageInfo = pageData[i];
-        const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
+        
+        // --- FINAL ULTRA-TIGHT CROPPING FIX ---
+        // 1. Get original size and embed page
+        const originalPage = sourcePdfDoc.getPage(pageInfo.pageNumber - 1);
+        const { width: origWidth, height: origHeight } = originalPage.getSize();
+        const embeddedLabel = await outPdf.embedPage(originalPage);
+        
+        // 2. ULTRA-TIGHT DIMENSIONS (Exactly the label box)
+        const targetWidth = 240;
+        const targetHeight = 362; 
+        const newPage = outPdf.addPage([targetWidth, targetHeight]);
+        
+        // 3. HORIZONTAL & VERTICAL SCOOT (Removing top/bottom white space)
+        const xShift = -(origWidth - targetWidth) / 2;
+        // We scoot it UP by adding 21 to the negative shift. 
+        const yShift = -(origHeight - targetHeight) + 21;
+        
+        newPage.drawPage(embeddedLabel, {
+          x: xShift,
+          y: yShift,
+          width: origWidth,
+          height: origHeight
+        });
+
         const isFirstOfOrigin = firstOriginIndex[pageInfo.originName] === i;
         const hasMultiplePages = originCounts[pageInfo.originName] > 1;
         const showCount = isFirstOfOrigin && hasMultiplePages && pageInfo.originName !== 'Unknown Origin';
 
-        const { width, height } = copied.getSize();
-        
-        copied.drawText(`O: ${pageInfo.originName}`, { 
-          x: 190, 
-          y: height+160, 
+        // 4. DRAW TEXT (Standard (10, 22) to land INSIDE the white label box)
+        newPage.drawText(`O:- ${pageInfo.originName}`, { 
+          x: 12, 
+          y: 50, 
           size: 10, 
           font: helveticaBoldFont,
           color: rgb(0, 0, 0)
         });
         
         if (showCount) {
-          const count= originCounts[pageInfo.originName];
+          const count = originCounts[pageInfo.originName];
           const countText = `(${count})`;
-          const countFontSize = 24;
+          const countFontSize = 15; 
           const countWidth = helveticaBoldFont.widthOfTextAtSize(countText, countFontSize);
-          copied.drawText(countText, {
-            x: 150+width,
-            y: height+160,
-            size: 15,
+          
+          newPage.drawText(countText, {
+            x: targetWidth - countWidth - 10,
+            y: 50,
+            size: countFontSize,
             font: helveticaBoldFont,
             color: rgb(0, 0, 0)
           });
         }
-        
-        outPdf.addPage(copied);
       }
       
       const outBytes = await outPdf.save();
