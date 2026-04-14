@@ -1773,6 +1773,7 @@ export default function ExtractSKU() {
             readFileAsArrayBuffer={readFileAsArrayBuffer}
             readFileAsText={readFileAsText}
             parseCSV={parseCSV}
+            parseExcel={parseExcel}
             findHeaderKeyInsensitive={findHeaderKeyInsensitive}
             reconstructLinesFromTextItems={reconstructLinesFromTextItems}
           />
