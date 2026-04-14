@@ -12,6 +12,7 @@ export default function SnapdealSort({
   readFileAsArrayBuffer,
   readFileAsText,
   parseCSV,
+  parseExcel,
   findHeaderKeyInsensitive,
   reconstructLinesFromTextItems,
 }) {
@@ -26,31 +27,54 @@ export default function SnapdealSort({
       const withPipeline = lines[SKUIndex + 1]?.trim()?.split('  ')?.[0]?.trim();
       name = withPipeline?.split('|')?.[1]?.trim();
     } else {
-      debugger
       const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
       if (PRODUCTNameIndex > -1) {
-        name = lines[PRODUCTNameIndex + 1]?.trim()?.split('  ')?.[0]?.trim()?.split('|')?.[1]?.trim();
+        // Find the next line (after PRODUCTNameIndex) that has the same number of elements when split with "  "
+        const baseLine = lines[PRODUCTNameIndex];
+        if (baseLine) {
+          const fieldsCount = baseLine.split('  ').length;
+          // Search ahead for the next line with the same fields count
+          for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
+            const arr = lines[j]?.split('  ');
+            if (arr && arr.length === fieldsCount) {
+              // The last element should be the quantity
+              name = arr[0]?.trim();
+              if (name?.includes('|')) {
+                name = name?.split('|')?.[1]?.trim();
+              }
+              break;
+            }
+          }
+        }
       }
     }
     return name || `Page_${i}`;
   }
 
   function extractSnapdealQuantity(lines) {
-    const QtyIndex = lines.findIndex(line => line.includes('QUANTITY'));
-    if (QtyIndex === -1) return 0;
-
-    let qty = 0;
+    let qty = NaN;
+    // Try SUBORDER CODE row first (quantity is last column on next line)
     const SKUIndex = lines.findIndex(line => line.includes('SUBORDER CODE'));
     if (SKUIndex > -1) {
-      const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.[1]?.trim();
+      const numberWithSpace = lines[SKUIndex + 1]?.trim()?.split('  ')?.pop()?.trim();
       qty = Number(numberWithSpace);
-    } else {
+    }
+    // If no valid quantity from SUBORDER CODE, try PRODUCT NAME row (next line with same field count; last element is quantity)
+    if (Number.isNaN(qty) && lines.findIndex(line => line.includes('PRODUCT NAME')) > -1) {
       const PRODUCTNameIndex = lines.findIndex(line => line.includes('PRODUCT NAME'));
-      if (PRODUCTNameIndex > -1) {
-        qty = Number(lines[PRODUCTNameIndex + 3]);
+      const baseLine = lines[PRODUCTNameIndex];
+      if (baseLine) {
+        const fieldsCount = baseLine.split('  ').length;
+        for (let j = PRODUCTNameIndex + 1; j < lines.length; j++) {
+          const arr = lines[j]?.split('  ');
+          if (arr && arr.length === fieldsCount) {
+            qty = Number(arr[arr.length - 1]);
+            break;
+          }
+        }
       }
     }
-    return qty;
+    return Number.isNaN(qty) ? 0 : (qty || 0);
   }
 
   function extractSnapdealCompany(lines) {
@@ -69,24 +93,32 @@ export default function SnapdealSort({
       const csvFile = event.target.csv_snapdeal?.files?.[0] || null;
       if (!pdfFile) throw new Error('Please select a PDF file');
 
-      const [pdfjsLib, pdfArrayBuffer, csvText] = await Promise.all([
-        loadPdfJs(),
-        readFileAsArrayBuffer(pdfFile),
-        csvFile ? readFileAsText(csvFile) : Promise.resolve(null),
-      ]);
+      const isExcel = csvFile && /\.(xlsx|xls)$/i.test(csvFile.name);
+      const [pdfjsLib, pdfArrayBuffer, csvData] = await (async () => {
+        const [lib, pdfBuf] = await Promise.all([
+          loadPdfJs(),
+          readFileAsArrayBuffer(pdfFile)
+        ]);
+        if (!csvFile) return [lib, pdfBuf, []];
+        if (isExcel) {
+          const dataBuf = await readFileAsArrayBuffer(csvFile);
+          setStatus('Parsing Excel...');
+          const data = parseExcel(dataBuf);
+          return [lib, pdfBuf, data];
+        }
+        setStatus('Parsing CSV...');
+        const csvText = await readFileAsText(csvFile);
+        return [lib, pdfBuf, parseCSV(csvText)];
+      })();
 
-      let csvData = [];
       let skuKey = null;
       let originKey = null;
 
-      if (csvText) {
-        csvData = parseCSV(csvText);
-        if (csvData.length) {
-          skuKey = findHeaderKeyInsensitive(csvData[0], 'SKU');
-          originKey =
-            findHeaderKeyInsensitive(csvData[0], 'Origin') ||
-            findHeaderKeyInsensitive(csvData[0], 'origin');
-        }
+      if (csvData.length) {
+        skuKey = findHeaderKeyInsensitive(csvData[0], 'SKU');
+        originKey =
+          findHeaderKeyInsensitive(csvData[0], 'Origin') ||
+          findHeaderKeyInsensitive(csvData[0], 'origin');
       }
 
       setStatus('Reading PDF...');
@@ -106,7 +138,7 @@ export default function SnapdealSort({
         // Check if page has TAX INVOICE and no valid SKU found (SKU starts with "Page_")
         const hasInvoice = pageText.includes('TAX INVOICE');
         const hasNoValidSKU = sku.startsWith('Page_');
-        
+
         // Skip pages with TAX INVOICE but no SKU found
         if (hasInvoice && hasNoValidSKU) {
           continue;
@@ -123,9 +155,10 @@ export default function SnapdealSort({
 
       const UNKNOWN_ORIGIN = 'Unknown Origin';
       const isUnknown = (o) => (o || '') === UNKNOWN_ORIGIN;
+      const hasValidCsv = csvFile && csvData.length > 0;
 
       pageData.sort((a, b) => {
-        if (csvFile) {
+        if (hasValidCsv) {
           // 1) Known origins first, Unknown Origin last
           const aUnknown = isUnknown(a.originName);
           const bUnknown = isUnknown(b.originName);
@@ -148,6 +181,22 @@ export default function SnapdealSort({
         }
       });
 
+      // Track first occurrence of each origin (with CSV) or SKU (no CSV) to show total qty badge
+      const firstOriginIndex = {};
+      const originTotalQty = {};
+      const firstSkuIndex = {};
+      const skuTotalQty = {};
+
+      pageData.forEach((page, i) => {
+        if (hasValidCsv) {
+          if (firstOriginIndex[page.originName] === undefined) firstOriginIndex[page.originName] = i;
+          originTotalQty[page.originName] = (originTotalQty[page.originName] || 0) + (page.qty || 0);
+        } else {
+          if (firstSkuIndex[page.sku || ''] === undefined) firstSkuIndex[page.sku || ''] = i;
+          skuTotalQty[page.sku || ''] = (skuTotalQty[page.sku || ''] || 0) + (page.qty || 0);
+        }
+      });
+
       setStatus('Building output PDF...');
 
       const sourcePdfDoc = await PDFDocument.load(pdfArrayBuffer);
@@ -156,10 +205,11 @@ export default function SnapdealSort({
 
       const { width, height } = sourcePdfDoc.getPage(0).getSize();
 
-      for (const pageInfo of pageData) {
+      for (let i = 0; i < pageData.length; i++) {
+        const pageInfo = pageData[i];
         const page = await pdf.getPage(pageInfo.pageNumber);
         const textContent = await page.getTextContent();
-        const pageText = (textContent.items || []).map(i => i.str || '').join(' ').toUpperCase();
+        const pageText = (textContent.items || []).map(it => it.str || '').join(' ').toUpperCase();
 
         const hasInvoice = pageText.includes('TAX INVOICE');
         const hasLabel =
@@ -170,10 +220,10 @@ export default function SnapdealSort({
 
         let minY = height;
         for (const item of textContent.items || []) {
-          if(item.str && Number(item.str) === pageInfo.pageNumber) {
+          if (item.str && Number(item.str) === pageInfo.pageNumber) {
             continue;
           }
-          if ( item.transform?.length >= 6 && item.transform[4] < cropWidth) {
+          if (item.transform?.length >= 6 && item.transform[4] < cropWidth) {
             minY = Math.min(minY, item.transform[5]);
           }
         }
@@ -184,12 +234,36 @@ export default function SnapdealSort({
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
         copied.setCropBox(0, cropBottom, cropWidth, cropHeight);
 
-        copied.drawText(
-          csvFile
-            ? `Origin: ${pageInfo.originName}`
-            : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`,
-          { x: 10, y: cropBottom + 10, size: 14, font, color: rgb(0, 0, 0) }
-        );
+        const labelText = hasValidCsv
+          ? `Origin: ${pageInfo.originName}`
+          : `SKU: ${pageInfo.sku} | Qty: ${pageInfo.qty}`;
+        copied.drawText(labelText, {
+          x: 10,
+          y: cropBottom + 10,
+          size: 14,
+          font,
+          color: rgb(0, 0, 0),
+        });
+
+        // On first page of each origin (with CSV) or each SKU (no CSV), show total qty badge
+        const isFirstOfOrigin = hasValidCsv && firstOriginIndex[pageInfo.originName] === i && pageInfo.originName !== 'Unknown Origin';
+        const isFirstOfSku = !hasValidCsv && firstSkuIndex[pageInfo.sku || ''] === i;
+        const totalQty = isFirstOfOrigin
+          ? originTotalQty[pageInfo.originName]
+          : isFirstOfSku
+            ? skuTotalQty[pageInfo.sku || '']
+            : null;
+        if (totalQty != null) {
+          const totalText = `Total Qty: ${totalQty}`;
+          const totalWidth = font.widthOfTextAtSize(totalText, 14);
+          copied.drawText(totalText, {
+            x: cropWidth - totalWidth - 20,
+            y: cropBottom + 10,
+            size: 14,
+            font,
+            color: rgb(0, 0, 1),
+          });
+        }
 
         outPdf.addPage(copied);
       }
@@ -259,9 +333,12 @@ export default function SnapdealSort({
           </div>
         </div>
         <div>
-          <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700 mb-2">
-            Upload CSV (Optional)
-          </label>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-2">
+            <label htmlFor="csv_snapdeal" className="block text-sm font-medium text-gray-700">
+              Upload CSV or Excel (Optional)
+            </label>
+            <span className="text-sm text-gray-500">Required columns: <strong>SKU</strong>, <strong>Origin</strong>.</span>
+          </div>
           <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-green-400 transition-colors">
             <div className="space-y-1 text-center">
               <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
@@ -274,7 +351,7 @@ export default function SnapdealSort({
                     type="file"
                     id="csv_snapdeal"
                     name="csv_snapdeal"
-                    accept=".csv"
+                    accept=".csv,.xlsx,.xls"
                     onChange={(e) => {
                       const file = e.target.files[0] || null;
                       setSelectedSnapdealCsvFile(file);
@@ -285,7 +362,7 @@ export default function SnapdealSort({
                 </label>
                 <p className="pl-1">or drag and drop</p>
               </div>
-              <p className="text-xs text-gray-500">CSV file</p>
+              <p className="text-xs text-gray-500">CSV or Excel (.xlsx, .xls)</p>
               {selectedSnapdealCsvFile && (
                 <div className="mt-3 flex items-center gap-2 text-green-900 bg-green-50 p-2 rounded">
                   <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -326,3 +403,4 @@ export default function SnapdealSort({
     </div>
   );
 }
+
