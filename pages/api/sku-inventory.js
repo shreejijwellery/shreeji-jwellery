@@ -161,7 +161,7 @@ async function handler(req, res) {
                 
                 res.setHeader('Content-Encoding', 'gzip');
                 res.setHeader('Content-Type', 'application/json');
-                res.status(200).send(compressed);
+                return res.status(200).send(compressed);
             } else {
                 // Send uncompressed if client doesn't support gzip
                 return res.status(200).json(responseData);
