@@ -47,6 +47,7 @@ async function handler(req, res) {
 
             const data = await SkuInventory.find(query)
                 .sort({ selectedDate: 1, companyName: 1, sku: 1 })
+                .allowDiskUse(true)
                 .lean();
 
             if (data.length === 0) {
