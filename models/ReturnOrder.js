@@ -34,6 +34,7 @@ ReturnOrderSchema.index({ selectedDate: -1 });
 ReturnOrderSchema.index({ uploadedDate: -1 });
 ReturnOrderSchema.index({ startDate: 1, endDate: 1 });
 ReturnOrderSchema.index({ company: 1, isDeleted: 1 });
+ReturnOrderSchema.index({ company: 1, isDeleted: 1, startDate: -1, selectedDate: -1, companyName: 1, sku: 1 });
 
 if (mongoose.models.ReturnOrder) {
   delete mongoose.models.ReturnOrder;

@@ -34,6 +34,7 @@ CustomerReturnOrderSchema.index({ selectedDate: -1 });
 CustomerReturnOrderSchema.index({ uploadedDate: -1 });
 CustomerReturnOrderSchema.index({ startDate: 1, endDate: 1 });
 CustomerReturnOrderSchema.index({ company: 1, isDeleted: 1 });
+CustomerReturnOrderSchema.index({ company: 1, isDeleted: 1, startDate: -1, selectedDate: -1, companyName: 1, sku: 1 });
 
 if (mongoose.models.CustomerReturnOrder) {
   delete mongoose.models.CustomerReturnOrder;

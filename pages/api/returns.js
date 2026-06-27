@@ -44,21 +44,24 @@ async function handler(req, res) {
       }
 
       const data = await ReturnOrder.find(query)
+        .select('startDate selectedDate companyName sku quantity')
         .sort({ startDate: -1, selectedDate: -1, companyName: 1, sku: 1 })
+        .allowDiskUse(true)
         .lean();
 
       const aggregated = {};
       data.forEach(item => {
         const trimmedCompanyName = (item.companyName || '').trim();
-        if (!trimmedCompanyName) return;
+        const trimmedSku = (item.sku || '').trim();
+        if (!trimmedCompanyName || !trimmedSku) return;
 
         if (!aggregated[trimmedCompanyName]) {
           aggregated[trimmedCompanyName] = {};
         }
-        if (!aggregated[trimmedCompanyName][item.sku]) {
-          aggregated[trimmedCompanyName][item.sku] = 0;
+        if (!aggregated[trimmedCompanyName][trimmedSku]) {
+          aggregated[trimmedCompanyName][trimmedSku] = 0;
         }
-        aggregated[trimmedCompanyName][item.sku] += item.quantity;
+        aggregated[trimmedCompanyName][trimmedSku] += item.quantity;
       });
 
       return res.status(200).json({
