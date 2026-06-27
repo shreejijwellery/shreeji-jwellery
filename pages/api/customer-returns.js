@@ -43,16 +43,33 @@ async function handler(req, res) {
         query.sku = { $regex: sku, $options: 'i' };
       }
 
-      const data = await CustomerReturnOrder.find(query)
-        .select('startDate selectedDate companyName sku quantity')
-        .sort({ startDate: -1, selectedDate: -1, companyName: 1, sku: 1 })
-        .allowDiskUse(true)
-        .lean();
+      const data = await CustomerReturnOrder.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: {
+              startDate: "$startDate",
+              companyName: "$companyName",
+              sku: "$sku"
+            },
+            totalQuantity: { $sum: "$quantity" }
+          }
+        },
+        {
+          $sort: {
+            "_id.startDate": -1,
+            "_id.companyName": 1,
+            "_id.sku": 1
+          }
+        }
+      ]).allowDiskUse(true);
 
       const aggregated = {};
+      const rawData = [];
+
       data.forEach(item => {
-        const trimmedCompanyName = (item.companyName || '').trim();
-        const trimmedSku = (item.sku || '').trim();
+        const trimmedCompanyName = (item._id.companyName || '').trim();
+        const trimmedSku = (item._id.sku || '').trim();
         if (!trimmedCompanyName || !trimmedSku) return;
 
         if (!aggregated[trimmedCompanyName]) {
@@ -61,13 +78,20 @@ async function handler(req, res) {
         if (!aggregated[trimmedCompanyName][trimmedSku]) {
           aggregated[trimmedCompanyName][trimmedSku] = 0;
         }
-        aggregated[trimmedCompanyName][trimmedSku] += item.quantity;
+        aggregated[trimmedCompanyName][trimmedSku] += item.totalQuantity;
+
+        rawData.push({
+          startDate: item._id.startDate,
+          companyName: trimmedCompanyName,
+          sku: trimmedSku,
+          quantity: item.totalQuantity
+        });
       });
 
       return res.status(200).json({
         success: true,
         data: aggregated,
-        rawData: data
+        rawData: rawData
       });
     }
 
