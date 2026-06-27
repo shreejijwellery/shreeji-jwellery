@@ -65,7 +65,7 @@ async function handler(req, res) {
       ]).allowDiskUse(true);
 
       const aggregated = {};
-      const rawData = [];
+      const dateCompanyMap = {};
 
       data.forEach(item => {
         const trimmedCompanyName = (item._id.companyName || '').trim();
@@ -80,11 +80,26 @@ async function handler(req, res) {
         }
         aggregated[trimmedCompanyName][trimmedSku] += item.totalQuantity;
 
-        rawData.push({
-          startDate: item._id.startDate,
-          companyName: trimmedCompanyName,
-          sku: trimmedSku,
-          quantity: item.totalQuantity
+        if (item._id.startDate) {
+          const dateStr = item._id.startDate.toISOString();
+          if (!dateCompanyMap[dateStr]) {
+            dateCompanyMap[dateStr] = {};
+          }
+          if (!dateCompanyMap[dateStr][trimmedCompanyName]) {
+            dateCompanyMap[dateStr][trimmedCompanyName] = 0;
+          }
+          dateCompanyMap[dateStr][trimmedCompanyName] += item.totalQuantity;
+        }
+      });
+
+      const rawData = [];
+      Object.keys(dateCompanyMap).forEach(dateStr => {
+        Object.keys(dateCompanyMap[dateStr]).forEach(companyName => {
+          rawData.push({
+            startDate: dateStr,
+            companyName: companyName,
+            quantity: dateCompanyMap[dateStr][companyName]
+          });
         });
       });
 
