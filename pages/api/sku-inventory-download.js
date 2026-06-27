@@ -45,10 +45,18 @@ async function handler(req, res) {
                 }
             };
 
-            const data = await SkuInventory.find(query)
-                .sort({ selectedDate: 1, companyName: 1, sku: 1 })
-                .allowDiskUse(true)
-                .lean();
+            const data = await SkuInventory.aggregate([
+                { $match: query },
+                {
+                    $group: {
+                        _id: {
+                            companyName: "$companyName",
+                            sku: "$sku"
+                        },
+                        totalQuantity: { $sum: "$quantity" }
+                    }
+                }
+            ]).allowDiskUse(true);
 
             if (data.length === 0) {
                 return res.status(404).json({ message: 'No data found for the selected date range' });
@@ -77,13 +85,17 @@ async function handler(req, res) {
             // Aggregate data by company and SKU
             const aggregated = {};
             data.forEach(item => {
-                if (!aggregated[item.companyName]) {
-                    aggregated[item.companyName] = {};
+                const companyName = (item._id?.companyName || '').trim();
+                const sku = (item._id?.sku || '').trim();
+                if (companyName && sku) {
+                    if (!aggregated[companyName]) {
+                        aggregated[companyName] = {};
+                    }
+                    if (!aggregated[companyName][sku]) {
+                        aggregated[companyName][sku] = 0;
+                    }
+                    aggregated[companyName][sku] += item.totalQuantity;
                 }
-                if (!aggregated[item.companyName][item.sku]) {
-                    aggregated[item.companyName][item.sku] = 0;
-                }
-                aggregated[item.companyName][item.sku] += item.quantity;
             });
 
             // Get all companies from data
