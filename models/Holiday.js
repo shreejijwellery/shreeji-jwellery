@@ -12,6 +12,10 @@ const HolidaySchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    platform: {
+        type: String,
+        index: true
+    },
     createdBy: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'User', 
@@ -25,8 +29,10 @@ const HolidaySchema = new mongoose.Schema({
     timestamps: true 
 });
 
-// Compound index to ensure unique holidays per company per date
+// Original compound index (untouched - for existing Meesho queries)
 HolidaySchema.index({ company: 1, date: 1 }, { unique: true });
+// Additional index for Flipkart platform-specific queries
+HolidaySchema.index({ company: 1, date: 1, platform: 1 });
 
 export default mongoose.models.Holiday || mongoose.model('Holiday', HolidaySchema);
 

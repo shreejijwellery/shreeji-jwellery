@@ -67,12 +67,15 @@ async function handler(req, res) {
     // GET - Fetch holidays for a date range
     if (req.method === 'GET') {
         try {
-            const { startDate, endDate } = req.query;
+            const { startDate, endDate, platform } = req.query;
 
             const query = {
                 company: user.company,
                 isDeleted: false
             };
+            if (platform === 'flipkart') {
+                query.platform = 'flipkart';
+            }
 
             // Date filter - use UTC dates to avoid timezone issues
             if (startDate || endDate) {
@@ -119,7 +122,7 @@ async function handler(req, res) {
     // POST - Add a holiday
     if (req.method === 'POST') {
         try {
-            const { date } = req.body;
+            const { date, platform } = req.body;
 
             if (!date) {
                 return res.status(400).json({ message: 'Date is required' });
@@ -138,15 +141,20 @@ async function handler(req, res) {
             const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
             const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-            // Check if holiday already exists
-            const existing = await Holiday.findOne({
+            const checkQuery = {
                 company: user.company,
                 date: {
                     $gte: startOfDay,
                     $lte: endOfDay
                 },
                 isDeleted: false
-            });
+            };
+            if (platform === 'flipkart') {
+                checkQuery.platform = 'flipkart';
+            }
+
+            // Check if holiday already exists
+            const existing = await Holiday.findOne(checkQuery);
 
             if (existing) {
                 return res.status(200).json({
@@ -156,11 +164,15 @@ async function handler(req, res) {
                 });
             }
 
-            const holiday = await Holiday.create({
+            const holidayData = {
                 company: user.company,
                 date: holidayDate,
                 createdBy: user._id
-            });
+            };
+            if (platform === 'flipkart') {
+                holidayData.platform = 'flipkart';
+            }
+            const holiday = await Holiday.create(holidayData);
 
             return res.status(201).json({
                 success: true,
@@ -182,7 +194,7 @@ async function handler(req, res) {
     // DELETE - Remove a holiday
     if (req.method === 'DELETE') {
         try {
-            const { date } = req.query;
+            const { date, platform } = req.query;
 
             if (!date) {
                 return res.status(400).json({ message: 'Date is required' });
@@ -201,15 +213,20 @@ async function handler(req, res) {
             const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
             const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-            const result = await Holiday.updateOne(
-                {
-                    company: user.company,
-                    date: {
-                        $gte: startOfDay,
-                        $lte: endOfDay
-                    },
-                    isDeleted: false
+            const deleteQuery = {
+                company: user.company,
+                date: {
+                    $gte: startOfDay,
+                    $lte: endOfDay
                 },
+                isDeleted: false
+            };
+            if (platform === 'flipkart') {
+                deleteQuery.platform = 'flipkart';
+            }
+
+            const result = await Holiday.updateOne(
+                deleteQuery,
                 {
                     $set: { isDeleted: true }
                 }

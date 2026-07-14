@@ -59,6 +59,9 @@ export default function ExtractSKU() {
   const [tempStartDate, setTempStartDate] = useState(''); // Temporary start date
   const [tempEndDate, setTempEndDate] = useState(''); // Temporary end date
   
+  // Derive current platform from selected tab
+  const currentPlatform = selectedTab === 'flipkart-inventory' ? 'flipkart' : 'meesho';
+  const isInventoryTab = selectedTab === 'inventory' || selectedTab === 'flipkart-inventory';
 
   // Handle tab query parameter from URL
   useEffect(() => {
@@ -166,10 +169,11 @@ export default function ExtractSKU() {
             params.append('endDate', chunk.endDate);
             if (filterCompany) params.append('companyName', filterCompany);
             if (filterSKU) params.append('sku', filterSKU);
+            params.append('platform', currentPlatform);
             
             try {
               const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
               });
               
               // Merge data
@@ -206,6 +210,7 @@ export default function ExtractSKU() {
           if (filterEndDate) params.append('endDate', filterEndDate);
           if (filterCompany) params.append('companyName', filterCompany);
           if (filterSKU) params.append('sku', filterSKU);
+          params.append('platform', currentPlatform);
 
           const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -218,6 +223,7 @@ export default function ExtractSKU() {
         const params = new URLSearchParams();
         if (filterCompany) params.append('companyName', filterCompany);
         if (filterSKU) params.append('sku', filterSKU);
+        params.append('platform', currentPlatform);
 
         const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -287,12 +293,12 @@ export default function ExtractSKU() {
     } finally {
       setLoading(false);
     }
-  }, [filterStartDate, filterEndDate, filterCompany, filterSKU]);
+  }, [filterStartDate, filterEndDate, filterCompany, filterSKU, currentPlatform]);
 
   const fetchFilterOptions = async () => {
     try {
       const token = localStorage.getItem('token');
-      const { data } = await axios.get('/api/sku-inventory-filters', {
+      const { data } = await axios.get(`/api/sku-inventory-filters?platform=${currentPlatform}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const dates = data.dates || [];
@@ -425,7 +431,7 @@ export default function ExtractSKU() {
   // Fetch holidays when date range changes
   useEffect(() => {
     const fetchHolidays = async () => {
-      if (!filterStartDate || !filterEndDate || selectedTab !== 'inventory') return;
+      if (!filterStartDate || !filterEndDate || !isInventoryTab) return;
       
       try {
         const token = localStorage.getItem('token');
@@ -434,7 +440,7 @@ export default function ExtractSKU() {
         const cleanEndDate = filterEndDate.split('T')[0];
         
         const { data } = await axios.get(
-          `/api/sku-inventory/holidays?startDate=${cleanStartDate}&endDate=${cleanEndDate}`,
+          `/api/sku-inventory/holidays?startDate=${cleanStartDate}&endDate=${cleanEndDate}&platform=${currentPlatform}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
@@ -454,7 +460,13 @@ export default function ExtractSKU() {
 
   // Initialize inventory tab data when switching to inventory tab
   useEffect(() => {
-    if (selectedTab === 'inventory' && checkFeature('isSKUInventory')) {
+    if (isInventoryTab && checkFeature('isSKUInventory')) {
+      // Clear data to prevent showing previous tab's data while loading
+      setInventoryData(null);
+      setInventoryDataByDate({});
+      setActualDataDateRange({ min: '', max: '' });
+      setFilterCompany('');
+
       const initInventory = async () => {
         // Set default to current month if filters are not set
         let startDate = filterStartDate;
@@ -473,13 +485,12 @@ export default function ExtractSKU() {
         await fetchFilterOptions();
         await fetchCustomOrder();
         
-        // Auto-fetch data on initial load only
-        if (isFirstLoad) {
-          // Wait a bit for state to update
-          setTimeout(() => {
-            fetchInventoryData();
-          }, 100);
-        }
+        // Auto-fetch data whenever switching to an inventory tab
+        setTimeout(() => {
+          // fetchInventoryData relies on state, so we might need a small delay
+          // actually, it's better to fetch data immediately
+          fetchInventoryData();
+        }, 100);
       };
       initInventory();
     }
@@ -859,7 +870,7 @@ export default function ExtractSKU() {
       
       if (isHoliday) {
         // Remove holiday
-        const response = await axios.delete(`/api/sku-inventory/holidays?date=${dateString}`, {
+        const response = await axios.delete(`/api/sku-inventory/holidays?date=${dateString}&platform=${currentPlatform}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -870,7 +881,7 @@ export default function ExtractSKU() {
           // Refresh holidays to ensure sync
           if (filterStartDate && filterEndDate) {
             const { data } = await axios.get(
-              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}`,
+              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}&platform=${currentPlatform}`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
             if (data.success && data.holidays) {
@@ -882,7 +893,7 @@ export default function ExtractSKU() {
         // Add holiday
         const response = await axios.post(
           '/api/sku-inventory/holidays',
-          { date: dateString },
+          { date: dateString, platform: currentPlatform },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         
@@ -893,7 +904,7 @@ export default function ExtractSKU() {
           // Refresh holidays to ensure sync
           if (filterStartDate && filterEndDate) {
             const { data } = await axios.get(
-              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}`,
+              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}&platform=${currentPlatform}`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
             if (data.success && data.holidays) {
@@ -1075,13 +1086,15 @@ export default function ExtractSKU() {
     }
   };
 
-  const uploadInventoryData = async (skuData) => {
+  const uploadInventoryData = async (skuData, dateStr = null) => {
     try {
       setLoading(true);
       setStatus('Uploading data...');
       const token = localStorage.getItem('token');
+      // Use the provided date string from modal, or fallback to selectedDate state
+      const targetDate = dateStr || selectedDate;
       const { data } = await axios.post('/api/sku-inventory', 
-        { selectedDate, skuData },
+        { selectedDate: targetDate, skuData, platform: currentPlatform },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSuccess(true);
@@ -1092,13 +1105,13 @@ export default function ExtractSKU() {
         try {
           await axios.post(
             '/api/sku-inventory/holidays',
-            { date: selectedDate },
+            { date: targetDate, platform: currentPlatform },
             { headers: { Authorization: `Bearer ${token}` } }
           );
           // Refresh holidays
           if (filterStartDate && filterEndDate) {
             const { data: holidayData } = await axios.get(
-              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}`,
+              `/api/sku-inventory/holidays?startDate=${filterStartDate}&endDate=${filterEndDate}&platform=${currentPlatform}`,
               { headers: { Authorization: `Bearer ${token}` } }
             );
             if (holidayData.success && holidayData.holidays) {
@@ -1123,7 +1136,7 @@ export default function ExtractSKU() {
       // Update uploadedDates to include the just-uploaded date
       setUploadedDates(prev => {
         const updated = new Set(prev);
-        updated.add(selectedDate);
+        updated.add(targetDate);
         return updated;
       });
       
@@ -1143,7 +1156,7 @@ export default function ExtractSKU() {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const { data } = await axios.delete(`/api/sku-inventory?date=${date}`, {
+      const { data } = await axios.delete(`/api/sku-inventory?date=${date}&platform=${currentPlatform}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSuccess(true);
@@ -1182,7 +1195,7 @@ export default function ExtractSKU() {
       setStatus('Generating Excel...');
       const token = localStorage.getItem('token');
       const response = await axios.post('/api/sku-inventory-download', 
-        { startDate: filterStartDate, endDate: filterEndDate },
+        { startDate: filterStartDate, endDate: filterEndDate, platform: currentPlatform },
         { 
           headers: { Authorization: `Bearer ${token}` },
           responseType: 'blob'
@@ -1195,9 +1208,10 @@ export default function ExtractSKU() {
       // Create formatted filename with date range
       const startDateFormatted = formatDate(filterStartDate);
       const endDateFormatted = formatDate(filterEndDate);
+      const platformLabel = currentPlatform === 'flipkart' ? 'Flipkart' : 'Meesho';
       const filename = filterStartDate === filterEndDate 
-        ? `SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}.xlsx`
-        : `SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}_to_${endDateFormatted.replace(/\//g, '-')}.xlsx`;
+        ? `${platformLabel}_SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}.xlsx`
+        : `${platformLabel}_SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}_to_${endDateFormatted.replace(/\//g, '-')}.xlsx`;
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
@@ -1214,15 +1228,18 @@ export default function ExtractSKU() {
     }
   };
 
-  const handleInventoryUpload = async (event) => {
+  const handleInventoryUpload = async (event, file = null, dateStr = null) => {
     event.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(false);
     
+    // Determine which date to use
+    const targetDate = dateStr || selectedDate;
+    
     // Validate: Prevent future dates
     const today = new Date();
-    const selected = new Date(selectedDate);
+    const selected = new Date(targetDate);
     today.setHours(0, 0, 0, 0);
     selected.setHours(0, 0, 0, 0);
     
@@ -1233,7 +1250,7 @@ export default function ExtractSKU() {
     }
     
     // Check if data exists for selected date
-    const existingData = await checkExistingData(selectedDate);
+    const existingData = await checkExistingData(targetDate);
     if (existingData) {
       setExistingDataInfo(existingData);
       setShowOverwriteWarning(true);
@@ -1241,14 +1258,18 @@ export default function ExtractSKU() {
       return;
     }
     
-    // Proceed with upload
-    await processAndUploadPDF(event);
+    // Proceed with upload - use the correct parser based on platform
+    if (currentPlatform === 'flipkart') {
+      await processAndUploadFlipkartPDF(event, file, targetDate);
+    } else {
+      await processAndUploadPDF(event, file, targetDate);
+    }
   };
 
   const checkExistingData = async (date) => {
     try {
       const token = localStorage.getItem('token');
-      const { data } = await axios.get(`/api/sku-inventory?startDate=${date}&endDate=${date}`, {
+      const { data } = await axios.get(`/api/sku-inventory?startDate=${date}&endDate=${date}&platform=${currentPlatform}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -1276,7 +1297,7 @@ export default function ExtractSKU() {
     }
   };
 
-  const processAndUploadPDF = async (event) => {
+  const processAndUploadPDF = async (event, file = null, dateStr = null) => {
     setLoading(true);
     setError(null);
     setSuccess(false);
@@ -1284,7 +1305,7 @@ export default function ExtractSKU() {
     
     try {
       // Get file from state or event target
-      const pdfFile = selectedFile || (event?.target?.pdf_inventory?.files?.[0]);
+      const pdfFile = file || selectedFile || (event?.target?.pdf_inventory?.files?.[0]);
       if (!pdfFile) throw new Error('Please select a PDF file');
 
       setUploadProgress({ percent: 10, message: 'Loading PDF library...' });
@@ -1370,11 +1391,169 @@ export default function ExtractSKU() {
       }
 
       setUploadProgress({ percent: 97, message: 'Uploading to database...' });
-      await uploadInventoryData(results);
+      await uploadInventoryData(results, dateStr);
       setUploadProgress({ percent: 100, message: 'Upload complete!' });
     } catch (err) {
       console.error(err);
       setError(err.message || 'Failed to process PDF');
+      setUploadProgress({ percent: 0, message: '' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Flipkart PDF parsing for inventory
+  const processAndUploadFlipkartPDF = async (event, file = null, dateStr = null) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+    setUploadProgress({ percent: 5, message: 'Reading Flipkart PDF file...' });
+    
+    try {
+      const pdfFile = file || selectedFile || (event?.target?.pdf_inventory?.files?.[0]);
+      if (!pdfFile) throw new Error('Please select a PDF file');
+
+      setUploadProgress({ percent: 10, message: 'Loading PDF library...' });
+      const [pdfjsLib, pdfArrayBuffer] = await Promise.all([
+        loadPdfJs(),
+        readFileAsArrayBuffer(pdfFile)
+      ]);
+
+      setUploadProgress({ percent: 15, message: 'Parsing Flipkart PDF document...' });
+      const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+
+      const results = {};
+
+      for (let i = 1; i <= totalPages; i++) {
+        const progress = 15 + Math.floor(((i / totalPages) * 75));
+        setUploadProgress({ 
+          percent: progress, 
+          message: `Extracting data from page ${i} of ${totalPages}...` 
+        });
+
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const lines = reconstructLinesFromTextItems(textContent.items || []);
+
+        // Check if this is a valid label page
+        const hasMarker = lines.some(line => {
+          const l = line.toLowerCase();
+          return l.includes('customer address') || 
+                 l.includes('shipping label') ||
+                 l.includes('product id') ||
+                 l.includes('tax invoice') ||
+                 l.includes('sold by');
+        });
+        if (!hasMarker) continue;
+
+        // Extract company name from "Sold By:" line
+        let companyName = null;
+        for (let j = 0; j < lines.length; j++) {
+          const line = lines[j];
+          if (line.toLowerCase().includes('sold by')) {
+            // Try to extract from "Sold By:COMPANY_NAME" on same line
+            const colonIndex = line.indexOf(':');
+            if (colonIndex !== -1) {
+              const afterColon = line.substring(colonIndex + 1).trim();
+              if (afterColon) {
+                // Remove trailing address portions (after comma)
+                companyName = afterColon.split(',')[0].trim();
+                break;
+              }
+            }
+            // Fallback: next line might have it
+            if (j + 1 < lines.length) {
+              companyName = lines[j + 1].trim().split(',')[0].trim();
+              break;
+            }
+          }
+        }
+        if (!companyName) companyName = 'Unknown Company';
+
+        // Extract SKU using same logic as FlipkartSort
+        let sku = null;
+        const skuHeaderIndex = lines.findIndex(line => line.toUpperCase().includes('SKU ID |'));
+        if (skuHeaderIndex !== -1) {
+          const nextLine = lines[skuHeaderIndex + 1];
+          if (nextLine) {
+            const parts = nextLine.split('|');
+            if (parts.length > 1) {
+              const leftPart = parts[0].trim();
+              const skuMatch = leftPart.match(/^\d+\s+(.+)$/);
+              if (skuMatch) sku = skuMatch[1].trim();
+              else sku = leftPart;
+            }
+          }
+        }
+        if (!sku) {
+          const SKUIndex = lines.findIndex(line => line.toUpperCase().includes('SKU') || line.toUpperCase().includes('PRODUCT ID'));
+          if (SKUIndex !== -1) {
+            const line = lines[SKUIndex];
+            const nextLine = lines[SKUIndex + 1] || '';
+            if (line.includes(':')) {
+              const parts = line.split(':');
+              if (parts[1] && parts[1].trim().length > 0) sku = parts[1].trim();
+            }
+            if (!sku) {
+              const nextParts = nextLine.trim().split(/\s{2,}/);
+              if (nextParts.length > 1) sku = nextParts[1].trim();
+              else if (nextParts[0]) sku = nextParts[0].trim();
+            }
+          }
+        }
+        if (!sku) continue; // Skip pages where we can't find SKU
+
+        // Extract quantity using same logic as FlipkartSort
+        let qty = 1;
+        const totalQtyIndex = lines.findIndex(line => 
+          line.toUpperCase().includes('TOTAL QTY') || 
+          line.toUpperCase().includes('TOTAL QUANTITY')
+        );
+        if (totalQtyIndex !== -1) {
+          const line = lines[totalQtyIndex];
+          const match = line.match(/(?:TOTAL QTY|TOTAL QUANTITY)\s*:?\s*(\d+)/i);
+          if (match) qty = parseInt(match[1], 10);
+          else {
+            const nextLine = lines[totalQtyIndex+1] || '';
+            const nextMatch = nextLine.match(/(\d+)/);
+            if (nextMatch) qty = parseInt(nextMatch[1], 10);
+          }
+        } else {
+          const QtyIndex = lines.findIndex(line => 
+            line.toUpperCase().includes('QTY') || 
+            line.toUpperCase().includes('QUANTITY')
+          );
+          if (QtyIndex !== -1) {
+            const line = lines[QtyIndex];
+            const nextLine = lines[QtyIndex + 1] || '';
+            const sameLineMatch = line.match(/(?:Qty|Quantity)\s*:?\s*(\d+)/i);
+            if (sameLineMatch) qty = parseInt(sameLineMatch[1], 10);
+            else {
+              const nextLineMatch = nextLine.match(/(\d+)/);
+              if (nextLineMatch) qty = parseInt(nextLineMatch[1], 10);
+            }
+          }
+        }
+
+        // Aggregate results
+        if (!results[companyName]) {
+          results[companyName] = {};
+        }
+        results[companyName][sku] = (results[companyName][sku] || 0) + qty;
+      }
+
+      if (Object.keys(results).length === 0) {
+        throw new Error('No valid Flipkart labels found in this PDF. Make sure you are uploading a Flipkart shipping label PDF.');
+      }
+
+      setUploadProgress({ percent: 97, message: 'Uploading to database...' });
+      await uploadInventoryData(results, dateStr);
+      setUploadProgress({ percent: 100, message: 'Upload complete!' });
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to process Flipkart PDF');
       setUploadProgress({ percent: 0, message: '' });
     } finally {
       setLoading(false);
@@ -1493,7 +1672,21 @@ export default function ExtractSKU() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
-                <span>SKU Inventory</span>
+                <span>Meesho Inventory</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('flipkart-inventory')}
+              disabled={!flagsLoading && !checkFeature('isSKUInventory')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'flipkart-inventory'
+                  ? 'border-yellow-400 text-yellow-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              } ${!flagsLoading && !checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <SiFlipkart className={`w-4 h-4 ${selectedTab === 'flipkart-inventory' ? 'text-yellow-400' : 'text-gray-400'}`} />
+                <span>Flipkart Inventory</span>
               </div>
             </button>
             <button
@@ -1549,10 +1742,10 @@ export default function ExtractSKU() {
         </div>
 
         {/* Main Content */}
-        <div className={selectedTab === 'inventory' ? '' : 'px-4 py-6'}>
+        <div className={isInventoryTab ? '' : 'px-4 py-6'}>
         {/* Alert Messages */}
         {error && (
-          <div className={`mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
+          <div className={`mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-md shadow-sm ${isInventoryTab ? 'mx-4 mt-4' : ''}`}>
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1567,7 +1760,7 @@ export default function ExtractSKU() {
         )}
         
         {success && (
-          <div className={`mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-md shadow-sm ${selectedTab === 'inventory' ? 'mx-4 mt-4' : ''}`}>
+          <div className={`mb-6 bg-green-50 border-l-4 border-green-400 p-4 rounded-md shadow-sm ${isInventoryTab ? 'mx-4 mt-4' : ''}`}>
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
@@ -1581,7 +1774,7 @@ export default function ExtractSKU() {
           </div>
         )}
 
-        <div className={`bg-white ${selectedTab === 'inventory' ? '' : 'rounded-lg shadow-lg'} overflow-hidden`}>
+        <div className={`bg-white ${isInventoryTab ? '' : 'rounded-lg shadow-lg'} overflow-hidden`}>
 
         {selectedTab === 'sort' && (
           <div className="p-8">
@@ -2086,7 +2279,7 @@ export default function ExtractSKU() {
           )
         )}
 
-        {selectedTab === 'inventory' && (
+        {isInventoryTab && (
           !checkFeature('isSKUInventory') ? (
             <div className="p-4">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
@@ -2325,6 +2518,7 @@ export default function ExtractSKU() {
                                           params.append('endDate', chunk.endDate);
                                           if (filterCompany) params.append('companyName', filterCompany);
                                           if (filterSKU) params.append('sku', filterSKU);
+                                          params.append('platform', currentPlatform);
                                           
                                           try {
                                             const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
@@ -2360,6 +2554,7 @@ export default function ExtractSKU() {
                                         if (tempEndDate) params.append('endDate', tempEndDate);
                                         if (filterCompany) params.append('companyName', filterCompany);
                                         if (filterSKU) params.append('sku', filterSKU);
+                                        params.append('platform', currentPlatform);
 
                                         const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
                                           headers: { Authorization: `Bearer ${token}` }
@@ -2371,6 +2566,7 @@ export default function ExtractSKU() {
                                       const params = new URLSearchParams();
                                       if (filterCompany) params.append('companyName', filterCompany);
                                       if (filterSKU) params.append('sku', filterSKU);
+                                      params.append('platform', currentPlatform);
 
                                       const { data } = await axios.get(`/api/sku-inventory?${params.toString()}`, {
                                         headers: { Authorization: `Bearer ${token}` }
@@ -2552,7 +2748,7 @@ export default function ExtractSKU() {
                     try {
                       const token = localStorage.getItem('token');
                       // Refresh uploaded dates from filter options
-                      const { data: filterData } = await axios.get('/api/sku-inventory-filters', {
+                      const { data: filterData } = await axios.get(`/api/sku-inventory-filters?platform=${currentPlatform}`, {
                         headers: { Authorization: `Bearer ${token}` }
                       });
                       const dates = filterData.dates || [];
@@ -2579,7 +2775,7 @@ export default function ExtractSKU() {
                         const cleanStartDate = filterStartDate.split('T')[0];
                         const cleanEndDate = filterEndDate.split('T')[0];
                         const { data } = await axios.get(
-                          `/api/sku-inventory/holidays?startDate=${cleanStartDate}&endDate=${cleanEndDate}`,
+                          `/api/sku-inventory/holidays?startDate=${cleanStartDate}&endDate=${cleanEndDate}&platform=${currentPlatform}`,
                           { headers: { Authorization: `Bearer ${token}` } }
                         );
                         if (data.success && data.holidays) {
