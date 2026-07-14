@@ -1589,8 +1589,8 @@ export default function ExtractSKU() {
 
         {/* Tabs Navigation */}
         <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-sm">
-          <div className="px-4">
-            <nav className="flex space-x-8" aria-label="Tabs">
+          <div className="px-4 overflow-x-auto">
+            <nav className="flex space-x-8 min-w-max" aria-label="Tabs">
             <button
               onClick={() => setSelectedTab('sort')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
