@@ -176,7 +176,7 @@ async function handler(req, res) {
             });
 
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            const platformLabel = activePlatform === 'flipkart' ? 'Flipkart' : 'Meesho';
+            const platformLabel = platform === 'flipkart' ? 'Flipkart' : 'Meesho';
             const fileName = `${platformLabel}_SKU_Inventory_${startDate}_to_${endDate}.xlsx`;
             
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

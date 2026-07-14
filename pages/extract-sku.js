@@ -20,6 +20,7 @@ export default function ExtractSKU() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [status, setStatus] = useState('');
+  const [mainTab, setMainTab] = useState('sku_management');
   const [selectedTab, setSelectedTab] = useState('sort');
   const { featureFlags, checkFeature, loading: flagsLoading } = useFeatureFlags();
   const [allowed, setAllowed] = useState(null);
@@ -1587,10 +1588,60 @@ export default function ExtractSKU() {
           </div>
         </div>
 
-        {/* Tabs Navigation */}
-        <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-sm">
+        {/* Main Tabs Navigation */}
+        <div className="bg-gray-900 border-b border-gray-700 sticky top-0 z-20 shadow-sm">
+          <div className="px-4 overflow-x-auto">
+            <nav className="flex space-x-8 min-w-max" aria-label="Main Tabs">
+              <button
+                onClick={() => {
+                  setMainTab('sku_management');
+                  if (!['sort', 'amazon', 'flipkart', 'snapdeal', 'excel'].includes(selectedTab)) setSelectedTab('sort');
+                }}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                  mainTab === 'sku_management'
+                    ? 'border-white text-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                }`}
+              >
+                SKU MANAGEMENT
+              </button>
+              <button
+                onClick={() => {
+                  setMainTab('meesho_reconciliation');
+                  if (!['inventory', 'cancelled-orders', 'returns', 'customer-returns'].includes(selectedTab)) setSelectedTab('inventory');
+                }}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                  mainTab === 'meesho_reconciliation'
+                    ? 'border-white text-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                }`}
+              >
+                MEESHO RECONCILIATION
+              </button>
+              <button
+                onClick={() => {
+                  setMainTab('flipkart_reconciliation');
+                  if (selectedTab !== 'flipkart-inventory') setSelectedTab('flipkart-inventory');
+                }}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                  mainTab === 'flipkart_reconciliation'
+                    ? 'border-white text-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                }`}
+              >
+                FLIPKART RECONCILIATION
+              </button>
+            </nav>
+          </div>
+        </div>
+
+        {/* Sub Tabs Navigation */}
+        <div className="bg-gray-800 border-b border-gray-700 sticky top-[45px] z-10 shadow-sm">
           <div className="px-4 overflow-x-auto">
             <nav className="flex space-x-8 min-w-max" aria-label="Tabs">
+            
+            {mainTab === 'sku_management' && (
+              <>
             <button
               onClick={() => setSelectedTab('sort')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
@@ -1602,6 +1653,19 @@ export default function ExtractSKU() {
               <div className="flex items-center space-x-2">
                 <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'sort' ? 'text-pink-400' : 'text-gray-400'}`} title="Meesho" />
                 <span>Meesho Sort</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('amazon')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'amazon'
+                  ? 'border-orange-400 text-orange-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <SiAmazon className={`w-5 h-5 ${selectedTab === 'amazon' ? 'text-orange-400' : 'text-gray-400'}`} title="Amazon" />
+                <span>Amazon Sort</span>
               </div>
             </button>
             <button
@@ -1631,19 +1695,6 @@ export default function ExtractSKU() {
               </div>
             </button>
             <button
-              onClick={() => setSelectedTab('amazon')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
-                selectedTab === 'amazon'
-                  ? 'border-orange-400 text-orange-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              }`}
-            >
-              <div className="flex items-center space-x-2">
-                <SiAmazon className={`w-5 h-5 ${selectedTab === 'amazon' ? 'text-orange-400' : 'text-gray-400'}`} title="Amazon" />
-                <span>Amazon Sort</span>
-              </div>
-            </button>
-            <button
               onClick={() => setSelectedTab('excel')}
               disabled={!flagsLoading && (!featureFlags || featureFlags.isExcelFromPDF !== true)}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
@@ -1659,6 +1710,11 @@ export default function ExtractSKU() {
                 <span>Generate Excel</span>
               </div>
             </button>
+              </>
+            )}
+
+            {mainTab === 'meesho_reconciliation' && (
+              <>
             <button
               onClick={() => setSelectedTab('inventory')}
               disabled={!flagsLoading && !checkFeature('isSKUInventory')}
@@ -1673,20 +1729,6 @@ export default function ExtractSKU() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                 </svg>
                 <span>Meesho Inventory</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setSelectedTab('flipkart-inventory')}
-              disabled={!flagsLoading && !checkFeature('isSKUInventory')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
-                selectedTab === 'flipkart-inventory'
-                  ? 'border-yellow-400 text-yellow-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!flagsLoading && !checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <div className="flex items-center space-x-2">
-                <SiFlipkart className={`w-4 h-4 ${selectedTab === 'flipkart-inventory' ? 'text-yellow-400' : 'text-gray-400'}`} />
-                <span>Flipkart Inventory</span>
               </div>
             </button>
             <button
@@ -1737,6 +1779,27 @@ export default function ExtractSKU() {
                 <span>Customer Returns</span>
               </div>
             </button>
+              </>
+            )}
+
+            {mainTab === 'flipkart_reconciliation' && (
+              <>
+            <button
+              onClick={() => setSelectedTab('flipkart-inventory')}
+              disabled={!flagsLoading && !checkFeature('isSKUInventory')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'flipkart-inventory'
+                  ? 'border-yellow-400 text-yellow-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              } ${!flagsLoading && !checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <SiFlipkart className={`w-4 h-4 ${selectedTab === 'flipkart-inventory' ? 'text-yellow-400' : 'text-gray-400'}`} />
+                <span>Flipkart Inventory</span>
+              </div>
+            </button>
+              </>
+            )}
             </nav>
           </div>
         </div>
