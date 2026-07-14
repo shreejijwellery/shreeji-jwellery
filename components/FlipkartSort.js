@@ -175,26 +175,62 @@ export default function FlipkartSort({
         }
 
         let labelBottomY = null;
+        let fmpcY = null;
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        const fullText = textContent.items ? textContent.items.map(item => item.str).join('').toLowerCase().replace(/\s/g, '') : '';
+        const hasTaxInvoice = fullText.includes('taxinvoice');
+
         if (textContent.items) {
           for (const item of textContent.items) {
-            const str = item.str.toLowerCase();
-            if (str.includes('not for resale') || str.includes('printed at')) {
+            const str = item.str.toLowerCase().replace(/\s/g, '');
+            if (str.includes('resale') || str.includes('printedat')) {
               labelBottomY = item.transform[5];
-              break;
+            }
+            // Only match horizontal FMP text (ignore the rotated AWB text on the left)
+            if (str.startsWith('fmp') && Math.abs(item.transform[1]) < 0.1) {
+              if (fmpcY === null || item.transform[5] < fmpcY) {
+                fmpcY = item.transform[5];
+              }
             }
           }
           if (!labelBottomY) {
+            if (fmpcY !== null) {
+              labelBottomY = fmpcY - 45;
+            } else {
+              for (const item of textContent.items) {
+                if (item.str.toLowerCase().replace(/\s/g, '').includes('taxinvoice')) {
+                  labelBottomY = item.transform[5] + 15;
+                  break;
+                }
+              }
+            }
+          }
+
+          // Calculate bounding box of all label text
+          if (labelBottomY !== null) {
             for (const item of textContent.items) {
-              if (item.str.toLowerCase().includes('tax invoice')) {
-                labelBottomY = item.transform[5] + 15;
-                break;
+              const y = item.transform[5];
+              if (y >= labelBottomY - 15 && item.str.trim()) {
+                const x = item.transform[4];
+                const isRotated = Math.abs(item.transform[1]) > 0.5;
+                const textEndX = isRotated ? x + 12 : x + (item.width || 0);
+                
+                if (x < minX) minX = x;
+                if (textEndX > maxX) maxX = textEndX;
+                if (y > maxY) maxY = y;
               }
             }
           }
         }
 
         const company = extractFlipkartCompany(lines);
-        pageData.push({ pageNumber: i, sku, qty, originName, company, labelBottomY });
+        pageData.push({ 
+          pageNumber: i, sku, qty, originName, company, 
+          labelBottomY, fmpcY, minX, maxX, maxY, hasTaxInvoice 
+        });
       }
 
       if (pageData.length === 0) {
@@ -252,30 +288,53 @@ export default function FlipkartSort({
         const embeddedLabel = await outPdf.embedPage(originalPage);
         
         let targetWidth, targetHeight, xShift, yShift;
-        let textY = 8;
-
-        if (origWidth > 400) {
-          // 2. ULTRA-TIGHT DIMENSIONS (Exactly the label box)
-          targetWidth = 240;
-          xShift = -(origWidth - targetWidth) / 2;
-
-          if (pageInfo.labelBottomY !== null) {
-            let cutY = pageInfo.labelBottomY - 10;
-            let labelHeight = (origHeight - 21) - cutY;
-            targetHeight = labelHeight + 25; 
-            yShift = 25 - cutY;
-          } else {
-            // fallback
-            targetHeight = 362 + 25; 
-            yShift = -(origHeight - 362) + 21 + 25;
-          }
+        if (pageInfo.minX !== Infinity && pageInfo.maxX !== -Infinity && (pageInfo.maxX - pageInfo.minX) > 100) {
+            // Apply tight bounding box crop
+            const padLeft = 10;
+            const padRight = 10;
+            const padTop = 20;
+            const padBottom = 10;
+            
+            const cropLeft = Math.max(0, pageInfo.minX - padLeft);
+            const cropRight = Math.min(origWidth, pageInfo.maxX + padRight);
+            const cropBottom = Math.max(0, pageInfo.labelBottomY - padBottom);
+            const cropTop = Math.min(origHeight, pageInfo.maxY + padTop);
+            
+            targetWidth = cropRight - cropLeft;
+            targetHeight = cropTop - cropBottom; // Exact label height
+            
+            xShift = -cropLeft;
+            yShift = -cropBottom;
+        } else if (origWidth > 400) {
+            // Fallback for A4 
+            if (pageInfo.hasTaxInvoice) {
+              console.log("in tax invoice")
+                // The new LabelPlusInvoice format has a rasterized, scaled-down label
+                targetWidth = 170;
+                targetHeight = 260;
+            } else {
+              console.log("in normal invoice")
+                // Standard old A4 label format
+                targetWidth = 240;
+                targetHeight = 362;
+            }
+            
+            if (pageInfo.labelBottomY !== null) {
+                let cutY = pageInfo.labelBottomY - 10;
+                if (!pageInfo.hasTaxInvoice) {
+                    targetHeight = (origHeight - 21) - cutY;
+                }
+                yShift = -cutY;
+            } else {
+                yShift = -(origHeight - targetHeight) + 21;
+            }
+            xShift = -(origWidth - targetWidth) / 2;
         } else {
-          // It's already a thermal label size (e.g. LabelPlusInvoice)
-          targetWidth = origWidth;
-          // Add 25 points at the bottom for our custom text
-          targetHeight = origHeight + 25;
-          xShift = 0;
-          yShift = 25; // Shift the original page UP by 25 points to create a blank strip at the bottom
+            // Fallback for thermal
+            targetWidth = origWidth;
+            targetHeight = origHeight;
+            xShift = 0;
+            yShift = 0;
         }
         
         const newPage = outPdf.addPage([targetWidth, targetHeight]);
@@ -287,25 +346,31 @@ export default function FlipkartSort({
           height: origHeight
         });
 
-        // Ensure the bottom 25 points are white
-        newPage.drawRectangle({
-          x: 0,
-          y: 0,
-          width: targetWidth,
-          height: 25,
-          color: rgb(1, 1, 1),
-        });
-
         const isFirstOfOrigin = pageInfo.originName ? firstOriginIndex[pageInfo.originName] === i : false;
         const hasMultiplePages = pageInfo.originName ? originCounts[pageInfo.originName] > 1 : false;
         const showCount = isFirstOfOrigin && hasMultiplePages && pageInfo.originName !== null;
 
+        // Dynamic text positioning and scaling
+        const scale = targetWidth / 240;
+        const fontSize = Math.max(8, 12 * scale);
+        const countFontSize = Math.max(10, 16 * scale);
+        const textX = Math.max(8, 20 * scale);
+        
+        let textY;
+        if (pageInfo.fmpcY !== null) {
+          // Draw text exactly 12 points (scaled) above the bottom FMP* barcode text
+          textY = (pageInfo.fmpcY + yShift) + (14 * scale);
+        } else {
+          // Fallback if FMP text isn't found
+          textY = 10 + (29 * scale);
+        }
+
         // 4. DRAW TEXT
         if (pageInfo.originName) {
           newPage.drawText(`O:- ${pageInfo.originName}`, { 
-            x: 12, 
+            x: textX, 
             y: textY, 
-            size: 10, 
+            size: fontSize, 
             font: helveticaBoldFont,
             color: rgb(0, 0, 0)
           });
@@ -314,11 +379,10 @@ export default function FlipkartSort({
         if (showCount) {
           const count = originCounts[pageInfo.originName];
           const countText = `(${count})`;
-          const countFontSize = 15; 
           const countWidth = helveticaBoldFont.widthOfTextAtSize(countText, countFontSize);
           
           newPage.drawText(countText, {
-            x: targetWidth - countWidth - 10,
+            x: targetWidth - countWidth - textX,
             y: textY,
             size: countFontSize,
             font: helveticaBoldFont,
