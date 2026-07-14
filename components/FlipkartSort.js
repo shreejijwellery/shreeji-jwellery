@@ -288,11 +288,10 @@ export default function FlipkartSort({
         const embeddedLabel = await outPdf.embedPage(originalPage);
         
         let targetWidth, targetHeight, xShift, yShift;
-
         if (pageInfo.minX !== Infinity && pageInfo.maxX !== -Infinity && (pageInfo.maxX - pageInfo.minX) > 100) {
             // Apply tight bounding box crop
-            const padLeft = 20;
-            const padRight = 25;
+            const padLeft = 10;
+            const padRight = 10;
             const padTop = 20;
             const padBottom = 10;
             
@@ -309,10 +308,12 @@ export default function FlipkartSort({
         } else if (origWidth > 400) {
             // Fallback for A4 
             if (pageInfo.hasTaxInvoice) {
+              console.log("in tax invoice")
                 // The new LabelPlusInvoice format has a rasterized, scaled-down label
-                targetWidth = 175;
-                targetHeight = 265;
+                targetWidth = 170;
+                targetHeight = 260;
             } else {
+              console.log("in normal invoice")
                 // Standard old A4 label format
                 targetWidth = 240;
                 targetHeight = 362;
