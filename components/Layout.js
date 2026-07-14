@@ -273,28 +273,45 @@ const Layout = ({ children }) => {
               )}
 
               {user && checkPermission(user, PERMISSIONS.EXTRACT_SKU) && checkFeature('isExtractSKU') && (
-                <NavItem 
-                  href="/extract-sku" 
-                  icon={FaFileExcel} 
-                  label="SKU Management"
-                  menuKey="sku"
-                  submenu={[
-                    { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaShoppingBag },
-                    { href: '/extract-sku?tab=flipkart', label: 'Flipkart Sort', icon: SiFlipkart },
-                    { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaTag },
-                    { href: '/extract-sku?tab=amazon', label: 'Amazon Sort', icon: SiAmazon },
-                    { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt, flag: 'isExcelFromPDF' },
-                    { href: '/extract-sku?tab=inventory', label: 'Meesho Inventory', icon: FaBoxes, flag: 'isSKUInventory' },
-                    { href: '/extract-sku?tab=flipkart-inventory', label: 'Flipkart Inventory', icon: SiFlipkart, flag: 'isSKUInventory' },
-                    { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle, flag: 'isCancelledOrders' },
-                    { href: '/extract-sku?tab=returns', label: 'Returns', icon: FaUndo, flag: 'isReturns' },
-                    { href: '/extract-sku?tab=customer-returns', label: 'Customer Returns', icon: FaUndo, flag: 'isCustomerReturns' },
-                  ].filter(item => {
-                    // Always show Cancelled Orders and Returns in sidebar; other items respect flag
-                    if (item.label === 'Cancelled Orders' || item.label === 'Returns' || item.label === 'Customer Returns') return true;
-                    return !item.flag || checkFeature(item.flag);
-                  })}
-                />
+                <>
+                  <NavItem 
+                    href="/extract-sku?tab=sort" 
+                    icon={FaFileExcel} 
+                    label="SKU Management"
+                    menuKey="sku_management"
+                    submenu={[
+                      { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaShoppingBag },
+                      { href: '/extract-sku?tab=flipkart', label: 'Flipkart Sort', icon: SiFlipkart },
+                      { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaTag },
+                      { href: '/extract-sku?tab=amazon', label: 'Amazon Sort', icon: SiAmazon },
+                      { href: '/extract-sku?tab=excel', label: 'Generate Excel', icon: FaFileAlt, flag: 'isExcelFromPDF' },
+                    ].filter(item => !item.flag || checkFeature(item.flag))}
+                  />
+                  <NavItem 
+                    href="/extract-sku?tab=inventory" 
+                    icon={FaBoxes} 
+                    label="Meesho Recon"
+                    menuKey="meesho_recon"
+                    submenu={[
+                      { href: '/extract-sku?tab=inventory', label: 'Meesho Inventory', icon: FaBoxes, flag: 'isSKUInventory' },
+                      { href: '/extract-sku?tab=cancelled-orders', label: 'Cancelled Orders', icon: FaTimesCircle, flag: 'isCancelledOrders' },
+                      { href: '/extract-sku?tab=returns', label: 'Returns', icon: FaUndo, flag: 'isReturns' },
+                      { href: '/extract-sku?tab=customer-returns', label: 'Customer Returns', icon: FaUndo, flag: 'isCustomerReturns' },
+                    ].filter(item => {
+                      if (item.label === 'Cancelled Orders' || item.label === 'Returns' || item.label === 'Customer Returns') return true;
+                      return !item.flag || checkFeature(item.flag);
+                    })}
+                  />
+                  <NavItem 
+                    href="/extract-sku?tab=flipkart-inventory" 
+                    icon={SiFlipkart} 
+                    label="Flipkart Recon"
+                    menuKey="flipkart_recon"
+                    submenu={[
+                      { href: '/extract-sku?tab=flipkart-inventory', label: 'Flipkart Inventory', icon: SiFlipkart, flag: 'isSKUInventory' },
+                    ].filter(item => !item.flag || checkFeature(item.flag))}
+                  />
+                </>
               )}
 
               {user && checkPermission(user, PERMISSIONS.PARTY_BILLS) && (checkFeature('isPartyBills') || checkFeature('isVendorBills')) && (

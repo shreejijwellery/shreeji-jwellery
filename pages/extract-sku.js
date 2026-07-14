@@ -67,7 +67,15 @@ export default function ExtractSKU() {
   // Handle tab query parameter from URL
   useEffect(() => {
     if (router.isReady && router.query.tab) {
-      setSelectedTab(router.query.tab);
+      const tab = router.query.tab;
+      setSelectedTab(tab);
+      if (['sort', 'amazon', 'flipkart', 'snapdeal', 'excel'].includes(tab)) {
+        setMainTab('sku_management');
+      } else if (['inventory', 'cancelled-orders', 'returns', 'customer-returns'].includes(tab)) {
+        setMainTab('meesho_reconciliation');
+      } else if (tab === 'flipkart-inventory') {
+        setMainTab('flipkart_reconciliation');
+      }
     }
   }, [router.isReady, router.query.tab]);
 
@@ -2885,7 +2893,7 @@ export default function ExtractSKU() {
             </div>
 
             {/* Main Content Area with Filter Panel */}
-            <div className="flex relative h-[calc(100vh-12rem)]">
+            <div className="flex relative h-[calc(100vh-16rem)]">
               {/* Left Filter Panel - Company List (Draggable) */}
               <div 
                 className={`bg-gray-50 border-r border-gray-200 transition-all duration-300 ease-in-out flex flex-col ${
