@@ -27,6 +27,10 @@ const SkuInventorySchema = new mongoose.Schema({
         required: true,
         index: true
     },
+    platform: {
+        type: String,
+        index: true
+    },
     uploadedBy: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'User', 
@@ -44,12 +48,14 @@ const SkuInventorySchema = new mongoose.Schema({
     timestamps: true 
 });
 
-// Compound indexes for efficient queries
+// Original compound indexes (untouched - for existing Meesho queries)
 SkuInventorySchema.index({ company: 1, selectedDate: 1 });
 SkuInventorySchema.index({ company: 1, companyName: 1, selectedDate: 1 });
 SkuInventorySchema.index({ company: 1, isDeleted: 1, selectedDate: 1 });
 SkuInventorySchema.index({ company: 1, isDeleted: 1, companyName: 1, sku: 1 });
 SkuInventorySchema.index({ company: 1, isDeleted: 1, selectedDate: 1, companyName: 1, sku: 1 });
+// Additional index for Flipkart platform-specific queries
+SkuInventorySchema.index({ company: 1, platform: 1, isDeleted: 1, selectedDate: 1 });
 
 export default mongoose.models.SkuInventory || mongoose.model('SkuInventory', SkuInventorySchema);
 

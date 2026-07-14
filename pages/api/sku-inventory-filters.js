@@ -28,17 +28,23 @@ async function handler(req, res) {
 
     if (req.method === 'GET') {
         try {
-            // Get unique dates
-            const dates = await SkuInventory.distinct('selectedDate', {
+            const { platform } = req.query;
+
+            const query = {
                 company: user.company,
                 isDeleted: false
-            });
+            };
+            if (platform === 'flipkart') {
+                query.platform = 'flipkart';
+            } else if (platform === 'meesho') {
+                query.platform = { $ne: 'flipkart' };
+            }
+
+            // Get unique dates
+            const dates = await SkuInventory.distinct('selectedDate', query);
 
             // Get unique company names (trim them)
-            const companyNames = await SkuInventory.distinct('companyName', {
-                company: user.company,
-                isDeleted: false
-            });
+            const companyNames = await SkuInventory.distinct('companyName', query);
 
             // Trim all company names and remove empty ones
             const trimmedCompanyNames = [...new Set(

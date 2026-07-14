@@ -33,13 +33,20 @@ async function handler(req, res) {
     // GET - Fetch SKU inventory data with filters
     if (req.method === 'GET') {
         try {
-            const { startDate, endDate, companyName, sku } = req.query;
+            const { startDate, endDate, companyName, sku, platform } = req.query;
 
             // Build match stage for aggregation pipeline
             const matchStage = {
                 company: user.company,
                 isDeleted: false
             };
+
+            // Only filter by platform for Flipkart (existing Meesho data has no platform field)
+            if (platform === 'flipkart') {
+                matchStage.platform = 'flipkart';
+            } else if (platform === 'meesho') {
+                matchStage.platform = { $ne: 'flipkart' };
+            }
 
             // Date filter
             if (startDate || endDate) {
@@ -175,7 +182,7 @@ async function handler(req, res) {
     // POST - Upload SKU inventory data
     if (req.method === 'POST') {
         try {
-            const { selectedDate, skuData } = req.body;
+            const { selectedDate, skuData, platform } = req.body;
 
             if (!selectedDate || !skuData || typeof skuData !== 'object') {
                 return res.status(400).json({ message: 'Invalid data format' });
@@ -194,7 +201,7 @@ async function handler(req, res) {
                     const trimmedSku = sku.trim();
                     if (!trimmedSku) continue; // Skip empty SKUs
                     
-                    records.push({
+                    const record = {
                         company: user.company,
                         companyName: trimmedCompanyName,
                         sku: trimmedSku,
@@ -202,7 +209,12 @@ async function handler(req, res) {
                         selectedDate: date,
                         uploadedBy: user._id,
                         uploadedByName: user.username || user.email
-                    });
+                    };
+                    // Only set platform for Flipkart (Meesho records stay as-is)
+                    if (platform === 'flipkart') {
+                        record.platform = 'flipkart';
+                    }
+                    records.push(record);
                 }
             }
 
@@ -227,7 +239,7 @@ async function handler(req, res) {
     // DELETE - Delete SKU inventory data by date
     if (req.method === 'DELETE') {
         try {
-            const { date } = req.query;
+            const { date, platform } = req.query;
 
             if (!date) {
                 return res.status(400).json({ message: 'Date is required' });
@@ -240,16 +252,23 @@ async function handler(req, res) {
             const endOfDay = new Date(targetDate);
             endOfDay.setHours(23, 59, 59, 999);
 
+            // Build delete query
+            const deleteQuery = {
+                company: user.company,
+                selectedDate: {
+                    $gte: startOfDay,
+                    $lte: endOfDay
+                },
+                isDeleted: false
+            };
+            // Only filter by platform for Flipkart
+            if (platform === 'flipkart') {
+                deleteQuery.platform = 'flipkart';
+            }
+
             // Soft delete
             const result = await SkuInventory.updateMany(
-                {
-                    company: user.company,
-                    selectedDate: {
-                        $gte: startOfDay,
-                        $lte: endOfDay
-                    },
-                    isDeleted: false
-                },
+                deleteQuery,
                 {
                     $set: { isDeleted: true }
                 }

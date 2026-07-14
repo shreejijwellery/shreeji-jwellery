@@ -30,7 +30,7 @@ async function handler(req, res) {
 
     if (req.method === 'POST') {
         try {
-            const { startDate, endDate } = req.body;
+            const { startDate, endDate, platform } = req.body;
 
             if (!startDate || !endDate) {
                 return res.status(400).json({ message: 'Start date and end date are required' });
@@ -44,6 +44,12 @@ async function handler(req, res) {
                     $lte: new Date(new Date(endDate).setHours(23, 59, 59, 999))
                 }
             };
+            
+            if (platform === 'flipkart') {
+                query.platform = 'flipkart';
+            } else if (platform === 'meesho') {
+                query.platform = { $ne: 'flipkart' };
+            }
 
             const data = await SkuInventory.aggregate([
                 { $match: query },
@@ -170,7 +176,8 @@ async function handler(req, res) {
             });
 
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            const fileName = `SKU_Inventory_${startDate}_to_${endDate}.xlsx`;
+            const platformLabel = activePlatform === 'flipkart' ? 'Flipkart' : 'Meesho';
+            const fileName = `${platformLabel}_SKU_Inventory_${startDate}_to_${endDate}.xlsx`;
             
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
