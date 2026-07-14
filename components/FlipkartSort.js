@@ -22,6 +22,20 @@ export default function FlipkartSort({
   const companies = ['Valmo', 'Xpress Bees', 'ShadowFax', 'Delhivery', 'Ecom Express', 'Flipkart'].sort();
 
   function extractFlipkartSKU(lines) {
+    const skuHeaderIndex = lines.findIndex(line => line.toUpperCase().includes('SKU ID |'));
+    if (skuHeaderIndex !== -1) {
+      const nextLine = lines[skuHeaderIndex + 1];
+      if (nextLine) {
+        const parts = nextLine.split('|');
+        if (parts.length > 1) {
+          const leftPart = parts[0].trim();
+          const skuMatch = leftPart.match(/^\d+\s+(.+)$/);
+          if (skuMatch) return skuMatch[1].trim();
+          return leftPart;
+        }
+      }
+    }
+
     const SKUIndex = lines.findIndex(line => line.toUpperCase().includes('SKU') || line.toUpperCase().includes('PRODUCT ID'));
     if (SKUIndex === -1) return null;
     
@@ -159,8 +173,28 @@ export default function FlipkartSort({
             if (originRow && originKey) originName = originRow[originKey] || 'Unknown Origin';
           }
         }
+
+        let labelBottomY = null;
+        if (textContent.items) {
+          for (const item of textContent.items) {
+            const str = item.str.toLowerCase();
+            if (str.includes('not for resale') || str.includes('printed at')) {
+              labelBottomY = item.transform[5];
+              break;
+            }
+          }
+          if (!labelBottomY) {
+            for (const item of textContent.items) {
+              if (item.str.toLowerCase().includes('tax invoice')) {
+                labelBottomY = item.transform[5] + 15;
+                break;
+              }
+            }
+          }
+        }
+
         const company = extractFlipkartCompany(lines);
-        pageData.push({ pageNumber: i, sku, qty, originName, company });
+        pageData.push({ pageNumber: i, sku, qty, originName, company, labelBottomY });
       }
 
       if (pageData.length === 0) {
@@ -217,15 +251,34 @@ export default function FlipkartSort({
         const { width: origWidth, height: origHeight } = originalPage.getSize();
         const embeddedLabel = await outPdf.embedPage(originalPage);
         
-        // 2. ULTRA-TIGHT DIMENSIONS (Exactly the label box)
-        const targetWidth = 240;
-        const targetHeight = 362; 
-        const newPage = outPdf.addPage([targetWidth, targetHeight]);
+        let targetWidth, targetHeight, xShift, yShift;
+        let textY = 8;
+
+        if (origWidth > 400) {
+          // 2. ULTRA-TIGHT DIMENSIONS (Exactly the label box)
+          targetWidth = 240;
+          xShift = -(origWidth - targetWidth) / 2;
+
+          if (pageInfo.labelBottomY !== null) {
+            let cutY = pageInfo.labelBottomY - 10;
+            let labelHeight = (origHeight - 21) - cutY;
+            targetHeight = labelHeight + 25; 
+            yShift = 25 - cutY;
+          } else {
+            // fallback
+            targetHeight = 362 + 25; 
+            yShift = -(origHeight - 362) + 21 + 25;
+          }
+        } else {
+          // It's already a thermal label size (e.g. LabelPlusInvoice)
+          targetWidth = origWidth;
+          // Add 25 points at the bottom for our custom text
+          targetHeight = origHeight + 25;
+          xShift = 0;
+          yShift = 25; // Shift the original page UP by 25 points to create a blank strip at the bottom
+        }
         
-        // 3. HORIZONTAL & VERTICAL SCOOT (Removing top/bottom white space)
-        const xShift = -(origWidth - targetWidth) / 2;
-        // We scoot it UP by adding 21 to the negative shift. 
-        const yShift = -(origHeight - targetHeight) + 21;
+        const newPage = outPdf.addPage([targetWidth, targetHeight]);
         
         newPage.drawPage(embeddedLabel, {
           x: xShift,
@@ -234,15 +287,24 @@ export default function FlipkartSort({
           height: origHeight
         });
 
+        // Ensure the bottom 25 points are white
+        newPage.drawRectangle({
+          x: 0,
+          y: 0,
+          width: targetWidth,
+          height: 25,
+          color: rgb(1, 1, 1),
+        });
+
         const isFirstOfOrigin = pageInfo.originName ? firstOriginIndex[pageInfo.originName] === i : false;
         const hasMultiplePages = pageInfo.originName ? originCounts[pageInfo.originName] > 1 : false;
         const showCount = isFirstOfOrigin && hasMultiplePages && pageInfo.originName !== null;
 
-        // 4. DRAW TEXT (Standard (10, 22) to land INSIDE the white label box)
+        // 4. DRAW TEXT
         if (pageInfo.originName) {
           newPage.drawText(`O:- ${pageInfo.originName}`, { 
             x: 12, 
-            y: 50, 
+            y: textY, 
             size: 10, 
             font: helveticaBoldFont,
             color: rgb(0, 0, 0)
@@ -257,7 +319,7 @@ export default function FlipkartSort({
           
           newPage.drawText(countText, {
             x: targetWidth - countWidth - 10,
-            y: 50,
+            y: textY,
             size: countFontSize,
             font: helveticaBoldFont,
             color: rgb(0, 0, 0)
