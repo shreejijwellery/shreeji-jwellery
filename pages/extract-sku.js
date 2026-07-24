@@ -10,6 +10,7 @@ import SnapdealSort from '../components/SnapdealSort';
 import AmazonSort from '../components/AmazonSort';
 import FlipkartSort from '../components/FlipkartSort';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
+import { parseSnapdealPDF } from '../utils/snapdealInventoryParser';
 import { SiAmazon, SiFlipkart } from 'react-icons/si';
 import { FaShoppingBag, FaTag } from 'react-icons/fa';
 
@@ -61,8 +62,8 @@ export default function ExtractSKU() {
   const [tempEndDate, setTempEndDate] = useState(''); // Temporary end date
   
   // Derive current platform from selected tab
-  const currentPlatform = selectedTab === 'flipkart-inventory' ? 'flipkart' : 'meesho';
-  const isInventoryTab = selectedTab === 'inventory' || selectedTab === 'flipkart-inventory';
+  const currentPlatform = selectedTab === 'flipkart-inventory' ? 'flipkart' : selectedTab === 'snapdeal-inventory' ? 'snapdeal' : 'meesho';
+  const isInventoryTab = selectedTab === 'inventory' || selectedTab === 'flipkart-inventory' || selectedTab === 'snapdeal-inventory';
 
   // Handle tab query parameter from URL
   useEffect(() => {
@@ -75,6 +76,8 @@ export default function ExtractSKU() {
         setMainTab('meesho_reconciliation');
       } else if (tab === 'flipkart-inventory') {
         setMainTab('flipkart_reconciliation');
+      } else if (tab === 'snapdeal-inventory') {
+        setMainTab('snapdeal_reconciliation');
       }
     }
   }, [router.isReady, router.query.tab]);
@@ -1217,7 +1220,7 @@ export default function ExtractSKU() {
       // Create formatted filename with date range
       const startDateFormatted = formatDate(filterStartDate);
       const endDateFormatted = formatDate(filterEndDate);
-      const platformLabel = currentPlatform === 'flipkart' ? 'Flipkart' : 'Meesho';
+      const platformLabel = currentPlatform === 'flipkart' ? 'Flipkart' : currentPlatform === 'snapdeal' ? 'Snapdeal' : 'Meesho';
       const filename = filterStartDate === filterEndDate 
         ? `${platformLabel}_SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}.xlsx`
         : `${platformLabel}_SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}_to_${endDateFormatted.replace(/\//g, '-')}.xlsx`;
@@ -1270,6 +1273,8 @@ export default function ExtractSKU() {
     // Proceed with upload - use the correct parser based on platform
     if (currentPlatform === 'flipkart') {
       await processAndUploadFlipkartPDF(event, file, targetDate);
+    } else if (currentPlatform === 'snapdeal') {
+      await processAndUploadSnapdealPDF(event, file, targetDate);
     } else {
       await processAndUploadPDF(event, file, targetDate);
     }
@@ -1570,6 +1575,38 @@ export default function ExtractSKU() {
   };
 
 
+  // Snapdeal PDF parsing for inventory
+  const processAndUploadSnapdealPDF = async (event, file = null, dateStr = null) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+    setUploadProgress({ percent: 5, message: 'Reading Snapdeal PDF file...' });
+
+    try {
+      const pdfFile = file || selectedFile || (event?.target?.pdf_inventory?.files?.[0]);
+      if (!pdfFile) throw new Error('Please select a PDF file');
+
+      const results = await parseSnapdealPDF({
+        pdfFile,
+        loadPdfJs,
+        readFileAsArrayBuffer,
+        reconstructLinesFromTextItems,
+        onProgress: (percent, message) => setUploadProgress({ percent, message }),
+      });
+
+      setUploadProgress({ percent: 97, message: 'Uploading to database...' });
+      await uploadInventoryData(results, dateStr);
+      setUploadProgress({ percent: 100, message: 'Upload complete!' });
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to process Snapdeal PDF');
+      setUploadProgress({ percent: 0, message: '' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
     <div className="p-4 md:p-6 w-full">
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg shadow-sm">
@@ -1638,6 +1675,19 @@ export default function ExtractSKU() {
                 }`}
               >
                 FLIPKART RECONCILIATION
+              </button>
+              <button
+                onClick={() => {
+                  setMainTab('snapdeal_reconciliation');
+                  if (selectedTab !== 'snapdeal-inventory') setSelectedTab('snapdeal-inventory');
+                }}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                  mainTab === 'snapdeal_reconciliation'
+                    ? 'border-white text-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                }`}
+              >
+                SNAPDEAL RECONCILIATION
               </button>
             </nav>
           </div>
@@ -1804,6 +1854,25 @@ export default function ExtractSKU() {
               <div className="flex items-center space-x-2">
                 <SiFlipkart className={`w-4 h-4 ${selectedTab === 'flipkart-inventory' ? 'text-yellow-400' : 'text-gray-400'}`} />
                 <span>Flipkart Inventory</span>
+              </div>
+            </button>
+              </>
+            )}
+
+            {mainTab === 'snapdeal_reconciliation' && (
+              <>
+            <button
+              onClick={() => setSelectedTab('snapdeal-inventory')}
+              disabled={!flagsLoading && !checkFeature('isSKUInventory')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'snapdeal-inventory'
+                  ? 'border-red-400 text-red-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              } ${!flagsLoading && !checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <FaTag className={`w-4 h-4 ${selectedTab === 'snapdeal-inventory' ? 'text-red-400' : 'text-gray-400'}`} />
+                <span>Snapdeal Inventory</span>
               </div>
             </button>
               </>

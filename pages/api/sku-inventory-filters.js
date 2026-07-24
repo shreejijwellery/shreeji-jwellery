@@ -36,8 +36,10 @@ async function handler(req, res) {
             };
             if (platform === 'flipkart') {
                 query.platform = 'flipkart';
+            } else if (platform === 'snapdeal') {
+                query.platform = 'snapdeal';
             } else if (platform === 'meesho') {
-                query.platform = { $ne: 'flipkart' };
+                query.platform = { $nin: ['flipkart', 'snapdeal'] };
             }
 
             // Get unique dates

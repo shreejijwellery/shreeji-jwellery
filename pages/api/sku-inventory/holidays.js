@@ -75,6 +75,10 @@ async function handler(req, res) {
             };
             if (platform === 'flipkart') {
                 query.platform = 'flipkart';
+            } else if (platform === 'snapdeal') {
+                query.platform = 'snapdeal';
+            } else if (platform === 'meesho') {
+                query.platform = { $nin: ['flipkart', 'snapdeal'] };
             }
 
             // Date filter - use UTC dates to avoid timezone issues
@@ -151,6 +155,10 @@ async function handler(req, res) {
             };
             if (platform === 'flipkart') {
                 checkQuery.platform = 'flipkart';
+            } else if (platform === 'snapdeal') {
+                checkQuery.platform = 'snapdeal';
+            } else if (platform === 'meesho') {
+                checkQuery.platform = { $nin: ['flipkart', 'snapdeal'] };
             }
 
             // Check if holiday already exists
@@ -171,6 +179,8 @@ async function handler(req, res) {
             };
             if (platform === 'flipkart') {
                 holidayData.platform = 'flipkart';
+            } else if (platform === 'snapdeal') {
+                holidayData.platform = 'snapdeal';
             }
             const holiday = await Holiday.create(holidayData);
 
@@ -223,6 +233,10 @@ async function handler(req, res) {
             };
             if (platform === 'flipkart') {
                 deleteQuery.platform = 'flipkart';
+            } else if (platform === 'snapdeal') {
+                deleteQuery.platform = 'snapdeal';
+            } else if (platform === 'meesho') {
+                deleteQuery.platform = { $nin: ['flipkart', 'snapdeal'] };
             }
 
             const result = await Holiday.updateOne(
