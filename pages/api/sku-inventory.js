@@ -41,11 +41,13 @@ async function handler(req, res) {
                 isDeleted: false
             };
 
-            // Only filter by platform for Flipkart (existing Meesho data has no platform field)
+            // Platform filter (flipkart, snapdeal, or meesho)
             if (platform === 'flipkart') {
                 matchStage.platform = 'flipkart';
+            } else if (platform === 'snapdeal') {
+                matchStage.platform = 'snapdeal';
             } else if (platform === 'meesho') {
-                matchStage.platform = { $ne: 'flipkart' };
+                matchStage.platform = { $nin: ['flipkart', 'snapdeal'] };
             }
 
             // Date filter
@@ -210,9 +212,11 @@ async function handler(req, res) {
                         uploadedBy: user._id,
                         uploadedByName: user.username || user.email
                     };
-                    // Only set platform for Flipkart (Meesho records stay as-is)
+                    // Set platform for flipkart or snapdeal
                     if (platform === 'flipkart') {
                         record.platform = 'flipkart';
+                    } else if (platform === 'snapdeal') {
+                        record.platform = 'snapdeal';
                     }
                     records.push(record);
                 }
@@ -261,9 +265,13 @@ async function handler(req, res) {
                 },
                 isDeleted: false
             };
-            // Only filter by platform for Flipkart
+            // Filter by platform for Flipkart, Snapdeal, or Meesho
             if (platform === 'flipkart') {
                 deleteQuery.platform = 'flipkart';
+            } else if (platform === 'snapdeal') {
+                deleteQuery.platform = 'snapdeal';
+            } else if (platform === 'meesho') {
+                deleteQuery.platform = { $nin: ['flipkart', 'snapdeal'] };
             }
 
             // Soft delete

@@ -311,6 +311,15 @@ const Layout = ({ children }) => {
                       { href: '/extract-sku?tab=flipkart-inventory', label: 'Flipkart Inventory', icon: SiFlipkart, flag: 'isSKUInventory' },
                     ].filter(item => !item.flag || checkFeature(item.flag))}
                   />
+                  <NavItem 
+                    href="/extract-sku?tab=snapdeal-inventory" 
+                    icon={FaTag} 
+                    label="Snapdeal Recon"
+                    menuKey="snapdeal_recon"
+                    submenu={[
+                      { href: '/extract-sku?tab=snapdeal-inventory', label: 'Snapdeal Inventory', icon: FaTag, flag: 'isSKUInventory' },
+                    ].filter(item => !item.flag || checkFeature(item.flag))}
+                  />
                 </>
               )}
 
