@@ -20,51 +20,70 @@ export default function MyntraSort({
   const [selectedMyntraCsvFile, setSelectedMyntraCsvFile] = useState(null);
   const [hasCsvFile, setHasCsvFile] = useState(false);
 
+  // Helper to extract clean SKU lookup string
+  function getCleanMyntraSku(rawStr) {
+    if (!rawStr) return '';
+    let str = String(rawStr).trim();
+    if (str.startsWith('[') && str.endsWith(']')) {
+      str = str.substring(1, str.length - 1).trim();
+    }
+    const match = str.match(/^(.*?)\s*-\s*([A-Za-z0-9]+)?$/);
+    if (match) {
+      return match[1].trim();
+    }
+    return str;
+  }
+
   // Parse Myntra SKU items from text lines
   function parseMyntraItems(lines) {
     const items = [];
     const seen = new Set();
 
+    const addItem = (rawText, isBracketed) => {
+      const parts = rawText.includes('+') ? rawText.split('+') 
+                  : rawText.includes(',') ? rawText.split(',') 
+                  : rawText.includes('&') ? rawText.split('&') 
+                  : [rawText];
+
+      for (const part of parts) {
+        const cleanSku = getCleanMyntraSku(part);
+        let qty = 1;
+        const match = part.match(/-\s*(\d+)$/);
+        if (match) qty = parseInt(match[1], 10);
+
+        if (cleanSku && cleanSku.length >= 2) {
+          const key = `${cleanSku}_${qty}`;
+          if (!seen.has(key)) {
+            items.push({ 
+              sku: cleanSku, 
+              displaySku: isBracketed ? cleanSku : part.trim(), 
+              searchStr: cleanSku, 
+              qty 
+            });
+            seen.add(key);
+          }
+        }
+      }
+    };
+
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      // Pattern 1: Bracketed SKU format: e.g. [2F-DMBJ-ZCPH - T] or [qc_53 - 1]
-      const bracketMatch = trimmed.match(/\[\s*([A-Za-z0-9_\-\/\.\s]+?)\s*\]/);
-      if (bracketMatch) {
-        const inside = bracketMatch[1].trim();
-        // Ignore non-SKU zip codes like (573202)-(2108) or page numbers
-        if (!inside.includes(')-(') && !inside.toLowerCase().includes('page')) {
-          let sku = inside;
-          let qty = 1;
-          if (inside.includes('-')) {
-            const parts = inside.split('-').map(p => p.trim());
-            sku = parts[0];
-            const second = parts[1];
-            if (second && /^\d+$/.test(second)) {
-              qty = parseInt(second, 10);
-            }
+      const bracketMatches = [...trimmed.matchAll(/\[\s*([A-Za-z0-9_\-\/\.\s\+&,]+?)\s*\]/g)];
+      if (bracketMatches.length > 0) {
+        for (const match of bracketMatches) {
+          const inside = match[1].trim();
+          if (!inside.includes(')-(') && !inside.toLowerCase().includes('page')) {
+            addItem(inside, true);
           }
-          if (sku && sku.length >= 2) {
-            const key = `${sku}_${qty}`;
-            if (!seen.has(key)) {
-              items.push({ sku, qty });
-              seen.add(key);
-            }
-          }
-          continue;
         }
+        continue;
       }
 
-      // Pattern 2: Unbracketed SKU lines ending with '-' or '- <qty>': e.g. "qc_53 -" or "el_1711 - 2"
       const unbracketedMatch = trimmed.match(/^([A-Za-z0-9_\.]{2,35}(?:\s+[A-Za-z0-9_\.]{2,35})?)\s*-\s*(\d+)?$/);
       if (unbracketedMatch) {
-        const sku = unbracketedMatch[1].trim();
-        const qtyStr = unbracketedMatch[2];
-        const qty = qtyStr ? parseInt(qtyStr, 10) : 1;
-
-        const skuUpper = sku.toUpperCase();
-        // Exclude shipping label reserved terms & codes
+        const skuUpper = trimmed.toUpperCase();
         const isExcluded = 
           skuUpper.includes('NORMAL') ||
           skuUpper.includes('FWD') ||
@@ -73,21 +92,10 @@ export default function MyntraSort({
           skuUpper.includes('MYNTRA') ||
           skuUpper.includes('NULL') ||
           skuUpper.includes('EK_E2E') ||
-          skuUpper.includes('DE_E2E') ||
-          skuUpper.includes('ZXRIZ') ||
-          skuUpper.includes('PUDO') ||
-          skuUpper.includes('CLUSTER') ||
-          skuUpper.includes('LAYOUT') ||
-          skuUpper.includes('NAGAR') ||
-          skuUpper.includes('TOWN') ||
-          skuUpper.includes('MARKET');
+          skuUpper.includes('DE_E2E');
 
-        if (!isExcluded && sku.length >= 2) {
-          const key = `${sku}_${qty}`;
-          if (!seen.has(key)) {
-            items.push({ sku, qty });
-            seen.add(key);
-          }
+        if (!isExcluded) {
+          addItem(trimmed, false);
         }
       }
     }
@@ -209,7 +217,15 @@ export default function MyntraSort({
         if (csvData && csvData.length && skuKey && originKey) {
           const itemOrigins = [];
           for (const it of items) {
-            const row = csvData.find(r => String(r[skuKey]).trim().toLowerCase() === String(it.sku).trim().toLowerCase());
+            const targetSku = String(it.sku || '').trim().toLowerCase();
+            const row = csvData.find(r => {
+              const csvSku = String(r[skuKey] || '').trim();
+              if (!csvSku) return false;
+              if (csvSku.toLowerCase() === targetSku) return true;
+              const csvClean = getCleanMyntraSku(csvSku).toLowerCase();
+              return csvClean && csvClean === targetSku;
+            });
+
             if (row && row[originKey]) {
               const val = String(row[originKey]).trim();
               if (val) {
@@ -309,7 +325,7 @@ export default function MyntraSort({
           
           const isFirstOfOrigin = firstOriginIndex[originLabel] === i || firstOriginIndex[itemOrigin] === i;
           const totalOriginCount = originCounts[originLabel] || originCounts[itemOrigin] || 0;
-          const showCount = isFirstOfOrigin && totalOriginCount > 1;
+          const showCount = isFirstOfOrigin && totalOriginCount > 0;
           const countStr = (showCount && idx === 0) ? `   (${totalOriginCount})` : '';
 
           let drawX = 95;
@@ -328,7 +344,7 @@ export default function MyntraSort({
           }
 
           const lineText = pageInfo.items.length > 1
-            ? `${it.sku} : ${itemOrigin}${countStr}`
+            ? `${it.displaySku || it.sku} : ${itemOrigin}${countStr}`
             : `O : ${itemOrigin}${countStr}`;
 
           copiedPage.drawText(lineText, {

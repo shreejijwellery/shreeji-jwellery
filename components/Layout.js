@@ -321,6 +321,15 @@ const Layout = ({ children }) => {
                       { href: '/extract-sku?tab=snapdeal-inventory', label: 'Snapdeal Inventory', icon: FaTag, flag: 'isSKUInventory' },
                     ].filter(item => !item.flag || checkFeature(item.flag))}
                   />
+                  <NavItem 
+                    href="/extract-sku?tab=myntra-inventory" 
+                    icon={FaBoxOpen} 
+                    label="Myntra Recon"
+                    menuKey="myntra_recon"
+                    submenu={[
+                      { href: '/extract-sku?tab=myntra-inventory', label: 'Myntra Inventory', icon: FaBoxOpen, flag: 'isSKUInventory' },
+                    ].filter(item => !item.flag || checkFeature(item.flag))}
+                  />
                 </>
               )}
 

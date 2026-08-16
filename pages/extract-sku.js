@@ -63,8 +63,8 @@ export default function ExtractSKU() {
   const [tempEndDate, setTempEndDate] = useState(''); // Temporary end date
   
   // Derive current platform from selected tab
-  const currentPlatform = selectedTab === 'flipkart-inventory' ? 'flipkart' : selectedTab === 'snapdeal-inventory' ? 'snapdeal' : 'meesho';
-  const isInventoryTab = selectedTab === 'inventory' || selectedTab === 'flipkart-inventory' || selectedTab === 'snapdeal-inventory';
+  const currentPlatform = selectedTab === 'flipkart-inventory' ? 'flipkart' : selectedTab === 'snapdeal-inventory' ? 'snapdeal' : selectedTab === 'myntra-inventory' ? 'myntra' : 'meesho';
+  const isInventoryTab = selectedTab === 'inventory' || selectedTab === 'flipkart-inventory' || selectedTab === 'snapdeal-inventory' || selectedTab === 'myntra-inventory';
 
   // Handle tab query parameter from URL
   useEffect(() => {
@@ -79,6 +79,8 @@ export default function ExtractSKU() {
         setMainTab('flipkart_reconciliation');
       } else if (tab === 'snapdeal-inventory') {
         setMainTab('snapdeal_reconciliation');
+      } else if (tab === 'myntra-inventory') {
+        setMainTab('myntra_reconciliation');
       }
     }
   }, [router.isReady, router.query.tab]);
@@ -1221,7 +1223,7 @@ export default function ExtractSKU() {
       // Create formatted filename with date range
       const startDateFormatted = formatDate(filterStartDate);
       const endDateFormatted = formatDate(filterEndDate);
-      const platformLabel = currentPlatform === 'flipkart' ? 'Flipkart' : currentPlatform === 'snapdeal' ? 'Snapdeal' : 'Meesho';
+      const platformLabel = currentPlatform === 'flipkart' ? 'Flipkart' : currentPlatform === 'snapdeal' ? 'Snapdeal' : currentPlatform === 'myntra' ? 'Myntra' : 'Meesho';
       const filename = filterStartDate === filterEndDate 
         ? `${platformLabel}_SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}.xlsx`
         : `${platformLabel}_SKU_Inventory_${startDateFormatted.replace(/\//g, '-')}_to_${endDateFormatted.replace(/\//g, '-')}.xlsx`;
@@ -1276,6 +1278,8 @@ export default function ExtractSKU() {
       await processAndUploadFlipkartPDF(event, file, targetDate);
     } else if (currentPlatform === 'snapdeal') {
       await processAndUploadSnapdealPDF(event, file, targetDate);
+    } else if (currentPlatform === 'myntra') {
+      await processAndUploadMyntraPDF(event, file, targetDate);
     } else {
       await processAndUploadPDF(event, file, targetDate);
     }
@@ -1607,6 +1611,180 @@ export default function ExtractSKU() {
     }
   };
 
+  // Myntra PDF parsing for inventory
+  const processAndUploadMyntraPDF = async (event, file = null, dateStr = null) => {
+    setLoading(true);
+    setError(null);
+    setSuccess(false);
+    setUploadProgress({ percent: 5, message: 'Reading Myntra PDF file...' });
+
+    try {
+      const pdfFile = file || selectedFile || (event?.target?.pdf_inventory?.files?.[0]);
+      if (!pdfFile) throw new Error('Please select a PDF file');
+
+      setUploadProgress({ percent: 10, message: 'Loading PDF library...' });
+      const [pdfjsLib, pdfArrayBuffer] = await Promise.all([
+        loadPdfJs(),
+        readFileAsArrayBuffer(pdfFile)
+      ]);
+
+      setUploadProgress({ percent: 15, message: 'Parsing Myntra PDF document...' });
+      const loadingTask = pdfjsLib.getDocument({ data: pdfArrayBuffer });
+      const pdf = await loadingTask.promise;
+      const totalPages = pdf.numPages;
+
+      const results = {};
+
+      for (let i = 1; i <= totalPages; i++) {
+        const progress = 15 + Math.floor(((i / totalPages) * 75));
+        setUploadProgress({ 
+          percent: progress, 
+          message: `Extracting data from page ${i} of ${totalPages}...` 
+        });
+
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const lines = reconstructLinesFromTextItems(textContent.items || []);
+
+        // Check if valid Myntra label
+        const isMyntraLabel = lines.some(line => {
+          const l = line.toLowerCase();
+          return l.includes('declare that the goods') || 
+                 l.includes('buyer declaration') ||
+                 l.includes('buyer\'s name and address') ||
+                 l.includes('purchase made') ||
+                 l.includes('myntra') ||
+                 l.includes('if undelivered');
+        });
+        if (!isMyntraLabel) continue;
+
+        // Extract company name
+        let companyName = null;
+        for (let j = 0; j < lines.length; j++) {
+          const line = lines[j];
+          if (line.toLowerCase().includes('return to:')) {
+            const colonIndex = line.indexOf(':');
+            if (colonIndex !== -1) {
+              const afterColon = line.substring(colonIndex + 1).trim();
+              if (afterColon) {
+                companyName = afterColon.split(',')[0].trim();
+                break;
+              }
+            }
+            if (j + 1 < lines.length) {
+              companyName = lines[j + 1].trim().split(',')[0].trim();
+              break;
+            }
+          }
+        }
+        if (!companyName) companyName = 'Myntra Seller';
+
+        // Helper to extract clean SKU lookup string
+        const getCleanMyntraSku = (rawStr) => {
+          if (!rawStr) return '';
+          let str = String(rawStr).trim();
+          if (str.startsWith('[') && str.endsWith(']')) {
+            str = str.substring(1, str.length - 1).trim();
+          }
+          const match = str.match(/^(.*?)\s*-\s*([A-Za-z0-9]+)?$/);
+          if (match) {
+            return match[1].trim();
+          }
+          return str;
+        };
+
+        // Extract items
+        const items = [];
+        const seen = new Set();
+
+        const addItem = (rawText) => {
+          // Split combo SKUs separated by '+', ',', or '&'
+          const parts = rawText.includes('+') ? rawText.split('+') 
+                      : rawText.includes(',') ? rawText.split(',') 
+                      : rawText.includes('&') ? rawText.split('&') 
+                      : [rawText];
+
+          for (const part of parts) {
+            const cleanSku = getCleanMyntraSku(part);
+            let qty = 1;
+            const match = part.match(/-\s*(\d+)$/);
+            if (match) qty = parseInt(match[1], 10);
+
+            if (cleanSku && cleanSku.length >= 2) {
+              const key = `${cleanSku}_${qty}`;
+              if (!seen.has(key)) {
+                items.push({ sku: cleanSku, qty });
+                seen.add(key);
+              }
+            }
+          }
+        };
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          // Pattern 1: Bracketed SKU format (matches single and multi-bracket combos on line)
+          const bracketMatches = [...trimmed.matchAll(/\[\s*([A-Za-z0-9_\-\/\.\s\+&,]+?)\s*\]/g)];
+          if (bracketMatches.length > 0) {
+            for (const match of bracketMatches) {
+              const inside = match[1].trim();
+              if (!inside.includes(')-(') && !inside.toLowerCase().includes('page')) {
+                addItem(inside);
+              }
+            }
+            continue;
+          }
+
+          // Pattern 2: Unbracketed SKU format: e.g. "qc_53 -" or "el_1711 - 2"
+          const unbracketedMatch = trimmed.match(/^([A-Za-z0-9_\.]{2,35}(?:\s+[A-Za-z0-9_\.]{2,35})?)\s*-\s*(\d+)?$/);
+          if (unbracketedMatch) {
+            const skuUpper = trimmed.toUpperCase();
+            const isExcluded = 
+              skuUpper.includes('NORMAL') ||
+              skuUpper.includes('FWD') ||
+              skuUpper.includes('COD') ||
+              skuUpper.includes('PREPAID') ||
+              skuUpper.includes('MYNTRA') ||
+              skuUpper.includes('NULL') ||
+              skuUpper.includes('EK_E2E') ||
+              skuUpper.includes('DE_E2E');
+
+            if (!isExcluded) {
+              addItem(trimmed);
+            }
+          }
+        }
+
+        if (items.length === 0) continue;
+
+        if (!results[companyName]) {
+          results[companyName] = {};
+        }
+
+        for (const item of items) {
+          if (item.sku) {
+            results[companyName][item.sku] = (results[companyName][item.sku] || 0) + item.qty;
+          }
+        }
+      }
+
+      if (Object.keys(results).length === 0) {
+        throw new Error('No valid Myntra labels found in this PDF. Make sure you are uploading a Myntra shipping label PDF.');
+      }
+
+      setUploadProgress({ percent: 97, message: 'Uploading to database...' });
+      await uploadInventoryData(results, dateStr);
+      setUploadProgress({ percent: 100, message: 'Upload complete!' });
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to process Myntra PDF');
+      setUploadProgress({ percent: 0, message: '' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   return (
     <div className="p-4 md:p-6 w-full">
@@ -1689,6 +1867,19 @@ export default function ExtractSKU() {
                 }`}
               >
                 SNAPDEAL RECONCILIATION
+              </button>
+              <button
+                onClick={() => {
+                  setMainTab('myntra_reconciliation');
+                  if (selectedTab !== 'myntra-inventory') setSelectedTab('myntra-inventory');
+                }}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                  mainTab === 'myntra_reconciliation'
+                    ? 'border-white text-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                }`}
+              >
+                MYNTRA RECONCILIATION
               </button>
             </nav>
           </div>
@@ -1887,6 +2078,25 @@ export default function ExtractSKU() {
               <div className="flex items-center space-x-2">
                 <FaTag className={`w-4 h-4 ${selectedTab === 'snapdeal-inventory' ? 'text-red-400' : 'text-gray-400'}`} />
                 <span>Snapdeal Inventory</span>
+              </div>
+            </button>
+              </>
+            )}
+
+            {mainTab === 'myntra_reconciliation' && (
+              <>
+            <button
+              onClick={() => setSelectedTab('myntra-inventory')}
+              disabled={!flagsLoading && !checkFeature('isSKUInventory')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'myntra-inventory'
+                  ? 'border-pink-400 text-pink-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              } ${!flagsLoading && !checkFeature('isSKUInventory') ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <FaBoxOpen className={`w-4 h-4 ${selectedTab === 'myntra-inventory' ? 'text-pink-400' : 'text-gray-400'}`} />
+                <span>Myntra Inventory</span>
               </div>
             </button>
               </>
