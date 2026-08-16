@@ -9,10 +9,11 @@ import CancelOrder from '../components/CancelOrder';
 import SnapdealSort from '../components/SnapdealSort';
 import AmazonSort from '../components/AmazonSort';
 import FlipkartSort from '../components/FlipkartSort';
+import MyntraSort from '../components/MyntraSort';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
 import { parseSnapdealPDF } from '../utils/snapdealInventoryParser';
 import { SiAmazon, SiFlipkart } from 'react-icons/si';
-import { FaShoppingBag, FaTag } from 'react-icons/fa';
+import { FaShoppingBag, FaTag, FaBoxOpen } from 'react-icons/fa';
 
 
 export default function ExtractSKU() {
@@ -70,7 +71,7 @@ export default function ExtractSKU() {
     if (router.isReady && router.query.tab) {
       const tab = router.query.tab;
       setSelectedTab(tab);
-      if (['sort', 'amazon', 'flipkart', 'snapdeal', 'excel'].includes(tab)) {
+      if (['sort', 'amazon', 'flipkart', 'snapdeal', 'myntra', 'excel'].includes(tab)) {
         setMainTab('sku_management');
       } else if (['inventory', 'cancelled-orders', 'returns', 'customer-returns'].includes(tab)) {
         setMainTab('meesho_reconciliation');
@@ -1640,7 +1641,7 @@ export default function ExtractSKU() {
               <button
                 onClick={() => {
                   setMainTab('sku_management');
-                  if (!['sort', 'amazon', 'flipkart', 'snapdeal', 'excel'].includes(selectedTab)) setSelectedTab('sort');
+                  if (!['sort', 'amazon', 'flipkart', 'snapdeal', 'myntra', 'excel'].includes(selectedTab)) setSelectedTab('sort');
                 }}
                 className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                   mainTab === 'sku_management'
@@ -1750,6 +1751,19 @@ export default function ExtractSKU() {
               <div className="flex items-center space-x-2">
                 <FaTag className={`w-5 h-5 ${selectedTab === 'snapdeal' ? 'text-red-400' : 'text-gray-400'}`} title="Snapdeal" />
                 <span>Snapdeal Sort</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('myntra')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'myntra'
+                  ? 'border-pink-400 text-pink-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <FaBoxOpen className={`w-5 h-5 ${selectedTab === 'myntra' ? 'text-pink-400' : 'text-gray-400'}`} title="Myntra" />
+                <span>Myntra Sort</span>
               </div>
             </button>
             <button
@@ -2138,6 +2152,24 @@ export default function ExtractSKU() {
             readFileAsArrayBuffer={readFileAsArrayBuffer}
             readFileAsText={readFileAsText}
             parseCSV={parseCSV}
+            findHeaderKeyInsensitive={findHeaderKeyInsensitive}
+            reconstructLinesFromTextItems={reconstructLinesFromTextItems}
+          />
+        )}
+
+        {selectedTab === 'myntra' && (
+          <MyntraSort
+            allowed={allowed}
+            loading={loading}
+            setLoading={setLoading}
+            setError={setError}
+            setSuccess={setSuccess}
+            setStatus={setStatus}
+            loadPdfJs={loadPdfJs}
+            readFileAsArrayBuffer={readFileAsArrayBuffer}
+            readFileAsText={readFileAsText}
+            parseCSV={parseCSV}
+            parseExcel={parseExcel}
             findHeaderKeyInsensitive={findHeaderKeyInsensitive}
             reconstructLinesFromTextItems={reconstructLinesFromTextItems}
           />
