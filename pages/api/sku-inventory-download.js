@@ -49,8 +49,10 @@ async function handler(req, res) {
                 query.platform = 'flipkart';
             } else if (platform === 'snapdeal') {
                 query.platform = 'snapdeal';
+            } else if (platform === 'myntra') {
+                query.platform = 'myntra';
             } else if (platform === 'meesho') {
-                query.platform = { $nin: ['flipkart', 'snapdeal'] };
+                query.platform = { $nin: ['flipkart', 'snapdeal', 'myntra'] };
             }
 
             const data = await SkuInventory.aggregate([
@@ -178,7 +180,7 @@ async function handler(req, res) {
             });
 
             const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-            const platformLabel = platform === 'flipkart' ? 'Flipkart' : platform === 'snapdeal' ? 'Snapdeal' : 'Meesho';
+            const platformLabel = platform === 'flipkart' ? 'Flipkart' : platform === 'snapdeal' ? 'Snapdeal' : platform === 'myntra' ? 'Myntra' : 'Meesho';
             const fileName = `${platformLabel}_SKU_Inventory_${startDate}_to_${endDate}.xlsx`;
             
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

@@ -41,13 +41,15 @@ async function handler(req, res) {
                 isDeleted: false
             };
 
-            // Platform filter (flipkart, snapdeal, or meesho)
+            // Platform filter (flipkart, snapdeal, myntra, or meesho)
             if (platform === 'flipkart') {
                 matchStage.platform = 'flipkart';
             } else if (platform === 'snapdeal') {
                 matchStage.platform = 'snapdeal';
+            } else if (platform === 'myntra') {
+                matchStage.platform = 'myntra';
             } else if (platform === 'meesho') {
-                matchStage.platform = { $nin: ['flipkart', 'snapdeal'] };
+                matchStage.platform = { $nin: ['flipkart', 'snapdeal', 'myntra'] };
             }
 
             // Date filter
@@ -212,11 +214,13 @@ async function handler(req, res) {
                         uploadedBy: user._id,
                         uploadedByName: user.username || user.email
                     };
-                    // Set platform for flipkart or snapdeal
+                    // Set platform for flipkart, snapdeal, or myntra
                     if (platform === 'flipkart') {
                         record.platform = 'flipkart';
                     } else if (platform === 'snapdeal') {
                         record.platform = 'snapdeal';
+                    } else if (platform === 'myntra') {
+                        record.platform = 'myntra';
                     }
                     records.push(record);
                 }
@@ -265,13 +269,15 @@ async function handler(req, res) {
                 },
                 isDeleted: false
             };
-            // Filter by platform for Flipkart, Snapdeal, or Meesho
+            // Filter by platform for Flipkart, Snapdeal, Myntra, or Meesho
             if (platform === 'flipkart') {
                 deleteQuery.platform = 'flipkart';
             } else if (platform === 'snapdeal') {
                 deleteQuery.platform = 'snapdeal';
+            } else if (platform === 'myntra') {
+                deleteQuery.platform = 'myntra';
             } else if (platform === 'meesho') {
-                deleteQuery.platform = { $nin: ['flipkart', 'snapdeal'] };
+                deleteQuery.platform = { $nin: ['flipkart', 'snapdeal', 'myntra'] };
             }
 
             // Soft delete
