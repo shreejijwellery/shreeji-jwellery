@@ -2346,6 +2346,9 @@ export default function ExtractSKU() {
             setStatus={setStatus}
             loadPdfJs={loadPdfJs}
             readFileAsArrayBuffer={readFileAsArrayBuffer}
+            readFileAsText={readFileAsText}
+            parseCSV={parseCSV}
+            findHeaderKeyInsensitive={findHeaderKeyInsensitive}
             reconstructLinesFromTextItems={reconstructLinesFromTextItems}
           />
         )}
