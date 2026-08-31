@@ -252,17 +252,40 @@ export default function MeeshoDirectSort({
       for (let i = 0; i < pageData.length; i++) {
         const pageInfo = pageData[i];
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [pageInfo.pageNumber - 1]);
-        const { width } = copied.getSize();
+        const { width, height } = copied.getSize();
 
-        // Stamp: first letter of Store Name (e.g. "Bistro Sales" → "B")
-        const firstLetter = (pageInfo.storeName || '').trim().charAt(0).toUpperCase();
+        // Stamp: letter mapped from Store Name list
+        const storeNameMap = {
+          'HRV Enterprise Fashion': 'H',
+          'TF Watches': 'H',
+          'ShreeShopee': 'H',
+          'Shree Nathji Fashion143': 'J',
+          'Bistro Sales': 'J',
+          'YOLAKO SALES': 'Y',
+          'JD FASHION ENTERPRISE': 'Y'
+        };
 
-        if (firstLetter && /[A-Z]/.test(firstLetter)) {
+        const storeName = (pageInfo.storeName || '').trim();
+        let letterToStamp = '';
+        
+        for (const [key, val] of Object.entries(storeNameMap)) {
+          if (storeName.toLowerCase() === key.toLowerCase()) {
+            letterToStamp = val;
+            break;
+          }
+        }
+        
+        // Fallback to first letter if not found in list
+        if (!letterToStamp && storeName) {
+          letterToStamp = storeName.charAt(0).toUpperCase();
+        }
+
+        if (letterToStamp && /[A-Z]/.test(letterToStamp)) {
           const fontSize = 48;
-          const letterWidth = boldFont.widthOfTextAtSize(firstLetter, fontSize);
-          copied.drawText(firstLetter, {
-            x: (width - letterWidth) / 2,
-            y: 30,
+          const letterWidth = boldFont.widthOfTextAtSize(letterToStamp, fontSize);
+          copied.drawText(letterToStamp, {
+            x: (width * 0.38) - letterWidth, // Move further left into the Customer Address box
+            y: height - 45, // Moved higher up to avoid covering address text
             size: fontSize,
             font: boldFont,
             color: rgb(0, 0, 0),
@@ -314,7 +337,7 @@ export default function MeeshoDirectSort({
           <ul className="text-xs text-pink-700 space-y-0.5 list-disc list-inside">
             <li>Single Qty labels first → then Multiple Qty labels</li>
             <li>Within each group: sorted by SKU → Delivery Partner → Seller Account Name</li>
-            <li>Stamps <strong>first letter of Seller Account Name</strong> in large bold font at the bottom</li>
+            <li>Stamps <strong>mapped letter (e.g., Y, J, H)</strong> in large bold font at the top-right of Customer Address</li>
           </ul>
         </div>
       </div>
