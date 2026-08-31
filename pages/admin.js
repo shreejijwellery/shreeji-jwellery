@@ -57,6 +57,7 @@ const AdminPortal = () => {
       flags: [
         { key: 'isExtractSKU', label: 'Extract SKU' },
         { key: 'isExcelFromPDF', label: 'Excel from PDF' },
+        { key: 'isMeeshoDirectSort', label: 'Meesho Direct Sort' },
         { key: 'isSKUInventory', label: 'SKU Inventory' },
         { key: 'isCancelledOrders', label: 'Cancelled Orders' },
         { key: 'isReturns', label: 'Returns' },
