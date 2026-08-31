@@ -281,6 +281,7 @@ const Layout = ({ children }) => {
                     menuKey="sku_management"
                     submenu={[
                       { href: '/extract-sku?tab=sort', label: 'Meesho Sort', icon: FaShoppingBag },
+                      { href: '/extract-sku?tab=meesho-direct', label: 'Meesho Direct Sort', icon: FaShoppingBag, flag: 'isMeeshoDirectSort' },
                       { href: '/extract-sku?tab=flipkart', label: 'Flipkart Sort', icon: SiFlipkart },
                       { href: '/extract-sku?tab=snapdeal', label: 'Snapdeal Sort', icon: FaTag },
                       { href: '/extract-sku?tab=amazon', label: 'Amazon Sort', icon: SiAmazon },

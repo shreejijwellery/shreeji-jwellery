@@ -45,7 +45,7 @@ const PERMISSION_SECTIONS = [
   },
   {
     title: 'SKU Management',
-    permissions: [PERMISSIONS.EXTRACT_SKU]
+    permissions: [PERMISSIONS.EXTRACT_SKU, PERMISSIONS.MEESHO_DIRECT_SORT]
   }
 ];
 

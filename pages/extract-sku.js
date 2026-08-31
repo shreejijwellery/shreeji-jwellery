@@ -10,6 +10,7 @@ import SnapdealSort from '../components/SnapdealSort';
 import AmazonSort from '../components/AmazonSort';
 import FlipkartSort from '../components/FlipkartSort';
 import MyntraSort from '../components/MyntraSort';
+import MeeshoDirectSort from '../components/MeeshoDirectSort';
 import { useFeatureFlags } from '../utils/useFeatureFlags';
 import { parseSnapdealPDF } from '../utils/snapdealInventoryParser';
 import { SiAmazon, SiFlipkart } from 'react-icons/si';
@@ -26,6 +27,7 @@ export default function ExtractSKU() {
   const [selectedTab, setSelectedTab] = useState('sort');
   const { featureFlags, checkFeature, loading: flagsLoading } = useFeatureFlags();
   const [allowed, setAllowed] = useState(null);
+  const [allowedDirectSort, setAllowedDirectSort] = useState(null);
   const [selectedPdfFile, setSelectedPdfFile] = useState(null); // For Meesho Sort
   const [selectedCsvFile, setSelectedCsvFile] = useState(null); // For Meesho Sort
   
@@ -71,7 +73,7 @@ export default function ExtractSKU() {
     if (router.isReady && router.query.tab) {
       const tab = router.query.tab;
       setSelectedTab(tab);
-      if (['sort', 'amazon', 'flipkart', 'snapdeal', 'myntra', 'excel'].includes(tab)) {
+      if (['sort', 'meesho-direct', 'amazon', 'flipkart', 'snapdeal', 'myntra', 'excel'].includes(tab)) {
         setMainTab('sku_management');
       } else if (['inventory', 'cancelled-orders', 'returns', 'customer-returns'].includes(tab)) {
         setMainTab('meesho_reconciliation');
@@ -434,6 +436,10 @@ export default function ExtractSKU() {
         if (!user || !user.role) { setAllowed(false); return; }
         if (!['admin', 'manager'].includes(user.role)) { setAllowed(false); return; }
         setAllowed(checkFeature('isExtractSKU'));
+        // Separate permission + flag for Meesho Direct Sort
+        const hasDirectSortPermission = user.role === 'admin' ||
+          (user.permissions && user.permissions.includes('MEESHO_DIRECT_SORT'));
+        setAllowedDirectSort(hasDirectSortPermission && checkFeature('isMeeshoDirectSort'));
       } catch (e) {
         setAllowed(false);
       }
@@ -1819,7 +1825,7 @@ export default function ExtractSKU() {
               <button
                 onClick={() => {
                   setMainTab('sku_management');
-                  if (!['sort', 'amazon', 'flipkart', 'snapdeal', 'myntra', 'excel'].includes(selectedTab)) setSelectedTab('sort');
+                  if (!['sort', 'meesho-direct', 'amazon', 'flipkart', 'snapdeal', 'myntra', 'excel'].includes(selectedTab)) setSelectedTab('sort');
                 }}
                 className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
                   mainTab === 'sku_management'
@@ -1903,6 +1909,20 @@ export default function ExtractSKU() {
               <div className="flex items-center space-x-2">
                 <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'sort' ? 'text-pink-400' : 'text-gray-400'}`} title="Meesho" />
                 <span>Meesho Sort</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setSelectedTab('meesho-direct')}
+              disabled={!flagsLoading && !checkFeature('isMeeshoDirectSort')}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                selectedTab === 'meesho-direct'
+                  ? 'border-pink-500 text-pink-400'
+                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+              } ${!flagsLoading && !checkFeature('isMeeshoDirectSort') ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center space-x-2">
+                <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'meesho-direct' ? 'text-pink-500' : 'text-gray-400'}`} title="Meesho Direct" />
+                <span>Meesho Direct Sort</span>
               </div>
             </button>
             <button
@@ -2316,6 +2336,20 @@ export default function ExtractSKU() {
               </button>
             </form>
           </div>
+        )}
+
+        {selectedTab === 'meesho-direct' && (
+          <MeeshoDirectSort
+            allowed={allowedDirectSort}
+            loading={loading}
+            setLoading={setLoading}
+            setError={setError}
+            setSuccess={setSuccess}
+            setStatus={setStatus}
+            loadPdfJs={loadPdfJs}
+            readFileAsArrayBuffer={readFileAsArrayBuffer}
+            reconstructLinesFromTextItems={reconstructLinesFromTextItems}
+          />
         )}
 
         {selectedTab === 'snapdeal' && (

@@ -8,6 +8,7 @@ const CompanySchema = new mongoose.Schema({
         // SKU Management Features
         isExtractSKU: { type: Boolean, default: false },
         isExcelFromPDF: { type: Boolean, default: false },
+        isMeeshoDirectSort: { type: Boolean, default: false },
         isSKUInventory: { type: Boolean, default: false },
         isCancelledOrders: { type: Boolean, default: false },
         isReturns: { type: Boolean, default: false },
