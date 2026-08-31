@@ -58,6 +58,12 @@ export default function ExtractSKU() {
   const [inventoryDataByDate, setInventoryDataByDate] = useState({}); // { date: { company: totalSKUs } }
   const [holidays, setHolidays] = useState(new Set()); // Set of date strings (YYYY-MM-DD)
   const [markAsHoliday, setMarkAsHoliday] = useState(false); // For upload modal
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [uploadedDates, setUploadedDates] = useState(new Set()); // Set of uploaded date strings
   const [filterPanelOpen, setFilterPanelOpen] = useState(true); // Filter panel open/close state
   const [showDateRangePicker, setShowDateRangePicker] = useState(false); // Date range picker visibility
@@ -1911,20 +1917,21 @@ export default function ExtractSKU() {
                 <span>Meesho Sort</span>
               </div>
             </button>
-            <button
-              onClick={() => setSelectedTab('meesho-direct')}
-              disabled={!flagsLoading && !checkFeature('isMeeshoDirectSort')}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
-                selectedTab === 'meesho-direct'
-                  ? 'border-pink-500 text-pink-400'
-                  : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
-              } ${!flagsLoading && !checkFeature('isMeeshoDirectSort') ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-              <div className="flex items-center space-x-2">
-                <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'meesho-direct' ? 'text-pink-500' : 'text-gray-400'}`} title="Meesho Direct" />
-                <span>Meesho Direct Sort</span>
-              </div>
-            </button>
+            {(isMounted && checkFeature('isMeeshoDirectSort')) && (
+              <button
+                onClick={() => setSelectedTab('meesho-direct')}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${
+                  selectedTab === 'meesho-direct'
+                    ? 'border-pink-500 text-pink-400'
+                    : 'border-transparent text-white hover:text-gray-100 hover:border-gray-500'
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  <FaShoppingBag className={`w-5 h-5 ${selectedTab === 'meesho-direct' ? 'text-pink-500' : 'text-gray-400'}`} title="Meesho Direct" />
+                  <span>Meesho Direct Sort</span>
+                </div>
+              </button>
+            )}
             <button
               onClick={() => setSelectedTab('amazon')}
               className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 ${

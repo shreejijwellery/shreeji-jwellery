@@ -7,6 +7,7 @@ import Modal from 'react-modal';
 import { FaEdit, FaTrash, FaPlus, FaSpinner } from 'react-icons/fa'; // Importing React Icons
 import { PERMISSIONS, USER_ROLES } from '../lib/constants';
 import { HTTP } from '../actions/actions_creators';
+import { useFeatureFlags } from '../utils/useFeatureFlags';
 
 // Component for checkbox with indeterminate state support
 const SectionCheckbox = ({ checked, indeterminate, onChange }) => {
@@ -55,6 +56,25 @@ const UserManagement = () => {
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [loading, setLoading] = useState(false); // Loading state
   const roles = Object.values(USER_ROLES)?.filter(role => ![USER_ROLES.ADMIN, USER_ROLES.ADMINISTRATOR].includes(role)); // Example roles
+  const { checkFeature, loading: flagsLoading } = useFeatureFlags();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const activePermissionSections = React.useMemo(() => {
+    return PERMISSION_SECTIONS.map(section => {
+      // Filter out permissions based on feature flags
+      const filteredPermissions = section.permissions.filter(perm => {
+        if (perm === PERMISSIONS.MEESHO_DIRECT_SORT && isMounted && !checkFeature('isMeeshoDirectSort')) {
+          return false;
+        }
+        return true;
+      });
+      return { ...section, permissions: filteredPermissions };
+    }).filter(section => section.permissions.length > 0);
+  }, [checkFeature, isMounted]);
 
   const fetchUsers = async () => {
     setLoading(true); // Start loading
@@ -249,7 +269,7 @@ const UserManagement = () => {
                 <FieldArray name="permissions">
                   {({ push, remove }) => (
                     <div className="space-y-4">
-                      {PERMISSION_SECTIONS.map((section, sectionIdx) => {
+                      {activePermissionSections.map((section, sectionIdx) => {
                         const sectionPermissions = section.permissions;
                         const selectedPermissions = values.permissions || [];
                         const allSectionSelected = sectionPermissions.every(perm => selectedPermissions.includes(perm));
