@@ -272,12 +272,14 @@ export default function AmazonSort({
       const firstOriginIndex = {};
       if (dataFile) {
         orderData.forEach((order, index) => {
+          const group = order.isCombo ? 'combo' : 'single';
           const origin = order.originName || 'Unknown Origin';
-          if (!originCounts[origin]) {
-            originCounts[origin] = 0;
-            firstOriginIndex[origin] = index;
+          const groupKey = `${group}_${origin}`;
+          if (!originCounts[groupKey]) {
+            originCounts[groupKey] = 0;
+            firstOriginIndex[groupKey] = index;
           }
-          originCounts[origin]++;
+          originCounts[groupKey]++;
         });
       }
 
@@ -290,8 +292,10 @@ export default function AmazonSort({
         const order = orderData[i];
         const [copied] = await outPdf.copyPages(sourcePdfDoc, [order.firstPageNumber - 1]);
         const originLabel = order.originName || 'Unknown Origin';
-        const isFirstOfOrigin = dataFile && firstOriginIndex[originLabel] === i;
-        const totalOriginCount = dataFile ? (originCounts[originLabel] || 0) : 0;
+        const group = order.isCombo ? 'combo' : 'single';
+        const groupKey = `${group}_${originLabel}`;
+        const isFirstOfOrigin = dataFile && firstOriginIndex[groupKey] === i;
+        const totalOriginCount = dataFile ? (originCounts[groupKey] || 0) : 0;
         const showCount = isFirstOfOrigin && totalOriginCount > 0;
         const countStr = showCount ? `   (${totalOriginCount})` : '';
 
